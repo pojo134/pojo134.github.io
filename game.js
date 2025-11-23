@@ -755,7 +755,6 @@ class Game {
 
             if (action && action.action === 'contactUsed') {
                 // Contact was successfully used
-                console.log('Contact used:', action.result);
             }
         }
 
@@ -830,8 +829,8 @@ class Game {
                 if (action.action === 'back') {
                     this.screenManager.changeState(GameStates.MAIN_MENU);
                 } else if (action.action === 'loadSlot') {
-                    // Load game from slot (TODO: implement save/load)
-                    console.log('Load from slot', action.slot);
+                    // Load game from slot
+                    // TODO: Wire up SaveManager to actually load the game state
                 }
             }
         }
@@ -962,8 +961,8 @@ class Game {
 
         // Create race simulator
         this.raceSimulator = new RaceSimulator(
-            track,
             drivers,
+            track,
             totalLaps
         );
 
