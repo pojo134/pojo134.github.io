@@ -1029,28 +1029,46 @@ class RaceScreen {
     }
 
     render(ctx, gameState) {
-        const canvas = ctx.canvas;
+        // Define key layout constants (assuming 1024x720 default canvas size)
+        const CANVAS_WIDTH = 1024;
+        const CANVAS_HEIGHT = 720;
+        const PADDING = 10;
+        const SIDE_PANEL_WIDTH = 240;
+        const INFO_BAR_HEIGHT = 40;
+        const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge (1024-240 = 784)
 
-        // Background
+        // Clear and border (Adjusting to use constants for consistency)
         ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Outer border
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 2;
-        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+        ctx.strokeRect(1, 1, CANVAS_WIDTH - 2, CANVAS_HEIGHT - 2);
+        
+        // Render main race info (Track name, Lap counter)
+        this.renderRaceInfo(ctx, gameState, 0, 0, CANVAS_WIDTH, INFO_BAR_HEIGHT);
 
-        // Main track view - takes center/left space
-        this.renderTrackView(ctx, gameState, 10, 10, 750, 560);
+        // Leaderboard / Standings
+        const LEADERBOARD_HEIGHT = 280;
+        const LEADERBOARD_Y = INFO_BAR_HEIGHT;
+        this.renderLeaderboard(ctx, gameState, RIGHT_PANEL_X, LEADERBOARD_Y, SIDE_PANEL_WIDTH, LEADERBOARD_HEIGHT);
 
-        // Right panel: Standings
-        this.renderLeaderboard(ctx, gameState, 770, 10, 240, 280);
+        // Burner Phone
+        const BURNER_PHONE_Y = LEADERBOARD_Y + LEADERBOARD_HEIGHT + PADDING;
+        const BURNER_PHONE_HEIGHT = 180;
+        this.renderBurnerPhone(ctx, gameState, RIGHT_PANEL_X, BURNER_PHONE_Y, SIDE_PANEL_WIDTH, BURNER_PHONE_HEIGHT);
 
-        // Right panel: Burner Phone
-        this.renderBurnerPhone(ctx, gameState, 770, 300, 240, 180);
+        // Bottom: Event ticker (full width, flush right)
+        const EVENT_TICKER_Y = BURNER_PHONE_Y + BURNER_PHONE_HEIGHT + PADDING;
+        const EVENT_TICKER_HEIGHT = CANVAS_HEIGHT - EVENT_TICKER_Y - PADDING;
+        const EVENT_TICKER_WIDTH = CANVAS_WIDTH - PADDING; // Starts at PADDING=10, ends at 1024 (flush)
+        this.renderEventTicker(ctx, gameState, PADDING, EVENT_TICKER_Y, EVENT_TICKER_WIDTH, EVENT_TICKER_HEIGHT);
 
-        // Bottom: Event ticker
-        this.renderEventTicker(ctx, gameState, 10, 580, 1000, 130);
+        // Top Left: Race Track View (Remaining space)
+        const TRACK_VIEW_X = PADDING;
+        const TRACK_VIEW_Y = INFO_BAR_HEIGHT;
+        const TRACK_VIEW_WIDTH = RIGHT_PANEL_X - PADDING; // Fills space up to PADDING away from the right panels
+        const TRACK_VIEW_HEIGHT = EVENT_TICKER_Y - INFO_BAR_HEIGHT - PADDING;
+        this.renderTrackView(ctx, gameState, TRACK_VIEW_X, TRACK_VIEW_Y, TRACK_VIEW_WIDTH, TRACK_VIEW_HEIGHT);
     }
 
     renderContactNotification(ctx, x, y) {
@@ -1154,11 +1172,6 @@ class RaceScreen {
         const standings = raceState.leaderboard;
         this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
 
-        // Lap counter at bottom (compact)
-        ctx.font = 'bold 12px "Courier New", monospace';
-        ctx.fillStyle = '#ffff00';
-        ctx.textAlign = 'left';
-        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 8, y + height - 4);
     }
 
     /**
@@ -1370,7 +1383,7 @@ class RaceScreen {
             // Driver name (shortened)
             ctx.font = '10px "Courier New", monospace';
             ctx.fillStyle = isHovered && isTargetable ? '#ff0066' : '#aaaaaa';
-            ctx.fillText(driverName.substring(0, 6), x + 25, rowY);
+            ctx.fillText(driverName.substring(0, 6), x + 35, rowY);
 
             // Gap (right aligned)
             ctx.font = '9px "Courier New", monospace';
@@ -1538,11 +1551,22 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
         if (!hasRolodex) return null;
 
-        // Burner phone bounds (new layout: x=770, y=300, w=240, h=180)
-        const phoneX = 770;
-        const phoneY = 300;
-        const phoneWidth = 240;
-        const phoneHeight = 180;
+        // --- START NEW LAYOUT CONSTANTS ---
+        const CANVAS_WIDTH = 1024;
+        const INFO_BAR_HEIGHT = 40;
+        const SIDE_PANEL_WIDTH = 240;
+        const PADDING = 10;
+        const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH;
+        const LEADERBOARD_HEIGHT = 280;
+        const BURNER_PHONE_Y = INFO_BAR_HEIGHT + LEADERBOARD_HEIGHT + PADDING;
+        const BURNER_PHONE_HEIGHT = 180;
+        // --- END NEW LAYOUT CONSTANTS ---
+
+        // Burner phone bounds (new layout)
+        const phoneX = RIGHT_PANEL_X;
+        const phoneY = BURNER_PHONE_Y;
+        const phoneWidth = SIDE_PANEL_WIDTH;
+        const phoneHeight = BURNER_PHONE_HEIGHT;
 
         // Check if click is in burner phone area
         if (x >= phoneX && x <= phoneX + phoneWidth && y >= phoneY && y <= phoneY + phoneHeight) {
@@ -1563,10 +1587,10 @@ class RaceScreen {
 
         // Check if clicking on leaderboard to select driver (when contact is selected)
         if (this.selectedContact) {
-            const leaderboardX = 770;
-            const leaderboardY = 10;
-            const leaderboardWidth = 240;
-            const leaderboardHeight = 280;
+            const leaderboardX = RIGHT_PANEL_X;
+            const leaderboardY = INFO_BAR_HEIGHT;
+            const leaderboardWidth = SIDE_PANEL_WIDTH;
+            const leaderboardHeight = LEADERBOARD_HEIGHT;
 
             if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
                 y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
@@ -1598,11 +1622,22 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
         if (!hasRolodex) return;
 
-        // Burner phone bounds (new layout: x=770, y=300, w=240, h=180)
-        const phoneX = 770;
-        const phoneY = 300;
-        const phoneWidth = 240;
-        const phoneHeight = 180;
+        // --- START NEW LAYOUT CONSTANTS ---
+        const CANVAS_WIDTH = 1024;
+        const INFO_BAR_HEIGHT = 40;
+        const SIDE_PANEL_WIDTH = 240;
+        const PADDING = 10;
+        const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH;
+        const LEADERBOARD_HEIGHT = 280;
+        const BURNER_PHONE_Y = INFO_BAR_HEIGHT + LEADERBOARD_HEIGHT + PADDING;
+        const BURNER_PHONE_HEIGHT = 180;
+        // --- END NEW LAYOUT CONSTANTS ---
+
+        // Burner phone bounds (new layout)
+        const phoneX = RIGHT_PANEL_X;
+        const phoneY = BURNER_PHONE_Y;
+        const phoneWidth = SIDE_PANEL_WIDTH;
+        const phoneHeight = BURNER_PHONE_HEIGHT;
 
         // Check hover on contacts
         if (x >= phoneX && x <= phoneX + phoneWidth && y >= phoneY && y <= phoneY + phoneHeight) {
@@ -1619,10 +1654,10 @@ class RaceScreen {
 
         // Check hover on drivers (when contact selected)
         if (this.selectedContact) {
-            const leaderboardX = 770;
-            const leaderboardY = 10;
-            const leaderboardWidth = 240;
-            const leaderboardHeight = 280;
+            const leaderboardX = RIGHT_PANEL_X;
+            const leaderboardY = INFO_BAR_HEIGHT;
+            const leaderboardWidth = SIDE_PANEL_WIDTH;
+            const leaderboardHeight = LEADERBOARD_HEIGHT;
 
             if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
                 y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {

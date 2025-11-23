@@ -132,8 +132,9 @@ function calculateCurvature(prev, current, next) {
 // ============================================================================
 
 class RacingPhysics {
-    constructor(track) {
+    constructor(track, raceSimulator) {
         this.track = track;
+        this.raceSimulator = raceSimulator;
         this.waypoints = track.waypoints;
         this.weather = track.weather;
         this.raceInfo = {}; // Will be set by RaceSimulator at start
@@ -633,6 +634,14 @@ class CarController {
                 // Check lap completion
                 if (this.currentWaypoint === 0) {
                     this.currentLap++;
+                    
+                    // Log lap complete event
+                    this.physics.raceSimulator._addEvent(EventType.LAP_COMPLETE, {
+                        message: `${this.driver.name} completes Lap ${this.currentLap}.`,
+                        driver: this.driver.name,
+                        lap: this.currentLap,
+                        time: this.physics.raceSimulator.raceTime
+                    });
                 }
             } else {
                 // Move partway to next waypoint
@@ -986,7 +995,7 @@ class RaceSimulator {
         this.cautionTimer = 0;
 
         // Initialize systems
-        this.physics = new RacingPhysics(track);
+        this.physics = new RacingPhysics(track, this);
         this.burnerPhone = new BurnerPhoneSystem();
 
         // Initialize cars
