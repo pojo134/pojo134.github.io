@@ -9,13 +9,15 @@
 class MainMenuScreen {
     constructor() {
         this.flashTimer = 0;
-        this.buttons = [
-            { text: 'NEW GAME', x: 400, y: 250, width: 300, height: 60, action: 'newGame' },
-            { text: 'CONTINUE', x: 400, y: 330, width: 300, height: 60, action: 'continue' },
-            { text: 'LOAD GAME', x: 400, y: 410, width: 300, height: 60, action: 'loadGame' },
-            { text: 'SETTINGS', x: 400, y: 490, width: 300, height: 60, action: 'settings' },
-            { text: 'EXIT', x: 400, y: 570, width: 300, height: 60, action: 'exit' }
+        // Buttons will be positioned dynamically in render based on canvas width
+        this.buttonDefs = [
+            { text: 'NEW GAME', y: 250, width: 300, height: 60, action: 'newGame' },
+            { text: 'CONTINUE', y: 330, width: 300, height: 60, action: 'continue' },
+            { text: 'LOAD GAME', y: 410, width: 300, height: 60, action: 'loadGame' },
+            { text: 'SETTINGS', y: 490, width: 300, height: 60, action: 'settings' },
+            { text: 'EXIT', y: 570, width: 300, height: 60, action: 'exit' }
         ];
+        this.buttons = []; // Will be populated in render
         this.selectedButton = null;
     }
 
@@ -25,6 +27,12 @@ class MainMenuScreen {
 
     render(ctx, gameState) {
         const canvas = ctx.canvas;
+
+        // Update button positions based on actual canvas width
+        this.buttons = this.buttonDefs.map(def => ({
+            ...def,
+            x: canvas.width / 2
+        }));
 
         // Background - dark gradient
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);

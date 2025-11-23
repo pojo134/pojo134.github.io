@@ -414,6 +414,7 @@ class CarController {
         this.waypointProgress = 0; // 0-1 between current and next waypoint
         this.currentLap = 0;
         this.totalDistance = 0;
+        this.hasCompletedFirstWaypoint = false; // Track if we've left the starting line
 
         // Status
         this.status = CarStatus.RACING;
@@ -647,8 +648,8 @@ class CarController {
                 remainingDistance -= distToNext;
                 this.totalDistance += distToNext;
 
-                // Check lap completion
-                if (this.currentWaypoint === 0) {
+                // Check lap completion (only after leaving the starting line)
+                if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint) {
                     this.currentLap++;
                     
                     // Log lap complete event (if race simulator is available)
@@ -660,6 +661,11 @@ class CarController {
                             time: this.raceSimulator.raceTime
                         });
                     }
+                }
+                
+                // Mark that we've left the starting line
+                if (this.currentWaypoint > 0) {
+                    this.hasCompletedFirstWaypoint = true;
                 }
             } else {
                 // Move partway to next waypoint

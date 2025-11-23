@@ -430,16 +430,17 @@ class TrackGenerator {
 
     /**
      * Generates an oval track
+     * Scaled 10x larger for realistic lap times (60-90 seconds at 120 units/sec)
      */
-    generateOval(width = 800, height = 600, complexity = "simple") {
+    generateOval(width = 8000, height = 6000, complexity = "simple") {
         const waypoints = [];
         const centerX = width / 2;
         const centerY = height / 2;
         const radiusX = width * 0.4;
         const radiusY = height * 0.4;
 
-        // Number of waypoints depends on complexity
-        const numPoints = complexity === "simple" ? 24 : 48;
+        // Number of waypoints depends on complexity (more points for larger track)
+        const numPoints = complexity === "simple" ? 48 : 96;
 
         for (let i = 0; i < numPoints; i++) {
             const angle = (i / numPoints) * Math.PI * 2;
@@ -454,15 +455,16 @@ class TrackGenerator {
 
     /**
      * Generates a tri-oval track (like Daytona)
+     * Scaled 10x larger for realistic lap times
      */
-    generateTriOval(width = 800, height = 600) {
+    generateTriOval(width = 8000, height = 6000) {
         const waypoints = [];
         const centerX = width / 2;
         const centerY = height / 2;
         const radiusX = width * 0.4;
         const radiusY = height * 0.4;
 
-        const numPoints = 36;
+        const numPoints = 72;
 
         for (let i = 0; i < numPoints; i++) {
             const angle = (i / numPoints) * Math.PI * 2;
@@ -482,8 +484,9 @@ class TrackGenerator {
 
     /**
      * Generates a road course with multiple turns
+     * Scaled 10x larger for realistic lap times
      */
-    generateRoadCourse(width = 800, height = 600, technicalDifficulty = "medium") {
+    generateRoadCourse(width = 8000, height = 6000, technicalDifficulty = "medium") {
         const waypoints = [];
         const turnCount = technicalDifficulty === "high" ? randomInt(12, 18) : randomInt(6, 10);
 
@@ -493,8 +496,8 @@ class TrackGenerator {
         waypoints.push({ x: Math.round(x), y: Math.round(y) });
 
         // Generate turns
-        const margin = 100;
-        const segmentLength = technicalDifficulty === "high" ? 80 : 120;
+        const margin = 1000;
+        const segmentLength = technicalDifficulty === "high" ? 800 : 1200;
 
         for (let i = 0; i < turnCount; i++) {
             // Alternate between left and right turns with some randomness
@@ -521,10 +524,11 @@ class TrackGenerator {
 
     /**
      * Generates a street circuit (tight, 90-degree turns)
+     * Scaled 10x larger for realistic lap times
      */
-    generateStreetCircuit(width = 800, height = 600) {
+    generateStreetCircuit(width = 8000, height = 6000) {
         const waypoints = [];
-        const gridSize = 100;
+        const gridSize = 1000;
 
         // Create a street-like grid pattern
         const points = [
