@@ -415,6 +415,7 @@ class CarController {
         this.currentLap = 0;
         this.totalDistance = 0;
         this.hasCompletedFirstWaypoint = false; // Track if we've left the starting line
+        this.justCrossedLine = false; // Prevent multiple lap increments per crossing
 
         // Status
         this.status = CarStatus.RACING;
@@ -648,9 +649,10 @@ class CarController {
                 remainingDistance -= distToNext;
                 this.totalDistance += distToNext;
 
-                // Check lap completion (only after leaving the starting line)
-                if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint) {
+                // Check lap completion (only after leaving the starting line and not already counted)
+                if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint && !this.justCrossedLine) {
                     this.currentLap++;
+                    this.justCrossedLine = true;
                     
                     // Log lap complete event (if race simulator is available)
                     if (this.raceSimulator) {
@@ -663,8 +665,9 @@ class CarController {
                     }
                 }
                 
-                // Mark that we've left the starting line
-                if (this.currentWaypoint > 0) {
+                // Reset lap crossing flag when we leave waypoint 0
+                if (this.currentWaypoint > 2) {
+                    this.justCrossedLine = false;
                     this.hasCompletedFirstWaypoint = true;
                 }
             } else {
