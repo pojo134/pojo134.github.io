@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Redline Roulette - A racing betting simulator with roguelike elements">
+    <meta name="author" content="Redline Roulette">
+    <meta name="theme-color" content="#0a0a0a">
+
+    <!-- GitHub Pages optimization -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <title>Redline Roulette</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Preload critical assets -->
+    <link rel="preload" href="game.js" as="script">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Main game header -->
+        <header class="game-header">
+            <h1 class="game-title">REDLINE ROULETTE</h1>
+            <div class="game-subtitle">UNDERGROUND RACING CIRCUIT</div>
+        </header>
+
+        <!-- Canvas wrapper for proper centering -->
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="1280" height="720">
+                Your browser does not support HTML5 Canvas. Please upgrade to a modern browser.
+            </canvas>
+        </div>
+
+        <!-- Footer info -->
+        <footer class="game-footer">
+            <div class="controls-hint">MOUSE: Click | KEYBOARD: Arrow Keys, Enter, ESC</div>
+        </footer>
+    </div>
+
+    <!-- Load game modules in order -->
+    <script src="generators.js"></script>
+    <script src="enhanced_race_rendering.js"></script>
+    <script src="screens.js"></script>
+    <script src="racing.js"></script>
+    <script src="saveload.js"></script>
+    <script src="gamestate.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

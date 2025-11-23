@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redline Roulette - Automated Test Suite</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #console-panel {
+            flex: 1;
+            background: #000000;
+            border-right: 2px solid #ff0066;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        #results-panel {
+            flex: 1;
+            background: #0a0a0a;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #ff0066;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #ff0066;
+            font-size: 36px;
+            text-shadow: 0 0 10px #ff0066;
+        }
+
+        .header .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .console-line {
+            margin: 5px 0;
+            font-size: 13px;
+            padding: 5px;
+            border-left: 3px solid transparent;
+        }
+
+        .console-line.info {
+            color: #00ffff;
+            border-left-color: #00ffff;
+        }
+
+        .console-line.pass {
+            color: #00ff00;
+            border-left-color: #00ff00;
+        }
+
+        .console-line.fail {
+            color: #ff0066;
+            border-left-color: #ff0066;
+        }
+
+        .console-line.warn {
+            color: #ffff00;
+            border-left-color: #ffff00;
+        }
+
+        .console-line.section {
+            color: #ff00ff;
+            font-weight: bold;
+            margin-top: 15px;
+            border-left-color: #ff00ff;
+        }
+
+        .timestamp {
+            color: #666;
+            margin-right: 10px;
+        }
+
+        .status-box {
+            background: #1a0a1a;
+            border: 2px solid #ff0066;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .status-box.running {
+            border-color: #ffff00;
+        }
+
+        .status-box.success {
+            border-color: #00ff00;
+        }
+
+        .status-box.failed {
+            border-color: #ff0066;
+        }
+
+        .status-title {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .status-title.running { color: #ffff00; }
+        .status-title.success { color: #00ff00; }
+        .status-title.failed { color: #ff0066; }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #0a0a0a;
+            border: 1px solid #ff0066;
+            margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0066, #ff00ff);
+            transition: width 0.3s;
+            box-shadow: 0 0 10px #ff0066;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 0 0 5px #000;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: #0a0a0a;
+            padding: 15px;
+            border-left: 4px solid #ff0066;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #00ffff;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .suite-results {
+            background: #1a0a1a;
+            border: 1px solid #330033;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .suite-title {
+            color: #00ffff;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .test-result {
+            padding: 8px;
+            margin: 5px 0;
+            background: #0a0a0a;
+            border-left: 4px solid #666;
+        }
+
+        .test-result.pass { border-left-color: #00ff00; }
+        .test-result.fail { border-left-color: #ff0066; }
+
+        .button {
+            background: #ff0066;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: all 0.3s;
+        }
+
+        .button:hover {
+            background: #ff00ff;
+            box-shadow: 0 0 10px #ff00ff;
+        }
+
+        .button:disabled {
+            background: #333;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #canvas-container {
+            display: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #333;
+            border-top-color: #ff0066;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #330000;
+            border: 2px solid #ff0000;
+            padding: 15px;
+            margin: 15px 0;
+            color: #ff6666;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- Console Output Panel -->
+        <div id="console-panel">
+            <div class="header">
+                <h1>TEST CONSOLE</h1>
+                <div class="subtitle">Real-time Test Output</div>
+            </div>
+            <div id="console-output"></div>
+        </div>
+
+        <!-- Results Panel -->
+        <div id="results-panel">
+            <div class="header">
+                <h1>REDLINE ROULETTE</h1>
+                <div class="subtitle">Automated Test Suite v1.0</div>
+            </div>
+
+            <div id="status-box" class="status-box running">
+                <div class="status-title running">
+                    <span class="spinner"></span> INITIALIZING TESTS...
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    <div class="progress-text" id="progress-text">0%</div>
+                </div>
+            </div>
+
+            <div id="control-buttons" style="text-align: center;">
+                <button class="button" id="run-tests-btn" disabled>Run Tests</button>
+                <button class="button" id="download-report-btn" disabled>Download Report</button>
+                <button class="button" id="clear-console-btn">Clear Console</button>
+            </div>
+
+            <div id="stats-container" style="display: none;">
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="total-tests">0</div>
+                        <div class="stat-label">TOTAL TESTS</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="color: #00ff00" id="passed-tests">0</div>
+                        <div class="stat-label">PASSED</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="color: #ff0066" id="failed-tests">0</div>
+                        <div class="stat-label">FAILED</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="success-rate">0%</div>
+                        <div class="stat-label">SUCCESS RATE</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="duration">0s</div>
+                        <div class="stat-label">DURATION</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="suite-results-container"></div>
+        </div>
+    </div>
+
+    <!-- Hidden canvas for game rendering tests -->
+    <div id="canvas-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <!-- Load game files -->
+    <script src="generators.js"></script>
+    <script src="racing.js"></script>
+    <script src="gamestate.js"></script>
+    <script src="saveload.js"></script>
+    <script src="screens.js"></script>
+    <script src="test-suite.js"></script>
+
+    <script>
+        // UI Controller
+        class TestUI {
+            constructor() {
+                this.consoleOutput = document.getElementById('console-output');
+                this.statusBox = document.getElementById('status-box');
+                this.statusTitle = this.statusBox.querySelector('.status-title');
+                this.progressFill = document.getElementById('progress-fill');
+                this.progressText = document.getElementById('progress-text');
+                this.statsContainer = document.getElementById('stats-container');
+                this.suiteResultsContainer = document.getElementById('suite-results-container');
+                this.runTestsBtn = document.getElementById('run-tests-btn');
+                this.downloadReportBtn = document.getElementById('download-report-btn');
+                this.clearConsoleBtn = document.getElementById('clear-console-btn');
+
+                this.testRunner = null;
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                this.runTestsBtn.addEventListener('click', () => this.runTests());
+                this.downloadReportBtn.addEventListener('click', () => this.downloadReport());
+                this.clearConsoleBtn.addEventListener('click', () => this.clearConsole());
+            }
+
+            async initialize() {
+                this.updateStatus('Initializing test environment...', 'running');
+                this.setProgress(10);
+
+                // Small delay to let everything load
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                this.updateStatus('Ready to run tests', 'running');
+                this.setProgress(20);
+                this.runTestsBtn.disabled = false;
+
+                // Auto-run tests
+                this.logConsole('System initialized. Starting tests automatically...', 'info');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                this.runTests();
+            }
+
+            async runTests() {
+                this.runTestsBtn.disabled = true;
+                this.downloadReportBtn.disabled = true;
+                this.clearConsole();
+
+                this.updateStatus('Running tests...', 'running');
+                this.setProgress(30);
+
+                try {
+                    this.testRunner = new TestRunner();
+
+                    // Hook into logger to display in console
+                    const originalLog = this.testRunner.logger.log.bind(this.testRunner.logger);
+                    this.testRunner.logger.log = (message, type) => {
+                        originalLog(message, type);
+                        this.logConsole(message, type);
+                    };
+
+                    this.setProgress(40);
+
+                    const results = await this.testRunner.runAllTests();
+
+                    this.setProgress(100);
+                    this.displayResults(results);
+
+                    if (results.overall.failed === 0) {
+                        this.updateStatus('✓ ALL TESTS PASSED', 'success');
+                    } else {
+                        this.updateStatus(`✗ ${results.overall.failed} TEST(S) FAILED`, 'failed');
+                    }
+
+                    this.downloadReportBtn.disabled = false;
+
+                } catch (error) {
+                    this.updateStatus('✗ TEST SUITE ERROR', 'failed');
+                    this.logConsole(`FATAL ERROR: ${error.message}`, 'fail');
+                    console.error(error);
+                } finally {
+                    this.runTestsBtn.disabled = false;
+                }
+            }
+
+            logConsole(message, type = 'info') {
+                const line = document.createElement('div');
+                line.className = `console-line ${type}`;
+
+                const timestamp = new Date().toLocaleTimeString();
+                line.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
+
+                this.consoleOutput.appendChild(line);
+                this.consoleOutput.scrollTop = this.consoleOutput.scrollHeight;
+            }
+
+            clearConsole() {
+                this.consoleOutput.innerHTML = '';
+            }
+
+            updateStatus(message, state) {
+                this.statusTitle.textContent = message;
+                this.statusTitle.className = `status-title ${state}`;
+                this.statusBox.className = `status-box ${state}`;
+            }
+
+            setProgress(percent) {
+                this.progressFill.style.width = percent + '%';
+                this.progressText.textContent = percent + '%';
+            }
+
+            displayResults(results) {
+                this.statsContainer.style.display = 'block';
+
+                document.getElementById('total-tests').textContent = results.overall.totalTests;
+                document.getElementById('passed-tests').textContent = results.overall.passed;
+                document.getElementById('failed-tests').textContent = results.overall.failed;
+
+                const successRate = (results.overall.passed / results.overall.totalTests * 100).toFixed(1);
+                document.getElementById('success-rate').textContent = successRate + '%';
+                document.getElementById('duration').textContent = results.overall.duration.toFixed(2) + 's';
+
+                // Display individual suite results
+                this.suiteResultsContainer.innerHTML = '';
+
+                const suites = [
+                    { name: 'Game Flow Tests', data: results.gameFlow, tester: new GameFlowTester(this.testRunner.logger) },
+                    { name: 'Bet System Tests', data: results.betSystem, tester: new BetSystemTester(this.testRunner.logger) },
+                    { name: 'Race Simulation Tests', data: results.raceSimulation, tester: new RaceSimulationTester(this.testRunner.logger) },
+                    { name: 'Save/Load Tests', data: results.saveLoad, tester: new SaveLoadTester(this.testRunner.logger) }
+                ];
+
+                for (const suite of suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'suite-results';
+
+                    const title = document.createElement('div');
+                    title.className = 'suite-title';
+                    title.textContent = `${suite.name} (${suite.data.passed}/${suite.data.total})`;
+                    suiteDiv.appendChild(title);
+
+                    const testResults = suite.tester.getResults();
+                    for (const test of testResults) {
+                        const testDiv = document.createElement('div');
+                        testDiv.className = `test-result ${test.passed ? 'pass' : 'fail'}`;
+
+                        const icon = test.passed ? '✓' : '✗';
+                        testDiv.textContent = `${icon} ${test.name}`;
+
+                        if (!test.passed && test.error) {
+                            const errorDiv = document.createElement('div');
+                            errorDiv.style.color = '#ff6666';
+                            errorDiv.style.fontSize = '12px';
+                            errorDiv.style.marginTop = '5px';
+                            errorDiv.textContent = test.error;
+                            testDiv.appendChild(errorDiv);
+                        }
+
+                        suiteDiv.appendChild(testDiv);
+                    }
+
+                    this.suiteResultsContainer.appendChild(suiteDiv);
+                }
+            }
+
+            downloadReport() {
+                if (!this.testRunner) return;
+
+                const html = this.testRunner.generateHTMLReport();
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `redline-test-report-${Date.now()}.html`;
+                a.click();
+
+                URL.revokeObjectURL(url);
+
+                this.logConsole('Test report downloaded', 'pass');
+            }
+        }
+
+        // Initialize and run tests when page loads
+        window.addEventListener('load', async () => {
+            const ui = new TestUI();
+            await ui.initialize();
+        });
+    </script>
+</body>
+</html>

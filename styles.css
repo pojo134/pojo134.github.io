@@ -1,0 +1,218 @@
+/* ========================================
+   REDLINE ROULETTE - RETRO STYLING
+   8-bit aesthetic with dark theme
+   ======================================== */
+
+/* ===== CSS RESET & BASE ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Color Palette - High Contrast Retro */
+    --color-bg-primary: #0a0a0a;
+    --color-bg-secondary: #1a1a1a;
+    --color-accent-primary: #ff0040;
+    --color-accent-secondary: #00ff88;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #aaaaaa;
+    --color-border: #333333;
+    --color-highlight: #ffdd00;
+
+    /* Spacing */
+    --spacing-xs: 0.5rem;
+    --spacing-sm: 1rem;
+    --spacing-md: 1.5rem;
+    --spacing-lg: 2rem;
+
+    /* Typography - Monospace for retro feel */
+    --font-primary: 'Courier New', 'Courier', monospace;
+    --font-size-small: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-large: 1.25rem;
+    --font-size-title: 2rem;
+}
+
+/* ===== BODY & CONTAINER ===== */
+body {
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-primary);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: var(--spacing-md);
+    background:
+        linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.02) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.02) 75%, rgba(255, 255, 255, 0.02) 76%, transparent 77%, transparent),
+        linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.02) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, 0.02) 75%, rgba(255, 255, 255, 0.02) 76%, transparent 77%, transparent);
+    background-size: 50px 50px;
+}
+
+/* ===== HEADER ===== */
+.game-header {
+    text-align: center;
+    margin-bottom: var(--spacing-md);
+    animation: flicker 3s infinite alternate;
+}
+
+.game-title {
+    font-size: var(--font-size-title);
+    font-weight: bold;
+    letter-spacing: 0.3rem;
+    color: var(--color-accent-primary);
+    text-shadow:
+        0 0 10px var(--color-accent-primary),
+        0 0 20px var(--color-accent-primary),
+        0 0 30px var(--color-accent-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.game-subtitle {
+    font-size: var(--font-size-small);
+    letter-spacing: 0.2rem;
+    color: var(--color-text-secondary);
+}
+
+/* ===== CANVAS WRAPPER ===== */
+.canvas-wrapper {
+    position: relative;
+    border: 3px solid var(--color-border);
+    box-shadow:
+        0 0 20px rgba(0, 0, 0, 0.8),
+        inset 0 0 30px rgba(0, 0, 0, 0.5);
+    background: var(--color-bg-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+#gameCanvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background: #000000;
+}
+
+/* ===== FOOTER ===== */
+.game-footer {
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-small);
+}
+
+.controls-hint {
+    padding: var(--spacing-xs);
+    border-top: 1px solid var(--color-border);
+    letter-spacing: 0.1rem;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes flicker {
+    0%, 100% {
+        opacity: 1;
+    }
+    41.99% {
+        opacity: 1;
+    }
+    42% {
+        opacity: 0.8;
+    }
+    43% {
+        opacity: 1;
+    }
+    45.99% {
+        opacity: 1;
+    }
+    46% {
+        opacity: 0.9;
+    }
+    46.5% {
+        opacity: 1;
+    }
+}
+
+@keyframes scanline {
+    0% {
+        transform: translateY(-100%);
+    }
+    100% {
+        transform: translateY(100%);
+    }
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1400px) {
+    .canvas-wrapper {
+        transform: scale(0.9);
+        transform-origin: center;
+    }
+}
+
+@media (max-width: 1280px) {
+    .canvas-wrapper {
+        transform: scale(0.8);
+    }
+
+    .game-title {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    .canvas-wrapper {
+        transform: scale(0.7);
+    }
+}
+
+/* ===== UTILITY CLASSES ===== */
+.hidden {
+    display: none !important;
+}
+
+.no-select {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+
+/* ===== LOADING SCREEN (for future use) ===== */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--color-bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-text {
+    font-size: var(--font-size-large);
+    color: var(--color-accent-secondary);
+    letter-spacing: 0.2rem;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
