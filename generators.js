@@ -405,7 +405,8 @@ class TrackGenerator {
             "Tri-Oval",
             "Road Course (Technical)",
             "Short Oval",
-            "Superspeedway"
+            "Superspeedway",
+            "Figure Eight"
         ];
 
         this.weatherConditions = [
@@ -545,6 +546,42 @@ class TrackGenerator {
     }
 
     /**
+     * Generates a figure eight track (two loops crossing at center)
+     */
+    generateFigureEight(width = 800, height = 600) {
+        const waypoints = [];
+        const centerX = width * 0.5;
+        const centerY = height * 0.5;
+        const radius1 = width * 0.2;
+        const radius2 = height * 0.2;
+
+        // Create figure eight by tracing two circles that intersect
+        // Total segments for smooth curves
+        const segments = 60;
+
+        // First loop (top)
+        for (let i = 0; i < segments / 2; i++) {
+            const angle = (i / (segments / 2)) * Math.PI * 2;
+            waypoints.push({
+                x: Math.round(centerX - radius1 + Math.cos(angle) * radius1),
+                y: Math.round(centerY - radius2 + Math.sin(angle) * radius2)
+            });
+        }
+
+        // Second loop (bottom)
+        for (let i = 0; i < segments / 2; i++) {
+            const angle = (i / (segments / 2)) * Math.PI * 2;
+            waypoints.push({
+                x: Math.round(centerX + radius1 + Math.cos(angle + Math.PI) * radius1),
+                y: Math.round(centerY + radius2 + Math.sin(angle + Math.PI) * radius2)
+            });
+        }
+
+        // Smooth the result
+        return this.smoothWaypoints(waypoints, 1);
+    }
+
+    /**
      * Smooths waypoints using simple averaging
      */
     smoothWaypoints(waypoints, passes = 2) {
@@ -680,6 +717,8 @@ class TrackGenerator {
             waypoints = this.generateOval(width * 0.85, height * 0.85, "simple");
         } else if (trackType === "Street Circuit") {
             waypoints = this.generateStreetCircuit(width, height);
+        } else if (trackType === "Figure Eight") {
+            waypoints = this.generateFigureEight(width, height);
         } else if (trackType.includes("Technical")) {
             waypoints = this.generateRoadCourse(width, height, "high");
         } else {

@@ -982,20 +982,20 @@ class RaceScreen {
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Main track view (large, center-left)
-        this.renderTrackView(ctx, gameState, 10, 50, 530, 480);
+        // Race info header (top)
+        this.renderRaceInfo(ctx, gameState, 0, 0, canvas.width, 40);
 
-        // Leaderboard (right side)
-        this.renderLeaderboard(ctx, gameState, 550, 50, 240, 350);
+        // Main track view (large, takes most of the space)
+        this.renderTrackView(ctx, gameState, 10, 50, 770, 520);
 
-        // Burner Phone (right side, below leaderboard)
-        this.renderBurnerPhone(ctx, gameState, 550, 410, 240, 120);
+        // Side panel: Leaderboard and info (top-right)
+        this.renderLeaderboard(ctx, gameState, 790, 50, 230, 300);
+
+        // Side panel: Burner Phone (middle-right)
+        this.renderBurnerPhone(ctx, gameState, 790, 360, 230, 130);
 
         // Event ticker (bottom)
-        this.renderEventTicker(ctx, gameState, 10, 540, 780, 50);
-
-        // Race info header
-        this.renderRaceInfo(ctx, gameState, 0, 0, canvas.width, 40);
+        this.renderEventTicker(ctx, gameState, 10, 580, 1010, 40);
 
         // Contact notification overlay
         if (this.contactNotification) {
@@ -1062,234 +1062,323 @@ class RaceScreen {
     }
 
     renderTrackView(ctx, gameState, x, y, width, height) {
-        // Track container
-        ctx.fillStyle = '#0a1a0a';
+        // Track container with clean border
+        ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Title
-        ctx.font = 'bold 14px "Courier New", monospace';
-        ctx.fillStyle = '#00ff00';
-        ctx.textAlign = 'left';
-        ctx.fillText('TRACK OVERHEAD', x + 10, y + 20);
-
-        // Get track data
+        // Get track and car data
         const track = gameState?.race?.track;
-        const drivers = gameState?.race?.drivers || [];
-        
-        // Calculate scale to fit track in view
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const trackRadius = Math.min(width, height) / 2 - 20;
+        const standings = gameState?.race?.raceStandings || [];
+        const simulation = gameState?.race?.simulation;
 
-        // Draw track based on track type
-        if (track && track.type) {
-            this._drawTrackShape(ctx, track.type, centerX, centerY, trackRadius);
-        } else {
-            // Default oval track
-            this._drawTrackShape(ctx, 'Oval', centerX, centerY, trackRadius);
+        if (!track || !track.waypoints || track.waypoints.length === 0) {
+            // Fallback if no real track data
+            this._renderFallbackTrack(ctx, x, y, width, height);
+            return;
         }
 
-        // Draw starting positions / grid
-        const positions = gameState?.race?.raceStandings || this.generateDummyStandings();
-        positions.forEach((entry, index) => {
-            // Convert to angle around track
-            const angle = (index / positions.length) * Math.PI * 2 - Math.PI / 2;
-            
-            // Position on track
-            const radius = trackRadius - 15;
-            const carX = centerX + Math.cos(angle) * radius;
-            const carY = centerY + Math.sin(angle) * radius;
+        // Calculate track bounds and scale
+        const { minX, minY, maxX, maxY } = this._calculateTrackBounds(track.waypoints);
+        const trackWidth = maxX - minX;
+        const trackHeight = maxY - minY;
+        
+        // Calculate scaling to fit track nicely in view with padding
+        const padding = 40;
+        const availWidth = width - padding * 2;
+        const availHeight = height - padding * 2;
+        
+        const scaleX = availWidth / (trackWidth || 1);
+        const scaleY = availHeight / (trackHeight || 1);
+        const scale = Math.min(scaleX, scaleY);
+        
+        // Center the scaled track
+        const centerX = x + width / 2 - ((minX + maxX) / 2 * scale);
+        const centerY = y + height / 2 - ((minY + maxY) / 2 * scale);
 
-            // Get driver name
-            const driverName = entry.driver?.name || entry.name || `Driver ${index + 1}`;
-            
-            // Draw car
-            ctx.fillStyle = entry.driver?.teamColor || '#00ffff';
-            ctx.beginPath();
-            ctx.arc(carX, carY, 6, 0, Math.PI * 2);
-            ctx.fill();
+        // Draw track surface and markings
+        this._drawTrackSurface(ctx, track.waypoints, scale, centerX, centerY);
 
-            // Draw position number
-            ctx.font = 'bold 8px "Courier New", monospace';
-            ctx.fillStyle = '#000000';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(String(index + 1), carX, carY);
-        });
+        // Draw pit area if applicable
+        this._drawPitArea(ctx, track.waypoints, scale, centerX, centerY);
+
+        // Draw grid/starting positions
+        this._drawGridPositions(ctx, track.waypoints, standings, scale, centerX, centerY);
+
+        // Draw cars at their current positions
+        this._drawCars(ctx, standings, simulation, track.waypoints, scale, centerX, centerY);
 
         // Draw start/finish line
-        ctx.strokeStyle = '#ffff00';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([5, 5]);
+        this._drawStartFinishLine(ctx, track.waypoints, scale, centerX, centerY);
+
+        // Draw lap counter and timing
+        this._drawTrackInfo(ctx, gameState, simulation, x, y, width);
+    }
+
+    /**
+     * Calculate bounds of waypoint array
+     * @private
+     */
+    _calculateTrackBounds(waypoints) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        waypoints.forEach(wp => {
+            minX = Math.min(minX, wp.x);
+            minY = Math.min(minY, wp.y);
+            maxX = Math.max(maxX, wp.x);
+            maxY = Math.max(maxY, wp.y);
+        });
+        return { minX, minY, maxX, maxY };
+    }
+
+    /**
+     * Draw the track surface and markings
+     * @private
+     */
+    _drawTrackSurface(ctx, waypoints, scale, centerX, centerY) {
+        if (waypoints.length < 2) return;
+
+        // Draw track asphalt/surface
+        ctx.fillStyle = '#1a1a1a';
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 25 * scale;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
         ctx.beginPath();
-        ctx.moveTo(centerX + trackRadius + 5, centerY - 15);
-        ctx.lineTo(centerX + trackRadius + 5, centerY + 15);
+        ctx.moveTo(centerX + waypoints[0].x * scale, centerY + waypoints[0].y * scale);
+        
+        // Use quadratic curves for smooth track
+        for (let i = 1; i < waypoints.length; i++) {
+            const curr = waypoints[i];
+            const next = waypoints[(i + 1) % waypoints.length];
+            
+            // Draw line to next point (simplified - could use bezier for smoother curves)
+            ctx.lineTo(centerX + curr.x * scale, centerY + curr.y * scale);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        // Draw track boundaries (red outer wall)
+        ctx.strokeStyle = '#cc0000';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(centerX + waypoints[0].x * scale, centerY + waypoints[0].y * scale);
+        for (let i = 1; i < waypoints.length; i++) {
+            const curr = waypoints[i];
+            ctx.lineTo(centerX + curr.x * scale, centerY + curr.y * scale);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        // Draw center line
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.moveTo(centerX + waypoints[0].x * scale, centerY + waypoints[0].y * scale);
+        for (let i = 1; i < waypoints.length; i++) {
+            const curr = waypoints[i];
+            ctx.lineTo(centerX + curr.x * scale, centerY + curr.y * scale);
+        }
+        ctx.closePath();
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Draw center point
-        ctx.fillStyle = '#444444';
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
-        ctx.fill();
     }
 
     /**
-     * Draw different track shapes
+     * Draw pit area
      * @private
      */
-    _drawTrackShape(ctx, trackType, centerX, centerY, radius) {
-        const outerRadius = radius;
-        const innerRadius = radius - 25;
+    _drawPitArea(ctx, waypoints, scale, centerX, centerY) {
+        if (waypoints.length < 1) return;
 
-        if (trackType.includes('Oval')) {
-            // Oval track
-            this._drawOvalTrack(ctx, centerX, centerY, outerRadius * 1.3, outerRadius * 0.8);
-        } else if (trackType.includes('Road')) {
-            // Road course with corners
-            this._drawRoadCourse(ctx, centerX, centerY, radius);
-        } else if (trackType.includes('Circuit')) {
-            // Circuit track
-            this._drawCircuitTrack(ctx, centerX, centerY, outerRadius);
-        } else {
-            // Default oval
-            this._drawOvalTrack(ctx, centerX, centerY, outerRadius * 1.3, outerRadius * 0.8);
-        }
+        // Draw simple pit area indicator near start
+        const startX = centerX + waypoints[0].x * scale;
+        const startY = centerY + waypoints[0].y * scale;
+        
+        ctx.fillStyle = 'rgba(255, 200, 0, 0.1)';
+        ctx.fillRect(startX - 40, startY - 30, 80, 60);
+        
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(startX - 40, startY - 30, 80, 60);
     }
 
     /**
-     * Draw oval track
+     * Draw grid/starting positions
      * @private
      */
-    _drawOvalTrack(ctx, centerX, centerY, radiusX, radiusY) {
-        // Outer wall
-        ctx.strokeStyle = '#ff0000';
+    _drawGridPositions(ctx, waypoints, standings, scale, centerX, centerY) {
+        // This is shown before race starts
+        // Could indicate starting grid positions
+    }
+
+    /**
+     * Draw cars at current positions on track
+     * @private
+     */
+    _drawCars(ctx, standings, simulation, waypoints, scale, centerX, centerY) {
+        if (!standings || standings.length === 0) return;
+
+        standings.forEach((entry, position) => {
+            // Get car state
+            const car = entry;
+            
+            // Get driver info
+            const driverName = car.driver?.name || car.name || `P${position + 1}`;
+            const teamColor = car.driver?.teamColor || car.teamColor || '#00ffff';
+
+            // Calculate position on track
+            // Use waypoint progress to find current location
+            let trackX, trackY;
+            
+            if (car.currentWaypoint !== undefined && waypoints.length > 0) {
+                const idx = Math.min(car.currentWaypoint, waypoints.length - 1);
+                const nextIdx = (idx + 1) % waypoints.length;
+                const progress = car.waypointProgress !== undefined ? car.waypointProgress : 0;
+                
+                const curr = waypoints[idx];
+                const next = waypoints[nextIdx];
+                
+                trackX = curr.x + (next.x - curr.x) * progress;
+                trackY = curr.y + (next.y - curr.y) * progress;
+            } else {
+                // Fallback: place cars around the track based on position
+                const angle = (position / Math.max(standings.length, 1)) * Math.PI * 2;
+                trackX = 400 + Math.cos(angle) * 200;
+                trackY = 300 + Math.sin(angle) * 150;
+            }
+
+            const screenX = centerX + trackX * scale;
+            const screenY = centerY + trackY * scale;
+
+            // Draw car dot
+            ctx.fillStyle = teamColor;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw position indicator
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 8px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(position + 1), screenX, screenY);
+
+            // Draw driver abbreviation above car
+            ctx.fillStyle = teamColor;
+            ctx.font = '7px "Courier New", monospace';
+            ctx.fillText(driverName.substring(0, 3), screenX, screenY - 8);
+        });
+    }
+
+    /**
+     * Draw start/finish line
+     * @private
+     */
+    _drawStartFinishLine(ctx, waypoints, scale, centerX, centerY) {
+        if (waypoints.length < 2) return;
+
+        const p1 = waypoints[0];
+        const p2 = waypoints[1];
+
+        // Calculate perpendicular direction for line
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const px = -dy / len * 15;
+        const py = dx / len * 15;
+
+        // Draw checkered pattern
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
+        for (let i = 0; i < 4; i++) {
+            const offset = (i - 1.5) * 6;
+            ctx.beginPath();
+            ctx.moveTo(centerX + (p1.x + px * offset) * scale, centerY + (p1.y + py * offset) * scale);
+            ctx.lineTo(centerX + (p1.x - px * offset) * scale, centerY + (p1.y - py * offset) * scale);
+            ctx.stroke();
+        }
+
+        // Label
+        ctx.font = 'bold 10px "Courier New", monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'center';
+        ctx.fillText('S/F', centerX + p1.x * scale, centerY + p1.y * scale - 20);
+    }
+
+    /**
+     * Draw track info overlay
+     * @private
+     */
+    _drawTrackInfo(ctx, gameState, simulation, x, y, width) {
+        const raceState = simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, state: 'RACING' };
+        
+        // Lap info
+        ctx.font = 'bold 16px "Courier New", monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'left';
+        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 20, y + 28);
+    }
+
+    /**
+     * Draw fallback track if no waypoint data available
+     * @private
+     */
+    _renderFallbackTrack(ctx, x, y, width, height) {
+        // Simple oval fallback
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(x, y, width, height);
+
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radiusX = width * 0.3;
+        const radiusY = height * 0.3;
+
+        // Draw oval
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 15;
         ctx.beginPath();
         ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Track surface
-        ctx.strokeStyle = '#333333';
-        ctx.lineWidth = 20;
+        // Center point
+        ctx.fillStyle = '#666666';
         ctx.beginPath();
-        ctx.ellipse(centerX, centerY, radiusX - 5, radiusY - 5, 0, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Center line
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY, radiusX - 15, radiusY - 15, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
-    /**
-     * Draw road course track
-     * @private
-     */
-    _drawRoadCourse(ctx, centerX, centerY, radius) {
-        // Draw a complex road course
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 3;
-        ctx.fillStyle = 'rgba(51, 51, 51, 0.5)';
-        
-        // Create a road course shape
-        const points = [
-            { x: 0, y: -radius },
-            { x: radius * 0.7, y: -radius * 0.7 },
-            { x: radius, y: 0 },
-            { x: radius * 0.7, y: radius * 0.7 },
-            { x: 0, y: radius },
-            { x: -radius * 0.7, y: radius * 0.7 },
-            { x: -radius, y: 0 },
-            { x: -radius * 0.7, y: -radius * 0.7 }
-        ];
-
-        ctx.beginPath();
-        ctx.moveTo(centerX + points[0].x, centerY + points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(centerX + points[i].x, centerY + points[i].y);
-        }
-        ctx.closePath();
+        ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
-
-        // Center line
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath();
-        ctx.moveTo(centerX + points[0].x * 0.7, centerY + points[0].y * 0.7);
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(centerX + points[i].x * 0.7, centerY + points[i].y * 0.7);
-        }
-        ctx.closePath();
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
-    /**
-     * Draw circuit track
-     * @private
-     */
-    _drawCircuitTrack(ctx, centerX, centerY, radius) {
-        // Outer wall
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Track surface
-        ctx.strokeStyle = '#333333';
-        ctx.lineWidth = 20;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Center line
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 15, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
     }
 
     renderLeaderboard(ctx, gameState, x, y, width, height) {
         // Leaderboard container
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = this.selectedContact ? '#ff0066' : '#444444';
-        ctx.lineWidth = this.selectedContact ? 3 : 2;
+        ctx.strokeStyle = this.selectedContact ? '#ff0066' : '#00ff00';
+        ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
         // Title
-        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.font = 'bold 12px "Courier New", monospace';
         ctx.fillStyle = this.selectedContact ? '#ff0066' : '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText(this.selectedContact ? 'SELECT TARGET' : 'STANDINGS', x + 10, y + 20);
+        ctx.fillText(this.selectedContact ? 'TARGET' : 'STANDINGS', x + 8, y + 16);
 
         // Show instruction if contact selected
         if (this.selectedContact) {
-            ctx.font = '9px "Courier New", monospace';
+            ctx.font = '8px "Courier New", monospace';
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(`Using: ${this.selectedContact}`, x + 10, y + 35);
+            ctx.fillText(`[${this.selectedContact}]`, x + 8, y + 26);
         }
 
         // Driver standings
         const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
-        const rowHeight = 35;
-        const startY = y + 45;
+        const rowHeight = 28;
+        const startY = y + (this.selectedContact ? 32 : 22);
+        const maxRows = Math.floor((height - startY + y) / rowHeight);
 
-        drivers.forEach((driver, index) => {
+        drivers.slice(0, maxRows).forEach((driver, index) => {
             const rowY = startY + index * rowHeight;
             
             // Handle both car state objects and dummy standings
@@ -1301,25 +1390,26 @@ class RaceScreen {
 
             // Highlight row if hovering with contact selected
             if (isHovered && isTargetable) {
-                ctx.fillStyle = 'rgba(255, 0, 102, 0.3)';
-                ctx.fillRect(x + 5, rowY - 20, width - 10, rowHeight - 2);
+                ctx.fillStyle = 'rgba(255, 0, 102, 0.2)';
+                ctx.fillRect(x + 2, rowY - 14, width - 4, rowHeight - 2);
             }
 
-            // Position
-            ctx.font = 'bold 16px "Courier New", monospace';
+            // Position number
+            ctx.font = 'bold 11px "Courier New", monospace';
             ctx.fillStyle = index === 0 ? '#ffff00' : '#ffffff';
             ctx.textAlign = 'left';
-            ctx.fillText(`${index + 1}.`, x + 10, rowY);
+            ctx.fillText(`${index + 1}.`, x + 5, rowY);
 
-            // Driver name
-            ctx.font = '12px "Courier New", monospace';
-            ctx.fillStyle = isHovered && isTargetable ? '#ff0066' : '#aaaaaa';
-            ctx.fillText(driverName.substring(0, 8), x + 35, rowY);
-
-            // Gap
+            // Driver name (shortened)
             ctx.font = '10px "Courier New", monospace';
+            ctx.fillStyle = isHovered && isTargetable ? '#ff0066' : '#aaaaaa';
+            ctx.fillText(driverName.substring(0, 6), x + 25, rowY);
+
+            // Gap (right aligned)
+            ctx.font = '9px "Courier New", monospace';
             ctx.fillStyle = '#666666';
-            ctx.fillText(gap, x + 10, rowY + 12);
+            ctx.textAlign = 'right';
+            ctx.fillText(typeof gap === 'string' ? gap : gap.toFixed(2), x + width - 5, rowY);
         });
     }
 
@@ -1355,141 +1445,88 @@ class RaceScreen {
         // Phone container
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = hasRolodex ? '#00ff00' : '#666666';
+        ctx.strokeStyle = hasRolodex ? '#ff0066' : '#666666';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
         // Title
-        ctx.font = 'bold 14px "Courier New", monospace';
-        ctx.fillStyle = hasRolodex ? '#00ff00' : '#666666';
-        ctx.textAlign = 'center';
-        ctx.fillText('BURNER PHONE', x + width / 2, y + 20);
+        ctx.font = 'bold 11px "Courier New", monospace';
+        ctx.fillStyle = hasRolodex ? '#ff0066' : '#666666';
+        ctx.textAlign = 'left';
+        ctx.fillText('BURNER', x + 8, y + 14);
 
         if (!hasRolodex) {
             // Locked state
-            ctx.font = '12px "Courier New", monospace';
+            ctx.font = '9px "Courier New", monospace';
             ctx.fillStyle = '#666666';
-            ctx.fillText('[LOCKED]', x + width / 2, y + height / 2);
-            ctx.fillText('Buy ROLODEX', x + width / 2, y + height / 2 + 20);
-            ctx.fillText('to unlock', x + width / 2, y + height / 2 + 35);
+            ctx.textAlign = 'center';
+            ctx.fillText('LOCKED', x + width / 2, y + height / 2);
             return;
         }
 
         // Get burner phone status from race simulation
         const phoneStatus = gameState?.race?.simulation?.burnerPhone?.getStatus();
-        if (!phoneStatus) return;
-
-        // Battery display
-        const batteryY = y + 35;
-        ctx.font = '10px "Courier New", monospace';
-        ctx.fillStyle = '#aaaaaa';
-        ctx.textAlign = 'left';
-        ctx.fillText('BATTERY:', x + 10, batteryY);
-
-        // Battery bars
-        const batteryX = x + 10;
-        const batteryBarY = batteryY + 5;
-        const barWidth = 14;
-        const barHeight = 10;
-
-        for (let i = 0; i < phoneStatus.maxBattery; i++) {
-            const barX = batteryX + i * (barWidth + 2);
-            const filled = i < phoneStatus.battery;
-
-            ctx.fillStyle = filled ? (phoneStatus.battery <= 2 ? '#ff0000' : '#00ff00') : '#333333';
-            ctx.fillRect(barX, batteryBarY, barWidth, barHeight);
-            ctx.strokeStyle = '#666666';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(barX, batteryBarY, barWidth, barHeight);
+        if (!phoneStatus) {
+            ctx.font = '9px "Courier New", monospace';
+            ctx.fillStyle = '#aaaaaa';
+            ctx.textAlign = 'left';
+            ctx.fillText('No signal', x + 8, y + 35);
+            return;
         }
 
-        // Heat meter
-        const heatY = batteryBarY + 25;
-        ctx.font = '10px "Courier New", monospace';
-        ctx.fillStyle = '#aaaaaa';
+        // Battery display (compact)
+        const batteryY = y + 25;
+        ctx.font = '8px "Courier New", monospace';
+        ctx.fillStyle = '#888888';
         ctx.textAlign = 'left';
-        ctx.fillText('HEAT:', x + 10, heatY);
+        ctx.fillText('BAT:', x + 8, batteryY);
+
+        // Battery bars (small)
+        const barWidth = 8;
+        const barHeight = 6;
+        for (let i = 0; i < 3; i++) {
+            const barX = x + 32 + i * (barWidth + 1);
+            const filled = i < phoneStatus.battery;
+            ctx.fillStyle = filled ? '#00ff00' : '#333333';
+            ctx.fillRect(barX, batteryY - 5, barWidth, barHeight);
+        }
+
+        // Heat display
+        const heatY = batteryY + 12;
+        ctx.font = '8px "Courier New", monospace';
+        ctx.fillStyle = '#888888';
+        ctx.textAlign = 'left';
+        ctx.fillText('HEAT:', x + 8, heatY);
 
         // Heat bar
-        const heatBarX = x + 10;
-        const heatBarY = heatY + 5;
-        const heatBarWidth = width - 20;
-        const heatBarHeight = 8;
-
-        // Heat bar background
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(heatBarX, heatBarY, heatBarWidth, heatBarHeight);
-
-        // Heat bar fill (color gradient based on heat level)
+        const heatBarWidth = width - 35;
+        const heatBarX = x + 32;
+        const heatBarHeight = 4;
         const heatPercent = phoneStatus.heat / phoneStatus.maxHeat;
-        const heatFillWidth = heatBarWidth * heatPercent;
 
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(heatBarX, heatY - 3, heatBarWidth, heatBarHeight);
+
+        const heatFillWidth = heatBarWidth * heatPercent;
         if (heatFillWidth > 0) {
             const heatColor = this.getHeatColor(heatPercent);
             ctx.fillStyle = heatColor;
-            ctx.fillRect(heatBarX, heatBarY, heatFillWidth, heatBarHeight);
+            ctx.fillRect(heatBarX, heatY - 3, heatFillWidth, heatBarHeight);
         }
 
-        // Heat bar border
-        ctx.strokeStyle = phoneStatus.contactsDisabled ? '#ff0000' : '#666666';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(heatBarX, heatBarY, heatBarWidth, heatBarHeight);
-
-        // Heat percentage
-        ctx.font = '9px "Courier New", monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${Math.floor(phoneStatus.heat)}%`, heatBarX + heatBarWidth / 2, heatBarY + 7);
-
-        // Contacts list
-        const contactsY = heatBarY + 20;
-        const contacts = [
-            { type: 'Spotter', cost: 2, heat: 15, desc: 'Reduce crash risk' },
-            { type: 'Marshal', cost: 3, heat: 30, desc: 'Deploy yellow flag' },
-            { type: 'Heckler', cost: 2, heat: 20, desc: 'Disrupt cornering' },
-            { type: 'Engineer', cost: 3, heat: 25, desc: 'Boost speed (risky)' }
-        ];
-
-        ctx.font = '10px "Courier New", monospace';
-        ctx.textAlign = 'left';
-
-        contacts.forEach((contact, index) => {
-            const contactY = contactsY + index * 22;
-            const canUse = gameState?.race?.simulation?.burnerPhone?.canUseContact(contact.type) || false;
-            const isHovered = this.hoveredContact === contact.type;
-            const isSelected = this.selectedContact === contact.type;
-
-            // Contact button background
-            ctx.fillStyle = isSelected ? '#330033' : (isHovered ? '#1a1a00' : '#0a0a0a');
-            ctx.fillRect(x + 5, contactY, width - 10, 20);
-
-            // Contact button border
-            ctx.strokeStyle = isSelected ? '#ff0066' : (canUse ? '#00ff00' : '#ff0000');
-            ctx.lineWidth = isSelected ? 2 : 1;
-            ctx.strokeRect(x + 5, contactY, width - 10, 20);
-
-            // Contact name
-            ctx.fillStyle = canUse ? '#ffffff' : '#666666';
-            ctx.fillText(contact.type.substring(0, 8), x + 8, contactY + 13);
-
-            // Contact cost
-            ctx.fillStyle = canUse ? '#ffff00' : '#666666';
-            ctx.textAlign = 'right';
-            ctx.fillText(`B:${contact.cost} H:${contact.heat}`, x + width - 8, contactY + 13);
+        // Active contacts list (compact)
+        const contactsY = heatY + 10;
+        ctx.font = '8px "Courier New", monospace';
+        const contacts = ['Spotter', 'Marshal', 'Heckler', 'Engineer'];
+        
+        contacts.forEach((contact, idx) => {
+            const canUse = phoneStatus && idx < 4;
+            const contactY = contactsY + idx * 10;
+            
+            ctx.fillStyle = this.selectedContact === contact ? '#ff0066' : (canUse ? '#00ff00' : '#444444');
             ctx.textAlign = 'left';
-
-            // Show tooltip if hovered
-            if (isHovered && canUse) {
-                this.renderContactTooltip(ctx, contact, x + width + 10, contactY);
-            }
+            ctx.fillText(`${idx + 1}.${contact.substring(0, 4)}`, x + 8, contactY);
         });
-
-        // Show driver selection if contact is selected
-        if (this.selectedContact && !this.phoneExpanded) {
-            this.phoneExpanded = true;
-        } else if (!this.selectedContact) {
-            this.phoneExpanded = false;
-        }
     }
 
     getHeatColor(heatPercent) {
@@ -1534,11 +1571,11 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
         if (!hasRolodex) return null;
 
-        // Burner phone bounds (updated for new layout)
-        const phoneX = 550;
-        const phoneY = 410;
-        const phoneWidth = 240;
-        const phoneHeight = 120;
+        // Burner phone bounds (right side, middle)
+        const phoneX = 790;
+        const phoneY = 360;
+        const phoneWidth = 230;
+        const phoneHeight = 130;
 
         // Check if click is in burner phone area
         if (x >= phoneX && x <= phoneX + phoneWidth && y >= phoneY && y <= phoneY + phoneHeight) {
@@ -1549,7 +1586,7 @@ class RaceScreen {
             contacts.forEach((contact, index) => {
                 const contactY = contactsY + index * 20;
                 if (y >= contactY && y <= contactY + 18) {
-                    if (gameState.race.simulation?.burnerPhone?.canUseContact(contact)) {
+                    if (gameState?.race?.simulation?.burnerPhone?.canUseContact(contact) || false) {
                         // Select this contact
                         this.selectedContact = contact;
                     }
@@ -1559,10 +1596,10 @@ class RaceScreen {
 
         // Check if clicking on leaderboard to select driver (when contact is selected)
         if (this.selectedContact) {
-            const leaderboardX = 550;
+            const leaderboardX = 790;
             const leaderboardY = 50;
-            const leaderboardWidth = 240;
-            const leaderboardHeight = 350;
+            const leaderboardWidth = 230;
+            const leaderboardHeight = 300;
 
             if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
                 y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
@@ -1594,11 +1631,11 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
         if (!hasRolodex) return;
 
-        // Burner phone bounds (updated for new layout)
-        const phoneX = 550;
-        const phoneY = 410;
-        const phoneWidth = 240;
-        const phoneHeight = 120;
+        // Burner phone bounds (right side, middle)
+        const phoneX = 790;
+        const phoneY = 360;
+        const phoneWidth = 230;
+        const phoneHeight = 130;
 
         // Check hover on contacts
         if (x >= phoneX && x <= phoneX + phoneWidth && y >= phoneY && y <= phoneY + phoneHeight) {
