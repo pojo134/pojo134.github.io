@@ -443,6 +443,65 @@ class BettingScreen {
         this.portraitFlashTimer += deltaTime;
     }
 
+    getDriverOdds(driver, gameState) {
+        // Try to get odds from driver.odds first
+        if (driver.odds) {
+            return driver.odds;
+        }
+        
+        // Try to find odds from gameState.race.odds array
+        if (gameState?.race?.odds && Array.isArray(gameState.race.odds)) {
+            const oddsEntry = gameState.race.odds.find(o => {
+                return o.driverData?.name === driver.name || 
+                       (o.driver && o.driver.name === driver.name);
+            });
+            if (oddsEntry) {
+                const odds = oddsEntry.odds;
+                return typeof odds === 'number' ? `${odds.toFixed(2)}x` : odds;
+            }
+        }
+        
+        // Fallback for dummy drivers or dummy odds
+        return '2.0x';
+    }
+
+    getDriverSkill(driver) {
+        // If driver has skill property directly (dummy driver)
+        if (driver.skill !== undefined) {
+            return driver.skill;
+        }
+        
+        // Calculate from stats if available
+        if (driver.stats) {
+            // Average of top 3 stats or overall rating
+            return String(driver.overall || Math.round(
+                (driver.stats.topSpeed + driver.stats.cornering + driver.stats.reliability) / 3
+            ));
+        }
+        
+        return 'N/A';
+    }
+
+    getDriverForm(driver) {
+        // If driver has form property directly (dummy driver)
+        if (driver.form !== undefined) {
+            return driver.form;
+        }
+        
+        // For real drivers, determine form based on recent performance
+        // For now, assign form based on consistency
+        if (driver.stats) {
+            const stats = driver.stats;
+            const consistency = 100 - Math.abs(stats.topSpeed - stats.cornering) - 
+                               Math.abs(stats.reliability - stats.stamina);
+            if (consistency > 150) return 'HOT';
+            if (consistency > 100) return 'GOOD';
+            return 'AVG';
+        }
+        
+        return 'AVG';
+    }
+
     render(ctx, gameState) {
         const canvas = ctx.canvas;
 
@@ -550,9 +609,12 @@ class BettingScreen {
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#00ffff';
             ctx.textAlign = 'left';
-            ctx.fillText(`SKILL: ${this.selectedDriver.skill}`, x + 20, y + 150);
-            ctx.fillText(`FORM: ${this.selectedDriver.form}`, x + 150, y + 150);
-            ctx.fillText(`ODDS: ${this.selectedDriver.odds}`, x + 20, y + 170);
+            const skillValue = this.getDriverSkill(this.selectedDriver);
+            ctx.fillText(`SKILL: ${skillValue}`, x + 20, y + 150);
+            const formValue = this.getDriverForm(this.selectedDriver);
+            ctx.fillText(`FORM: ${formValue}`, x + 150, y + 150);
+            const displayOdds = this.getDriverOdds(this.selectedDriver, gameState);
+            ctx.fillText(`ODDS: ${displayOdds}`, x + 20, y + 170);
         } else {
             ctx.font = '18px "Courier New", monospace';
             ctx.fillStyle = '#666666';
@@ -632,14 +694,17 @@ class BettingScreen {
             ctx.textAlign = 'left';
             ctx.fillText(`${index + 1}. ${driver.name}`, x + 10, rowY);
 
-            ctx.fillStyle = this.getSkillColor(driver.skill);
-            ctx.fillText(driver.skill, x + 265, rowY);
+            const skillValue = this.getDriverSkill(driver);
+            ctx.fillStyle = this.getSkillColor(skillValue);
+            ctx.fillText(skillValue, x + 265, rowY);
 
-            ctx.fillStyle = this.getFormColor(driver.form);
-            ctx.fillText(driver.form, x + 365, rowY);
+            const formValue = this.getDriverForm(driver);
+            ctx.fillStyle = this.getFormColor(formValue);
+            ctx.fillText(formValue, x + 365, rowY);
 
+            const oddsValue = this.getDriverOdds(driver, gameState);
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(driver.odds, x + 460, rowY);
+            ctx.fillText(oddsValue, x + 460, rowY);
         });
 
         // Scroll indicator
@@ -675,17 +740,19 @@ class BettingScreen {
             ctx.textAlign = 'left';
             ctx.fillText('DRIVER:', x + 20, y + 55);
             ctx.fillStyle = '#00ffff';
-            ctx.fillText(this.selectedDriver.name, x + 90, y + 55);
+            ctx.fillText(this.selectedDriver.name || 'UNKNOWN', x + 90, y + 55);
 
             ctx.fillStyle = '#ffffff';
             ctx.fillText('BET TYPE:', x + 20, y + 80);
             ctx.fillStyle = '#00ffff';
             ctx.fillText(this.betType.toUpperCase(), x + 110, y + 80);
 
+            // Get odds from driver or from gameState odds array
+            const driverOdds = this.getDriverOdds(this.selectedDriver, gameState);
             ctx.fillStyle = '#ffffff';
             ctx.fillText('ODDS:', x + 20, y + 105);
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(this.selectedDriver.odds, x + 80, y + 105);
+            ctx.fillText(driverOdds, x + 80, y + 105);
 
             // Bet amount controls
             ctx.fillStyle = '#ffffff';
@@ -716,7 +783,7 @@ class BettingScreen {
             ctx.fillText('+', x + width - 40, y + 173);
 
             // Potential payout
-            const potentialPayout = this.calculatePayout(this.betAmount, this.selectedDriver.odds);
+            const potentialPayout = this.calculatePayout(this.betAmount, driverOdds);
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'left';
@@ -834,8 +901,11 @@ class BettingScreen {
     }
 
     calculatePayout(bet, odds) {
-        const multiplier = parseFloat(odds.replace('x', ''));
-        return Math.floor(bet * multiplier);
+        if (!odds) return 0;
+        // Handle both string format ("2.5x") and numeric format (2.5)
+        const oddsStr = typeof odds === 'string' ? odds : String(odds);
+        const multiplier = parseFloat(oddsStr.replace('x', ''));
+        return isNaN(multiplier) ? 0 : Math.floor(bet * multiplier);
     }
 
     generateDummyDrivers() {
