@@ -264,21 +264,40 @@ class GarageScreen {
             ctx.lineWidth = 2;
             ctx.strokeRect(slot.x, slot.y, slot.width, slot.height);
 
-            // Track name
+            // Contract name
             ctx.font = 'bold 18px "Courier New", monospace';
             ctx.fillStyle = '#00ffff';
             ctx.textAlign = 'left';
-            ctx.fillText(contract.track, slot.x + 10, slot.y + 25);
+            const contractName = contract.type || contract.track || 'Unknown';
+            ctx.fillText(contractName, slot.x + 10, slot.y + 25);
 
             // Details
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#aaaaaa';
-            ctx.fillText(`${contract.laps} Laps - ${contract.difficulty}`, slot.x + 10, slot.y + 50);
+            const fieldSize = contract.fieldSize || 20;
+            const description = contract.description || `${contract.laps || 10} Laps - ${contract.difficulty || 'Medium'}`;
+            ctx.fillText(`${fieldSize} Drivers - ${description}`, slot.x + 10, slot.y + 50);
 
-            // Payout
+            // Entry fee
+            if (contract.entryFee) {
+                ctx.font = '12px "Courier New", monospace';
+                ctx.fillStyle = '#ff6666';
+                ctx.fillText(`Entry: $${contract.entryFee.toLocaleString()}`, slot.x + 10, slot.y + 70);
+            }
+
+            // Prize pool / Payout
             ctx.font = 'bold 16px "Courier New", monospace';
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(`Base Payout: $${contract.basePayout.toLocaleString()}`, slot.x + 10, slot.y + 80);
+            const payout = contract.prizePool || contract.basePayout || 1000;
+            const payoutLabel = contract.prizePool ? 'Prize Pool' : 'Base Payout';
+            ctx.fillText(`${payoutLabel}: $${payout.toLocaleString()}`, slot.x + 10, slot.y + 90);
+
+            // Gimmick for special contracts
+            if (contract.gimmick) {
+                ctx.font = 'italic 12px "Courier New", monospace';
+                ctx.fillStyle = '#ff00ff';
+                this.wrapText(ctx, contract.gimmick, slot.x + 10, slot.y + 110, slot.width - 20, 14);
+            }
 
             // Select button
             ctx.fillStyle = isSelected ? '#ffff00' : '#333333';
