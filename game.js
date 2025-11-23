@@ -488,6 +488,9 @@ class Game {
     _update(deltaTime) {
         if (this.isPaused) return;
 
+        // Scale deltaTime for simulation speed
+        const scaledDeltaTime = deltaTime * this.timeScale;
+
         // Update screen transitions
         this.screenManager.updateTransition(deltaTime);
 
@@ -505,7 +508,7 @@ class Game {
                 this._updateBetting(deltaTime);
                 break;
             case GameStates.RACE:
-                this._updateRace(deltaTime);
+                this._updateRace(scaledDeltaTime);
                 break;
             case GameStates.RESULTS:
                 this._updateResults(deltaTime);
@@ -614,6 +617,9 @@ class Game {
 
         // Race simulator (created when race starts)
         this.raceSimulator = null;
+        
+        // Time control
+        this.timeScale = 1; // 1x, 2x, 5x speed
     }
 
     /**
@@ -717,15 +723,15 @@ class Game {
         this.screens.betting.handleMouseMove(mouse.x, mouse.y);
     }
 
-    _updateRace(deltaTime) {
-        this.screens.race.update(deltaTime, this.gameState);
+    _updateRace(scaledDeltaTime) {
+        this.screens.race.update(scaledDeltaTime, this.gameState);
 
         // Update race simulator
         if (this.raceSimulator) {
             const raceState = this.raceSimulator.getRaceState();
 
             // Update race simulation
-            this.raceSimulator.update(deltaTime);
+            this.raceSimulator.update(scaledDeltaTime);
 
             // Update game state with current race data
             this.gameState.race.raceStandings = raceState.leaderboard;

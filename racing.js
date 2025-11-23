@@ -46,7 +46,7 @@ const ContactType = Object.freeze({
 
 // Physics constants
 const PHYSICS_CONFIG = {
-    BASE_SPEED: 100,              // Base speed units per second
+    BASE_SPEED: 30,               // Base speed units per second (reduced for more realistic lap times)
     MIN_SPEED: 20,                // Minimum speed (crashed/damaged)
     MAX_SPEED: 300,               // Maximum achievable speed
     CORNERING_SLOWDOWN: 0.4,      // Speed reduction in corners (40%)
@@ -1026,22 +1026,24 @@ class RaceSimulator {
     /**
      * Update race simulation (call this every frame)
      */
-    update(deltaTime) {
+    update(scaledDeltaTime) {
         if (this.state !== RaceState.RACING) return;
 
         // Fixed timestep for deterministic physics
-        this.accumulatedTime += deltaTime;
+        this.accumulatedTime += scaledDeltaTime;
 
         while (this.accumulatedTime >= this.updateRate) {
             this._physicsUpdate(this.updateRate);
             this.accumulatedTime -= this.updateRate;
         }
 
-        // Update burner phone heat decay
-        this.burnerPhone.update(deltaTime);
+        // Update burner phone heat decay (real time decay regardless of sim speed)
+        // We assume the caller (Game.js) passes scaledDeltaTime.
+        // BurnerPhone decay should be based on real time, but in this setup, the best approximation is to pass the scaled time.
+        this.burnerPhone.update(scaledDeltaTime);
 
         // Handle caution timer
-        this._updateCaution(deltaTime);
+        this._updateCaution(scaledDeltaTime);
     }
 
     /**
