@@ -1,0 +1,16 @@
+# Backup files
+*.backup
+
+# Development artifacts
+*.patch
+fix_bugs.py
+verify-tests.txt
+
+# Editor files
+.DS_Store
+*~
+*.swp
+*.swo
+
+# Logs
+*.log
