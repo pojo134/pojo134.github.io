@@ -210,25 +210,31 @@ class GameState {
         let won = false;
         let payout = 0;
 
+        // Handle both result formats: array (legacy) or object with finalStandings
+        const standings = Array.isArray(results) ? results : (results?.finalStandings || []);
+        if (standings.length === 0) return;
+
         // Find the driver in results
-        const driverResult = results.find(r => r.name === bet.driverName);
+        const driverResult = standings.find(r => r.name === bet.driverName || r.driver?.name === bet.driverName);
         if (!driverResult) return;
 
         // Find odds for the driver
-        const driverOdds = this.race.odds.find(o => o.driver === bet.driverName);
+        const driverOdds = this.race.odds.find(o => o.driver === bet.driverName || o.driver?.name === bet.driverName);
         if (!driverOdds) return;
 
         // Check bet type
         switch (bet.betType) {
             case 'win':
-                won = driverResult.position === 1;
+                const position = standings.indexOf(driverResult) + 1;
+                won = position === 1;
                 if (won) {
                     payout = Math.floor(bet.amount * driverOdds.odds);
                 }
                 break;
 
             case 'top3':
-                won = driverResult.position <= 3;
+                const position3 = standings.indexOf(driverResult) + 1;
+                won = position3 <= 3;
                 if (won) {
                     // Top 3 odds are typically lower
                     const top3Multiplier = driverOdds.odds * 0.33; // Approximate top 3 odds
@@ -243,13 +249,14 @@ class GameState {
         }
 
         // Update bet result
+        const finishPosition = standings.indexOf(driverResult) + 1;
         this.race.betResult = {
             won,
             betAmount: bet.amount,
             payout: won ? payout : 0,
             driver: bet.driverName,
             betType: bet.betType,
-            finishPosition: driverResult.position
+            finishPosition: finishPosition
         };
 
         // Update bankroll and stats if won
@@ -258,12 +265,12 @@ class GameState {
             this.season.seasonStats.totalWinnings += payout;
             this.player.totalProfit += (payout - bet.amount);
 
-            if (driverResult.position === 1) {
+            if (finishPosition === 1) {
                 this.player.totalWins++;
                 this.season.seasonStats.racesWon++;
             }
 
-            if (driverResult.position <= 3) {
+            if (finishPosition <= 3) {
                 this.season.seasonStats.top3Finishes++;
             }
         } else {
