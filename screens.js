@@ -1029,15 +1029,15 @@ class RaceScreen {
     }
 
     render(ctx, gameState) {
-        // Define key layout constants (assuming 1024x720 default canvas size)
-        const CANVAS_WIDTH = 1024;
-        const CANVAS_HEIGHT = 720;
+        // Use actual canvas dimensions instead of hardcoded values
+        const CANVAS_WIDTH = ctx.canvas.width;
+        const CANVAS_HEIGHT = ctx.canvas.height;
         const PADDING = 10;
         const SIDE_PANEL_WIDTH = 240;
         const INFO_BAR_HEIGHT = 40;
-        const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge (1024-240 = 784)
+        const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge
 
-        // Clear and border (Adjusting to use constants for consistency)
+        // Clear and border (Using actual canvas dimensions)
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.strokeStyle = '#00ff00';
