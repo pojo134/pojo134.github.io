@@ -1,0 +1,295 @@
+================================================================================
+                    BURNER PHONE UI LAYOUT GUIDE
+================================================================================
+
+RACE SCREEN LAYOUT (800x600)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ [TRACK NAME]                                         LAP 1/20               │ Header
+├──────────┬───────────────────────────────────┬──────────────────────────────┤
+│          │                                   │                              │
+│ STANDINGS│         TRACK VIEW                │                              │
+│          │      ┌─────────────┐              │                              │
+│  1. HAM  │      │             │              │                              │
+│     +0.0s│      │   ○  Track  │              │                              │
+│  2. VER  │      │             │              │                              │
+│     +1.2s│      │      ●      │              │                              │
+│  3. LEC  │      │             │              │                              │
+│     +2.5s│      │   ○    ○    │              │                              │
+│  4. SAI  │      └─────────────┘              │                              │
+│     +3.1s│                                   │                              │
+│  5. NOR  │                                   │                              │
+│     +4.0s│                                   │                              │
+│  6. PIA  │                                   │                              │
+│     +5.2s│                                   │                              │
+│  7. RUS  │                                   │                              │
+│     +6.3s│                                   │                              │
+│  8. ALO  │                                   │                              │
+│     +7.5s│                                   │                              │
+│          │                                   │                              │
+├──────────┴───────────────────────────────────┴──────────────────────────────┤
+│                                                                              │
+│ ┌────────────────────────────────────────────┐  ┌──────────────────────┐   │
+│ │ LIVE EVENTS                                │  │  BURNER PHONE        │   │
+│ │                                            │  │  ──────────────────   │   │
+│ │ > VERSTAPPEN OVERTAKES HAMILTON            │  │  BATTERY: ████████   │   │
+│ │ > LECLERC SETS FASTEST LAP                 │  │                      │   │
+│ │ > NORRIS GAINS POSITION                    │  │  HEAT: [=========>   │   │
+│ │                                            │  │         85%          │   │
+│ └────────────────────────────────────────────┘  │                      │   │
+│                                                  │  ┌────────────────┐ │   │
+│                                                  │  │ Spotter    B:2 │ │   │
+│                                                  │  │           H:15 │ │   │
+│                                                  │  ├────────────────┤ │   │
+│                                                  │  │ Marshal    B:3 │ │   │
+│                                                  │  │           H:30 │ │   │
+│                                                  │  ├────────────────┤ │   │
+│                                                  │  │ Heckler    B:2 │ │   │
+│                                                  │  │           H:20 │ │   │
+│                                                  │  ├────────────────┤ │   │
+│                                                  │  │ Engineer   B:3 │ │   │
+│                                                  │  │           H:25 │ │   │
+│                                                  │  └────────────────┘ │   │
+│                                                  └──────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                         BURNER PHONE STATES
+================================================================================
+
+LOCKED STATE (No Rolodex Upgrade)
+┌──────────────────────┐
+│  BURNER PHONE        │ (gray border)
+│  ──────────────────  │
+│                      │
+│                      │
+│     [LOCKED]         │
+│   Buy ROLODEX        │
+│    to unlock         │
+│                      │
+└──────────────────────┘
+
+IDLE STATE (Available for Use)
+┌──────────────────────┐
+│  BURNER PHONE        │ (green border)
+│  ──────────────────  │
+│  BATTERY: ██████████ │ (10/10 - green)
+│                      │
+│  HEAT: [═════        │ (35% - yellow)
+│         35%          │
+│                      │
+│  ┌────────────────┐  │
+│  │ Spotter    B:2 │  │ (green border)
+│  │           H:15 │  │
+│  ├────────────────┤  │
+│  │ Marshal    B:3 │  │ (green border)
+│  │           H:30 │  │
+│  ├────────────────┤  │
+│  │ Heckler    B:2 │  │ (green border)
+│  │           H:20 │  │
+│  ├────────────────┤  │
+│  │ Engineer   B:3 │  │ (green border)
+│  │           H:25 │  │
+│  └────────────────┘  │
+└──────────────────────┘
+
+LOW BATTERY STATE
+┌──────────────────────┐
+│  BURNER PHONE        │
+│  ──────────────────  │
+│  BATTERY: ██░░░░░░░░ │ (2/10 - red)
+│                      │
+│  HEAT: [════         │
+│         40%          │
+│                      │
+│  ┌────────────────┐  │
+│  │ Spotter    B:2 │  │ (green - ok)
+│  │           H:15 │  │
+│  ├────────────────┤  │
+│  │ Marshal    B:3 │  │ (red - disabled)
+│  │           H:30 │  │
+│  ├────────────────┤  │
+│  │ Heckler    B:2 │  │ (green - ok)
+│  │           H:20 │  │
+│  ├────────────────┤  │
+│  │ Engineer   B:3 │  │ (red - disabled)
+│  │           H:25 │  │
+│  └────────────────┘  │
+└──────────────────────┘
+
+HIGH HEAT STATE
+┌──────────────────────┐
+│  BURNER PHONE        │
+│  ──────────────────  │
+│  BATTERY: ████████   │ (8/10)
+│                      │
+│  HEAT: [============>│ (100% - red)
+│         100%         │ (red border)
+│                      │
+│  ┌────────────────┐  │
+│  │ Spotter    B:2 │  │ (all red - disabled)
+│  │           H:15 │  │
+│  ├────────────────┤  │
+│  │ Marshal    B:3 │  │ (all red - disabled)
+│  │           H:30 │  │
+│  ├────────────────┤  │
+│  │ Heckler    B:2 │  │ (all red - disabled)
+│  │           H:20 │  │
+│  ├────────────────┤  │
+│  │ Engineer   B:3 │  │ (all red - disabled)
+│  │           H:25 │  │
+│  └────────────────┘  │
+└──────────────────────┘
+
+CONTACT SELECTED STATE
+┌──────────────────────┐
+│  BURNER PHONE        │
+│  ──────────────────  │
+│  BATTERY: ██████████ │
+│                      │
+│  HEAT: [═══          │
+│         30%          │
+│                      │
+│  ┌────────────────┐  │
+│  │ Spotter    B:2 │  │ (green)
+│  │           H:15 │  │
+│  ├────────────────┤  │
+│  │ Marshal    B:3 │  │ (PINK - SELECTED)
+│  │           H:30 │  │ (thick pink border)
+│  ├────────────────┤  │
+│  │ Heckler    B:2 │  │ (green)
+│  │           H:20 │  │
+│  ├────────────────┤  │
+│  │ Engineer   B:3 │  │ (green)
+│  │           H:25 │  │
+│  └────────────────┘  │
+└──────────────────────┘
+
+LEADERBOARD WHEN TARGETING
+┌──────────────────────┐
+│  SELECT TARGET       │ (pink border)
+│  Using: Marshal      │ (green text)
+│                      │
+│  1. HAMILTON    ◄────┼─── Hover highlight
+│     +0.0s            │     (pink background)
+│  2. VERSTAPPEN       │
+│     +1.2s            │
+│  3. LECLERC          │
+│     +2.5s            │
+│  4. SAINZ            │
+│     +3.1s            │
+└──────────────────────┘
+
+================================================================================
+                      NOTIFICATION OVERLAY
+================================================================================
+
+┌──────────────────────────────────────────────┐
+│                                              │
+│   ┌────────────────────────────────────┐    │
+│   │ CONTACT USED: Marshal              │    │ (green border)
+│   │ Yellow flag deployed - all slowed  │    │ (fades in/out)
+│   └────────────────────────────────────┘    │
+│                                              │
+│            [TRACK VIEW]                      │
+│                                              │
+└──────────────────────────────────────────────┘
+
+================================================================================
+                         CONTACT TOOLTIP
+================================================================================
+
+┌────────────────┐  ┌─────────────────────┐
+│ Spotter    B:2 │─>│ Spotter             │
+│           H:15 │  │ Reduce crash risk   │
+└────────────────┘  │ Cost: 2 Battery     │
+                    └─────────────────────┘
+
+================================================================================
+                          INTERACTION FLOW
+================================================================================
+
+Step 1: Click Contact Button
+   ┌────────────────┐
+   │ Marshal    B:3 │  ← CLICK
+   │           H:30 │
+   └────────────────┘
+            ↓
+Step 2: Contact Selected (Pink Border)
+   ┌────────────────┐
+   │ Marshal    B:3 │  (pink border)
+   │           H:30 │  (SELECTED)
+   └────────────────┘
+            ↓
+Step 3: Leaderboard Highlights
+   ┌──────────────────────┐
+   │  SELECT TARGET       │ (pink border)
+   │  Using: Marshal      │
+   │                      │
+   │  1. HAMILTON         │ ← Hover drivers
+   │  2. VERSTAPPEN       │
+   │  3. LECLERC          │
+   └──────────────────────┘
+            ↓
+Step 4: Click Driver to Activate
+   CLICK HAMILTON
+            ↓
+Step 5: Notification Appears
+   ┌────────────────────────────────────┐
+   │ CONTACT USED: Marshal              │
+   │ Yellow flag deployed - all slowed  │
+   └────────────────────────────────────┘
+            ↓
+Step 6: Battery Depletes, Heat Increases
+   BATTERY: ██████░░░░ (10 → 7)
+   HEAT: [═══════     (0% → 30%)
+
+================================================================================
+                         COLOR CODING
+================================================================================
+
+Battery Levels:
+  ██████████ (10-3)  = GREEN  (healthy)
+  ██░░░░░░░░ (2-1)   = RED    (critical)
+
+Heat Levels:
+  0-50%   = GREEN → YELLOW gradient
+  50-100% = YELLOW → RED gradient
+
+Contact Borders:
+  GREEN = Available (can use)
+  RED   = Disabled (insufficient battery or heat too high)
+  PINK  = Selected (targeting mode)
+
+UI Borders:
+  GREEN = Active/Unlocked
+  GRAY  = Locked (no Rolodex)
+  PINK  = Targeting mode
+
+================================================================================
+                         KEYBOARD/MOUSE
+================================================================================
+
+MOUSE ACTIONS:
+  - Click contact button → Select contact
+  - Click driver in leaderboard → Use contact on driver
+  - Hover contact → Show tooltip
+  - Hover driver (when targeting) → Highlight row
+
+NO KEYBOARD SHORTCUTS (Mouse-only interface)
+
+================================================================================
+                      TECHNICAL SPECIFICATIONS
+================================================================================
+
+UI Position: (610, 420, 180x160)
+Battery Display: 10 bars, 14px wide each
+Heat Bar: 160px wide, 8px tall
+Contact Buttons: 170px wide, 20px tall, 22px spacing
+Notification: 400px wide, 60px tall, centered top
+Tooltip: 140px wide, 40px tall, right of contact
+
+Update Frequency: 60 FPS
+Heat Decay Rate: 2 per second
+Notification Duration: 3 seconds (500ms fade in/out)
+
+================================================================================
