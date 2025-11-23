@@ -732,6 +732,8 @@ class CarController {
             heading: this.heading,
             speed: this.speed,
             currentLap: this.currentLap,
+            currentWaypoint: this.currentWaypoint,
+            waypointProgress: this.waypointProgress,
             position: this.position,
             status: this.status,
             teamColor: this.teamColor,

@@ -548,37 +548,83 @@ class BettingScreen {
         ctx.textAlign = 'left';
         ctx.fillText('TRACK MAP', x + 10, y + 25);
 
-        const trackName = gameState?.currentTrack?.name || 'MONACO NIGHTS';
+        // Get track object
+        const track = gameState?.currentTrack;
+        const trackName = track?.name || 'UNKNOWN TRACK';
         ctx.font = '14px "Courier New", monospace';
         ctx.fillStyle = '#00ffff';
         ctx.fillText(trackName, x + 10, y + 45);
 
-        // Simple track visualization (example circuit)
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(x + 40, y + 70);
-        ctx.lineTo(x + 240, y + 70);
-        ctx.quadraticCurveTo(x + 260, y + 70, x + 260, y + 90);
-        ctx.lineTo(x + 260, y + 140);
-        ctx.quadraticCurveTo(x + 260, y + 160, x + 240, y + 160);
-        ctx.lineTo(x + 40, y + 160);
-        ctx.quadraticCurveTo(x + 20, y + 160, x + 20, y + 140);
-        ctx.lineTo(x + 20, y + 90);
-        ctx.quadraticCurveTo(x + 20, y + 70, x + 40, y + 70);
-        ctx.stroke();
+        // Draw actual track if available
+        if (track && track.waypoints && track.waypoints.length > 1) {
+            const displayX = x + 15;
+            const displayY = y + 65;
+            const displayWidth = width - 30;
+            const displayHeight = height - 90;
 
-        // Start/Finish line
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x + 40, y + 65);
-        ctx.lineTo(x + 40, y + 75);
-        ctx.stroke();
+            const bounds = track.visualBounds;
+            const scaleX = displayWidth / bounds.width;
+            const scaleY = displayHeight / bounds.height;
 
-        ctx.font = '10px "Courier New", monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText('START', x + 45, y + 73);
+            // Draw track
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+
+            const firstWP = track.waypoints[0];
+            ctx.moveTo(displayX + (firstWP.x - bounds.minX) * scaleX, displayY + (firstWP.y - bounds.minY) * scaleY);
+
+            for (let i = 1; i < track.waypoints.length; i++) {
+                const wp = track.waypoints[i];
+                ctx.lineTo(displayX + (wp.x - bounds.minX) * scaleX, displayY + (wp.y - bounds.minY) * scaleY);
+            }
+
+            ctx.closePath();
+            ctx.stroke();
+
+            // Start/Finish line
+            const startX = displayX + (firstWP.x - bounds.minX) * scaleX;
+            const startY = displayY + (firstWP.y - bounds.minY) * scaleY;
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(startX - 5, startY - 8);
+            ctx.lineTo(startX - 5, startY + 8);
+            ctx.stroke();
+
+            ctx.font = '9px "Courier New", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText('S/F', startX, startY - 12);
+        } else {
+            // Fallback to simple track
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x + 40, y + 70);
+            ctx.lineTo(x + 240, y + 70);
+            ctx.quadraticCurveTo(x + 260, y + 70, x + 260, y + 90);
+            ctx.lineTo(x + 260, y + 140);
+            ctx.quadraticCurveTo(x + 260, y + 160, x + 240, y + 160);
+            ctx.lineTo(x + 40, y + 160);
+            ctx.quadraticCurveTo(x + 20, y + 160, x + 20, y + 140);
+            ctx.lineTo(x + 20, y + 90);
+            ctx.quadraticCurveTo(x + 20, y + 70, x + 40, y + 70);
+            ctx.stroke();
+
+            // Start/Finish line
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + 40, y + 65);
+            ctx.lineTo(x + 40, y + 75);
+            ctx.stroke();
+
+            ctx.font = '10px "Courier New", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('START', x + 45, y + 73);
+        }
     }
 
     renderDriverPortrait(ctx, gameState, x, y, width, height) {
@@ -1059,92 +1105,194 @@ class RaceScreen {
     }
 
     renderTrackView(ctx, gameState, x, y, width, height) {
-        // Track container
+        // Get track object
+        const track = gameState?.race?.track;
+        if (!track) {
+            this.renderFallbackTrack(ctx, x, y, width, height);
+            return;
+        }
+
+        // Track container - fill entire area
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Title with track name
-        const trackName = gameState?.currentTrack?.name || 'UNKNOWN TRACK';
+        // Title area at top
+        ctx.font = 'bold 12px "Courier New", monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'left';
+        ctx.fillText('TRACK', x + 10, y + 18);
+
+        ctx.font = '11px "Courier New", monospace';
+        ctx.fillStyle = '#00ffff';
+        ctx.fillText(track.name, x + 10, y + 30);
+
+        // Track drawing area (use most of the space)
+        const trackDisplayX = x + 10;
+        const trackDisplayY = y + 40;
+        const trackDisplayWidth = width - 20;
+        const trackDisplayHeight = height - 80;
+
+        // Draw track using waypoints
+        if (track.waypoints && track.waypoints.length > 1) {
+            this.drawTrackPath(ctx, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
+        }
+
+        // Draw cars on track
+        const standings = gameState?.race?.raceStandings || this.generateDummyStandings();
+        this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
+
+        // Lap counter at bottom
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20 };
         ctx.font = 'bold 14px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText('TRACK', x + 10, y + 20);
+        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 10, y + height - 8);
+    }
 
-        ctx.font = '12px "Courier New", monospace';
-        ctx.fillStyle = '#00ffff';
-        ctx.fillText(trackName, x + 10, y + 35);
+    /**
+     * Draw the track path using waypoints
+     */
+    drawTrackPath(ctx, track, x, y, width, height) {
+        const bounds = track.visualBounds;
+        const scaleX = width / bounds.width;
+        const scaleY = height / bounds.height;
 
-        // Simple track visualization (copy from betting screen style)
-        const trackX = x + 50;
-        const trackY = y + 70;
-        const trackW = width - 100;
-        const trackH = height - 110;
-
+        // Draw track outline
         ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
         ctx.beginPath();
-        ctx.moveTo(trackX + 40, trackY);
-        ctx.lineTo(trackX + trackW - 40, trackY);
-        ctx.quadraticCurveTo(trackX + trackW, trackY, trackX + trackW, trackY + 20);
-        ctx.lineTo(trackX + trackW, trackY + trackH - 20);
-        ctx.quadraticCurveTo(trackX + trackW, trackY + trackH, trackX + trackW - 40, trackY + trackH);
-        ctx.lineTo(trackX + 40, trackY + trackH);
-        ctx.quadraticCurveTo(trackX, trackY + trackH, trackX, trackY + trackH - 20);
-        ctx.lineTo(trackX, trackY + 20);
-        ctx.quadraticCurveTo(trackX, trackY, trackX + 40, trackY);
+        const firstWP = track.waypoints[0];
+        ctx.moveTo(x + (firstWP.x - bounds.minX) * scaleX, y + (firstWP.y - bounds.minY) * scaleY);
+
+        for (let i = 1; i < track.waypoints.length; i++) {
+            const wp = track.waypoints[i];
+            ctx.lineTo(x + (wp.x - bounds.minX) * scaleX, y + (wp.y - bounds.minY) * scaleY);
+        }
+
+        ctx.closePath();
         ctx.stroke();
 
-        // Start/Finish line
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(trackX + 40, trackY - 5);
-        ctx.lineTo(trackX + 40, trackY + 10);
-        ctx.stroke();
+        // Draw start/finish line (at first waypoint)
+        if (track.waypoints.length > 0) {
+            const startWP = track.waypoints[0];
+            const nextWP = track.waypoints[1];
+            const startX = x + (startWP.x - bounds.minX) * scaleX;
+            const startY = y + (startWP.y - bounds.minY) * scaleY;
 
-        ctx.font = '10px "Courier New", monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.fillText('S/F', trackX + 40, trackY - 10);
+            // Draw perpendicular line
+            const dx = nextWP.x - startWP.x;
+            const dy = nextWP.y - startWP.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const perpX = (-dy / len) * 15;
+            const perpY = (dx / len) * 15;
 
-        // Draw cars as colored dots around the track
-        const standings = gameState?.race?.raceStandings || this.generateDummyStandings();
-        
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(startX - perpX, startY - perpY);
+            ctx.lineTo(startX + perpX, startY + perpY);
+            ctx.stroke();
+
+            // Label
+            ctx.font = 'bold 9px "Courier New", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText('S/F', startX, startY - 12);
+        }
+    }
+
+    /**
+     * Draw cars as colored dots on the track
+     */
+    drawCarsOnTrack(ctx, standings, track, x, y, width, height) {
+        if (!standings || !track) return;
+
+        const bounds = track.visualBounds;
+        const scaleX = width / bounds.width;
+        const scaleY = height / bounds.height;
+
         standings.forEach((entry, position) => {
-            // Calculate position around track (simplified - place around perimeter)
-            const totalCars = standings.length;
-            const angle = (position / totalCars) * Math.PI * 2 - Math.PI / 2;
+            // Calculate progress around track
+            // Each car has currentWaypoint and waypointProgress
+            const currentWaypoint = entry.currentWaypoint || 0;
+            const waypointProgress = entry.waypointProgress || 0;
             
-            const radiusX = (trackW - 20) / 2;
-            const radiusY = (trackH - 20) / 2;
-            
-            const carX = trackX + trackW / 2 + Math.cos(angle) * radiusX;
-            const carY = trackY + trackH / 2 + Math.sin(angle) * radiusY;
+            // Total progress (0-1 for current lap)
+            const segmentProgress = (currentWaypoint + waypointProgress) / track.waypoints.length;
+
+            // Get position on track
+            const pos = track.getPositionAtProgress(segmentProgress);
+
+            // Convert to screen coordinates
+            const screenX = x + (pos.x - bounds.minX) * scaleX;
+            const screenY = y + (pos.y - bounds.minY) * scaleY;
 
             // Draw car dot with team color
             const teamColor = entry.driver?.teamColor || entry.teamColor || '#00ffff';
             ctx.fillStyle = teamColor;
             ctx.beginPath();
-            ctx.arc(carX, carY, 5, 0, Math.PI * 2);
+            ctx.arc(screenX, screenY, 6, 0, Math.PI * 2);
             ctx.fill();
 
-            // Position number inside dot
+            // Position number inside
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 8px "Courier New", monospace';
+            ctx.font = 'bold 9px "Courier New", monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(String(position + 1), carX, carY);
-        });
+            ctx.fillText(String(position + 1), screenX, screenY);
 
-        // Lap counter
-        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20 };
-        ctx.font = 'bold 16px "Courier New", monospace';
+            // Status indicator (if crashed or DNF)
+            if (entry.status && entry.status !== 'RACING' && entry.status !== 'FINISHED') {
+                ctx.strokeStyle = '#ff0000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 9, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        });
+    }
+
+    /**
+     * Fallback track display
+     */
+    renderFallbackTrack(ctx, x, y, width, height) {
+        // Simple oval
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = '#ff0066';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.font = 'bold 12px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 10, y + height - 10);
+        ctx.fillText('TRACK', x + 10, y + 18);
+
+        // Draw simple oval
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radiusX = (width - 40) / 2;
+        const radiusY = (height - 80) / 2;
+
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Start/finish
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(centerX - radiusX - 5, centerY - 8);
+        ctx.lineTo(centerX - radiusX - 5, centerY + 8);
+        ctx.stroke();
     }
 
     renderLeaderboard(ctx, gameState, x, y, width, height) {

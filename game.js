@@ -933,18 +933,16 @@ class Game {
 
         // Generate track
         const track = this.trackGenerator.generateTrack(null, 800, 600);
-        const trackName = this.trackGenerator.generateTrackName(track.type);
 
         // Calculate odds
         const winOdds = this.oddsCalculator.calculateWinOdds(drivers, track);
 
-        // Setup race in game state
-        this.gameState.setupRace(drivers, track, trackName, contract);
+        // Setup race in game state (track is now a Track object with name)
+        this.gameState.setupRace(drivers, track, contract);
         this.gameState.setRaceOdds(winOdds);
 
-        // Store data for screens
-        this.gameState.drivers = drivers;
-        this.gameState.currentTrack = { name: trackName, ...track };
+        // Store reference for screens
+        this.gameState.currentTrack = track;
     }
 
     /**

@@ -138,10 +138,11 @@ class GameState {
     /**
      * Sets up a race with drivers, track, and odds
      */
-    setupRace(drivers, track, trackName, contract) {
+    setupRace(drivers, track, contract) {
         this.race.drivers = drivers;
+        // Track is now a Track object with name property
         this.race.track = track;
-        this.race.trackName = trackName;
+        this.race.trackName = track?.name || 'UNKNOWN TRACK';
         this.race.contract = contract;
         this.race.field = drivers;
         this.race.raceState = 'not_started';

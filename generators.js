@@ -688,15 +688,10 @@ class TrackGenerator {
 
         const characteristics = this.calculateCharacteristics(waypoints);
         const weather = this.generateWeather();
+        const trackName = this.generateTrackName(trackType);
 
-        return {
-            type: trackType,
-            waypoints,
-            characteristics,
-            weather,
-            width,
-            height
-        };
+        // Return a Track object instead of plain object
+        return new Track(trackType, trackName, waypoints, characteristics, weather);
     }
 
     /**

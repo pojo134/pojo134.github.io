@@ -265,11 +265,11 @@ class GameFlowTester {
         const track = trackGen.generateTrack(null, 800, 600);
         const contract = { name: 'Test Contract', payout: 1000 };
 
-        gameState.setupRace(drivers, track, 'Test Track', contract);
+        gameState.setupRace(drivers, track, contract);
 
         TestAssertion.assertNotNull(gameState.race.drivers, 'Drivers should be set');
         TestAssertion.assertNotNull(gameState.race.track, 'Track should be set');
-        TestAssertion.assertEquals(gameState.race.trackName, 'Test Track', 'Track name should match');
+        TestAssertion.assertNotNull(gameState.race.trackName, 'Track name should be set');
         TestAssertion.assertEquals(gameState.race.raceState, 'not_started', 'Race should be not started');
     }
 

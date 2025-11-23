@@ -1,0 +1,190 @@
+/**
+ * REDLINE ROULETTE - TRACK SYSTEM
+ *
+ * Unified Track class that maintains track data across all screens.
+ * Stores layout, waypoints, distance, and name for consistent visualization.
+ */
+
+class Track {
+    constructor(type, name, waypoints, characteristics = {}, weather = {}) {
+        this.type = type;
+        this.name = name;
+        this.waypoints = waypoints || [];
+        this.characteristics = characteristics;
+        this.weather = weather;
+        
+        // Calculate derived properties
+        this.totalDistance = this.calculateTotalDistance();
+        this.lapDistance = this.totalDistance;
+        
+        // Track visualization properties
+        this.visualBounds = this.calculateVisualizationBounds();
+    }
+
+    /**
+     * Calculate total distance of the track based on waypoints
+     */
+    calculateTotalDistance() {
+        if (!this.waypoints || this.waypoints.length < 2) return 0;
+        
+        let distance = 0;
+        for (let i = 0; i < this.waypoints.length; i++) {
+            const current = this.waypoints[i];
+            const next = this.waypoints[(i + 1) % this.waypoints.length];
+            
+            const dx = next.x - current.x;
+            const dy = next.y - current.y;
+            distance += Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        return distance;
+    }
+
+    /**
+     * Calculate bounds for track visualization
+     * Returns an object with min/max x,y coordinates
+     */
+    calculateVisualizationBounds() {
+        if (!this.waypoints || this.waypoints.length === 0) {
+            return { minX: 0, minY: 0, maxX: 100, maxY: 100, width: 100, height: 100 };
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        this.waypoints.forEach(wp => {
+            minX = Math.min(minX, wp.x);
+            minY = Math.min(minY, wp.y);
+            maxX = Math.max(maxX, wp.x);
+            maxY = Math.max(maxY, wp.y);
+        });
+
+        const width = maxX - minX || 100;
+        const height = maxY - minY || 100;
+        const padding = Math.max(width, height) * 0.1;
+
+        return {
+            minX: minX - padding,
+            minY: minY - padding,
+            maxX: maxX + padding,
+            maxY: maxY + padding,
+            width: width + padding * 2,
+            height: height + padding * 2
+        };
+    }
+
+    /**
+     * Get the position along the track at a given progress (0-1 = one lap)
+     * Returns {x, y} in track coordinates
+     */
+    getPositionAtProgress(progress) {
+        if (!this.waypoints || this.waypoints.length === 0) {
+            return { x: 0, y: 0 };
+        }
+
+        // Normalize progress to 0-1 range
+        progress = ((progress % 1) + 1) % 1;
+
+        // Total waypoint segments
+        const segments = this.waypoints.length;
+        const segmentProgress = progress * segments;
+        const currentSegment = Math.floor(segmentProgress) % segments;
+        const progressInSegment = segmentProgress - Math.floor(segmentProgress);
+
+        const currentWaypoint = this.waypoints[currentSegment];
+        const nextWaypoint = this.waypoints[(currentSegment + 1) % segments];
+
+        // Linear interpolation between waypoints
+        const x = currentWaypoint.x + (nextWaypoint.x - currentWaypoint.x) * progressInSegment;
+        const y = currentWaypoint.y + (nextWaypoint.y - currentWaypoint.y) * progressInSegment;
+
+        return { x, y };
+    }
+
+    /**
+     * Get track direction at a given progress
+     * Returns angle in radians (0 = right, PI/2 = down, PI = left, -PI/2 = up)
+     */
+    getDirectionAtProgress(progress) {
+        if (!this.waypoints || this.waypoints.length < 2) {
+            return 0;
+        }
+
+        progress = ((progress % 1) + 1) % 1;
+
+        const segments = this.waypoints.length;
+        const segmentProgress = progress * segments;
+        const currentSegment = Math.floor(segmentProgress) % segments;
+
+        const currentWaypoint = this.waypoints[currentSegment];
+        const nextWaypoint = this.waypoints[(currentSegment + 1) % segments];
+
+        const dx = nextWaypoint.x - currentWaypoint.x;
+        const dy = nextWaypoint.y - currentWaypoint.y;
+
+        return Math.atan2(dy, dx);
+    }
+
+    /**
+     * Convert screen coordinates to track visualization
+     * Takes display area and returns scaled position
+     */
+    screenToTrack(screenX, screenY, displayX, displayY, displayWidth, displayHeight) {
+        const bounds = this.visualBounds;
+        
+        // Scale factors
+        const scaleX = displayWidth / bounds.width;
+        const scaleY = displayHeight / bounds.height;
+        
+        // Convert screen coords to track coords
+        const trackX = (screenX - displayX) / scaleX + bounds.minX;
+        const trackY = (screenY - displayY) / scaleY + bounds.minY;
+        
+        return { trackX, trackY };
+    }
+
+    /**
+     * Convert track coordinates to screen for rendering
+     * Returns {screenX, screenY}
+     */
+    trackToScreen(trackX, trackY, displayX, displayY, displayWidth, displayHeight) {
+        const bounds = this.visualBounds;
+        
+        // Scale factors
+        const scaleX = displayWidth / bounds.width;
+        const scaleY = displayHeight / bounds.height;
+        
+        // Convert track coords to screen
+        const screenX = displayX + (trackX - bounds.minX) * scaleX;
+        const screenY = displayY + (trackY - bounds.minY) * scaleY;
+        
+        return { screenX, screenY };
+    }
+
+    /**
+     * Get information about the track for UI display
+     */
+    getInfo() {
+        return {
+            type: this.type,
+            name: this.name,
+            totalDistance: this.totalDistance.toFixed(0),
+            lapDistance: this.lapDistance.toFixed(0),
+            waypointCount: this.waypoints.length,
+            characteristics: this.characteristics,
+            weather: this.weather
+        };
+    }
+
+    /**
+     * Clone this track (for persistence between screens)
+     */
+    clone() {
+        return new Track(
+            this.type,
+            this.name,
+            JSON.parse(JSON.stringify(this.waypoints)),
+            JSON.parse(JSON.stringify(this.characteristics)),
+            JSON.parse(JSON.stringify(this.weather))
+        );
+    }
+}
