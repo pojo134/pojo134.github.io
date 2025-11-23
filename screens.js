@@ -982,25 +982,22 @@ class RaceScreen {
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Race info header (top)
-        this.renderRaceInfo(ctx, gameState, 0, 0, canvas.width, 40);
+        // Outer border
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
 
-        // Main track view (large, takes most of the space)
-        this.renderTrackView(ctx, gameState, 10, 50, 770, 520);
+        // Main track view - takes center/left space
+        this.renderTrackView(ctx, gameState, 10, 10, 750, 560);
 
-        // Side panel: Leaderboard and info (top-right)
-        this.renderLeaderboard(ctx, gameState, 790, 50, 230, 300);
+        // Right panel: Standings
+        this.renderLeaderboard(ctx, gameState, 770, 10, 240, 280);
 
-        // Side panel: Burner Phone (middle-right)
-        this.renderBurnerPhone(ctx, gameState, 790, 360, 230, 130);
+        // Right panel: Burner Phone
+        this.renderBurnerPhone(ctx, gameState, 770, 300, 240, 180);
 
-        // Event ticker (bottom)
-        this.renderEventTicker(ctx, gameState, 10, 580, 1010, 40);
-
-        // Contact notification overlay
-        if (this.contactNotification) {
-            this.renderContactNotification(ctx, canvas.width / 2, 100);
-        }
+        // Bottom: Event ticker
+        this.renderEventTicker(ctx, gameState, 10, 580, 1000, 130);
     }
 
     renderContactNotification(ctx, x, y) {
@@ -1062,293 +1059,92 @@ class RaceScreen {
     }
 
     renderTrackView(ctx, gameState, x, y, width, height) {
-        // Track container with clean border
+        // Track container
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = '#00ff00';
+        ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Get track and car data
-        const track = gameState?.race?.track;
-        const standings = gameState?.race?.raceStandings || [];
-        const simulation = gameState?.race?.simulation;
+        // Title with track name
+        const trackName = gameState?.currentTrack?.name || 'UNKNOWN TRACK';
+        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'left';
+        ctx.fillText('TRACK', x + 10, y + 20);
 
-        if (!track || !track.waypoints || track.waypoints.length === 0) {
-            // Fallback if no real track data
-            this._renderFallbackTrack(ctx, x, y, width, height);
-            return;
-        }
+        ctx.font = '12px "Courier New", monospace';
+        ctx.fillStyle = '#00ffff';
+        ctx.fillText(trackName, x + 10, y + 35);
 
-        // Calculate track bounds and scale
-        const { minX, minY, maxX, maxY } = this._calculateTrackBounds(track.waypoints);
-        const trackWidth = maxX - minX;
-        const trackHeight = maxY - minY;
-        
-        // Calculate scaling to fit track nicely in view with padding
-        const padding = 40;
-        const availWidth = width - padding * 2;
-        const availHeight = height - padding * 2;
-        
-        const scaleX = availWidth / (trackWidth || 1);
-        const scaleY = availHeight / (trackHeight || 1);
-        const scale = Math.min(scaleX, scaleY);
-        
-        // Center the scaled track
-        const centerX = x + width / 2 - ((minX + maxX) / 2 * scale);
-        const centerY = y + height / 2 - ((minY + maxY) / 2 * scale);
+        // Simple track visualization (copy from betting screen style)
+        const trackX = x + 50;
+        const trackY = y + 70;
+        const trackW = width - 100;
+        const trackH = height - 110;
 
-        // Draw track surface and markings
-        this._drawTrackSurface(ctx, track.waypoints, scale, centerX, centerY);
-
-        // Draw pit area if applicable
-        this._drawPitArea(ctx, track.waypoints, scale, centerX, centerY);
-
-        // Draw grid/starting positions
-        this._drawGridPositions(ctx, track.waypoints, standings, scale, centerX, centerY);
-
-        // Draw cars at their current positions
-        this._drawCars(ctx, standings, simulation, track.waypoints, scale, centerX, centerY);
-
-        // Draw start/finish line
-        this._drawStartFinishLine(ctx, track.waypoints, scale, centerX, centerY);
-
-        // Draw lap counter and timing
-        this._drawTrackInfo(ctx, gameState, simulation, x, y, width);
-    }
-
-    /**
-     * Calculate bounds of waypoint array
-     * @private
-     */
-    _calculateTrackBounds(waypoints) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        waypoints.forEach(wp => {
-            minX = Math.min(minX, wp.x);
-            minY = Math.min(minY, wp.y);
-            maxX = Math.max(maxX, wp.x);
-            maxY = Math.max(maxY, wp.y);
-        });
-        return { minX, minY, maxX, maxY };
-    }
-
-    /**
-     * Draw the track surface and markings
-     * @private
-     */
-    _drawTrackSurface(ctx, waypoints, scale, centerX, centerY) {
-        if (waypoints.length < 2) return;
-
-        // Draw track asphalt/surface
-        ctx.fillStyle = '#1a1a1a';
-        ctx.strokeStyle = '#333333';
-        ctx.lineWidth = 25 * scale;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        ctx.beginPath();
-        ctx.moveTo(centerX + waypoints[0].x * scale, centerY + waypoints[0].y * scale);
-        
-        // Use quadratic curves for smooth track
-        for (let i = 1; i < waypoints.length; i++) {
-            const curr = waypoints[i];
-            const next = waypoints[(i + 1) % waypoints.length];
-            
-            // Draw line to next point (simplified - could use bezier for smoother curves)
-            ctx.lineTo(centerX + curr.x * scale, centerY + curr.y * scale);
-        }
-        ctx.closePath();
-        ctx.stroke();
-
-        // Draw track boundaries (red outer wall)
-        ctx.strokeStyle = '#cc0000';
+        ctx.strokeStyle = '#666666';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(centerX + waypoints[0].x * scale, centerY + waypoints[0].y * scale);
-        for (let i = 1; i < waypoints.length; i++) {
-            const curr = waypoints[i];
-            ctx.lineTo(centerX + curr.x * scale, centerY + curr.y * scale);
-        }
-        ctx.closePath();
+        ctx.moveTo(trackX + 40, trackY);
+        ctx.lineTo(trackX + trackW - 40, trackY);
+        ctx.quadraticCurveTo(trackX + trackW, trackY, trackX + trackW, trackY + 20);
+        ctx.lineTo(trackX + trackW, trackY + trackH - 20);
+        ctx.quadraticCurveTo(trackX + trackW, trackY + trackH, trackX + trackW - 40, trackY + trackH);
+        ctx.lineTo(trackX + 40, trackY + trackH);
+        ctx.quadraticCurveTo(trackX, trackY + trackH, trackX, trackY + trackH - 20);
+        ctx.lineTo(trackX, trackY + 20);
+        ctx.quadraticCurveTo(trackX, trackY, trackX + 40, trackY);
         ctx.stroke();
 
-        // Draw center line
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([8, 6]);
+        // Start/Finish line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(centerX + waypoints[0].x * scale, centerY + waypoints[0].y * scale);
-        for (let i = 1; i < waypoints.length; i++) {
-            const curr = waypoints[i];
-            ctx.lineTo(centerX + curr.x * scale, centerY + curr.y * scale);
-        }
-        ctx.closePath();
+        ctx.moveTo(trackX + 40, trackY - 5);
+        ctx.lineTo(trackX + 40, trackY + 10);
         ctx.stroke();
-        ctx.setLineDash([]);
-    }
 
-    /**
-     * Draw pit area
-     * @private
-     */
-    _drawPitArea(ctx, waypoints, scale, centerX, centerY) {
-        if (waypoints.length < 1) return;
+        ctx.font = '10px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('S/F', trackX + 40, trackY - 10);
 
-        // Draw simple pit area indicator near start
-        const startX = centerX + waypoints[0].x * scale;
-        const startY = centerY + waypoints[0].y * scale;
+        // Draw cars as colored dots around the track
+        const standings = gameState?.race?.raceStandings || this.generateDummyStandings();
         
-        ctx.fillStyle = 'rgba(255, 200, 0, 0.1)';
-        ctx.fillRect(startX - 40, startY - 30, 80, 60);
-        
-        ctx.strokeStyle = '#ffcc00';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(startX - 40, startY - 30, 80, 60);
-    }
-
-    /**
-     * Draw grid/starting positions
-     * @private
-     */
-    _drawGridPositions(ctx, waypoints, standings, scale, centerX, centerY) {
-        // This is shown before race starts
-        // Could indicate starting grid positions
-    }
-
-    /**
-     * Draw cars at current positions on track
-     * @private
-     */
-    _drawCars(ctx, standings, simulation, waypoints, scale, centerX, centerY) {
-        if (!standings || standings.length === 0) return;
-
         standings.forEach((entry, position) => {
-            // Get car state
-            const car = entry;
+            // Calculate position around track (simplified - place around perimeter)
+            const totalCars = standings.length;
+            const angle = (position / totalCars) * Math.PI * 2 - Math.PI / 2;
             
-            // Get driver info
-            const driverName = car.driver?.name || car.name || `P${position + 1}`;
-            const teamColor = car.driver?.teamColor || car.teamColor || '#00ffff';
-
-            // Calculate position on track
-            // Use waypoint progress to find current location
-            let trackX, trackY;
+            const radiusX = (trackW - 20) / 2;
+            const radiusY = (trackH - 20) / 2;
             
-            if (car.currentWaypoint !== undefined && waypoints.length > 0) {
-                const idx = Math.min(car.currentWaypoint, waypoints.length - 1);
-                const nextIdx = (idx + 1) % waypoints.length;
-                const progress = car.waypointProgress !== undefined ? car.waypointProgress : 0;
-                
-                const curr = waypoints[idx];
-                const next = waypoints[nextIdx];
-                
-                trackX = curr.x + (next.x - curr.x) * progress;
-                trackY = curr.y + (next.y - curr.y) * progress;
-            } else {
-                // Fallback: place cars around the track based on position
-                const angle = (position / Math.max(standings.length, 1)) * Math.PI * 2;
-                trackX = 400 + Math.cos(angle) * 200;
-                trackY = 300 + Math.sin(angle) * 150;
-            }
+            const carX = trackX + trackW / 2 + Math.cos(angle) * radiusX;
+            const carY = trackY + trackH / 2 + Math.sin(angle) * radiusY;
 
-            const screenX = centerX + trackX * scale;
-            const screenY = centerY + trackY * scale;
-
-            // Draw car dot
+            // Draw car dot with team color
+            const teamColor = entry.driver?.teamColor || entry.teamColor || '#00ffff';
             ctx.fillStyle = teamColor;
             ctx.beginPath();
-            ctx.arc(screenX, screenY, 5, 0, Math.PI * 2);
+            ctx.arc(carX, carY, 5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw position indicator
+            // Position number inside dot
             ctx.fillStyle = '#000000';
             ctx.font = 'bold 8px "Courier New", monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(String(position + 1), screenX, screenY);
-
-            // Draw driver abbreviation above car
-            ctx.fillStyle = teamColor;
-            ctx.font = '7px "Courier New", monospace';
-            ctx.fillText(driverName.substring(0, 3), screenX, screenY - 8);
+            ctx.fillText(String(position + 1), carX, carY);
         });
-    }
 
-    /**
-     * Draw start/finish line
-     * @private
-     */
-    _drawStartFinishLine(ctx, waypoints, scale, centerX, centerY) {
-        if (waypoints.length < 2) return;
-
-        const p1 = waypoints[0];
-        const p2 = waypoints[1];
-
-        // Calculate perpendicular direction for line
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const px = -dy / len * 15;
-        const py = dx / len * 15;
-
-        // Draw checkered pattern
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        for (let i = 0; i < 4; i++) {
-            const offset = (i - 1.5) * 6;
-            ctx.beginPath();
-            ctx.moveTo(centerX + (p1.x + px * offset) * scale, centerY + (p1.y + py * offset) * scale);
-            ctx.lineTo(centerX + (p1.x - px * offset) * scale, centerY + (p1.y - py * offset) * scale);
-            ctx.stroke();
-        }
-
-        // Label
-        ctx.font = 'bold 10px "Courier New", monospace';
-        ctx.fillStyle = '#ffff00';
-        ctx.textAlign = 'center';
-        ctx.fillText('S/F', centerX + p1.x * scale, centerY + p1.y * scale - 20);
-    }
-
-    /**
-     * Draw track info overlay
-     * @private
-     */
-    _drawTrackInfo(ctx, gameState, simulation, x, y, width) {
-        const raceState = simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, state: 'RACING' };
-        
-        // Lap info
+        // Lap counter
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20 };
         ctx.font = 'bold 16px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 20, y + 28);
-    }
-
-    /**
-     * Draw fallback track if no waypoint data available
-     * @private
-     */
-    _renderFallbackTrack(ctx, x, y, width, height) {
-        // Simple oval fallback
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(x, y, width, height);
-
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const radiusX = width * 0.3;
-        const radiusY = height * 0.3;
-
-        // Draw oval
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 15;
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Center point
-        ctx.fillStyle = '#666666';
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 10, y + height - 10);
     }
 
     renderLeaderboard(ctx, gameState, x, y, width, height) {
@@ -1571,11 +1367,11 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
         if (!hasRolodex) return null;
 
-        // Burner phone bounds (right side, middle)
-        const phoneX = 790;
-        const phoneY = 360;
-        const phoneWidth = 230;
-        const phoneHeight = 130;
+        // Burner phone bounds (new layout: x=770, y=300, w=240, h=180)
+        const phoneX = 770;
+        const phoneY = 300;
+        const phoneWidth = 240;
+        const phoneHeight = 180;
 
         // Check if click is in burner phone area
         if (x >= phoneX && x <= phoneX + phoneWidth && y >= phoneY && y <= phoneY + phoneHeight) {
@@ -1596,21 +1392,21 @@ class RaceScreen {
 
         // Check if clicking on leaderboard to select driver (when contact is selected)
         if (this.selectedContact) {
-            const leaderboardX = 790;
-            const leaderboardY = 50;
-            const leaderboardWidth = 230;
-            const leaderboardHeight = 300;
+            const leaderboardX = 770;
+            const leaderboardY = 10;
+            const leaderboardWidth = 240;
+            const leaderboardHeight = 280;
 
             if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
                 y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
 
                 const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
-                const rowHeight = 35;
-                const startY = leaderboardY + 45;
+                const rowHeight = 28;
+                const startY = leaderboardY + 32;
 
                 drivers.forEach((driver, index) => {
                     const rowY = startY + index * rowHeight;
-                    if (y >= rowY - 20 && y <= rowY + 15) {
+                    if (y >= rowY - 14 && y <= rowY + 14) {
                         // Use contact on this driver
                         const driverName = driver.driver?.name || driver.name || 'UNKNOWN';
                         return this.useContactOnDriver(driverName, gameState);
@@ -1631,11 +1427,11 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
         if (!hasRolodex) return;
 
-        // Burner phone bounds (right side, middle)
-        const phoneX = 790;
-        const phoneY = 360;
-        const phoneWidth = 230;
-        const phoneHeight = 130;
+        // Burner phone bounds (new layout: x=770, y=300, w=240, h=180)
+        const phoneX = 770;
+        const phoneY = 300;
+        const phoneWidth = 240;
+        const phoneHeight = 180;
 
         // Check hover on contacts
         if (x >= phoneX && x <= phoneX + phoneWidth && y >= phoneY && y <= phoneY + phoneHeight) {
@@ -1652,21 +1448,21 @@ class RaceScreen {
 
         // Check hover on drivers (when contact selected)
         if (this.selectedContact) {
-            const leaderboardX = 550;
-            const leaderboardY = 50;
+            const leaderboardX = 770;
+            const leaderboardY = 10;
             const leaderboardWidth = 240;
-            const leaderboardHeight = 350;
+            const leaderboardHeight = 280;
 
             if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
                 y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
 
                 const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
-                const rowHeight = 35;
-                const startY = leaderboardY + 45;
+                const rowHeight = 28;
+                const startY = leaderboardY + 32;
 
                 drivers.forEach((driver, index) => {
                     const rowY = startY + index * rowHeight;
-                    if (y >= rowY - 20 && y <= rowY + 15) {
+                    if (y >= rowY - 14 && y <= rowY + 14) {
                         const driverName = driver.driver?.name || driver.name || 'UNKNOWN';
                         this.hoveredDriver = driverName;
                     }
