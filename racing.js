@@ -654,6 +654,8 @@ class CarController {
                     this.currentLap++;
                     this.justCrossedLine = true;
                     
+                    console.log(`[LAP] ${this.driver.name} completes Lap ${this.currentLap}`);
+                    
                     // Log lap complete event (if race simulator is available)
                     if (this.raceSimulator) {
                         this.raceSimulator._addEvent(EventType.LAP_COMPLETE, {
@@ -669,6 +671,7 @@ class CarController {
                 // Reset lap crossing flag when we're far enough from start line
                 if (this.currentWaypoint > 0 && !this.hasCompletedFirstWaypoint) {
                     this.hasCompletedFirstWaypoint = true;
+                    console.log(`[FLAG] ${this.driver.name} hasCompletedFirstWaypoint = true at waypoint ${this.currentWaypoint}`);
                 }
                 if (this.currentWaypoint > 2) {
                     this.justCrossedLine = false;
