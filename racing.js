@@ -665,10 +665,13 @@ class CarController {
                     }
                 }
                 
-                // Reset lap crossing flag when we leave waypoint 0
+                // Mark that we've left the starting line (as soon as we move past waypoint 0)
+                // Reset lap crossing flag when we're far enough from start line
+                if (this.currentWaypoint > 0 && !this.hasCompletedFirstWaypoint) {
+                    this.hasCompletedFirstWaypoint = true;
+                }
                 if (this.currentWaypoint > 2) {
                     this.justCrossedLine = false;
-                    this.hasCompletedFirstWaypoint = true;
                 }
             } else {
                 // Move partway to next waypoint
