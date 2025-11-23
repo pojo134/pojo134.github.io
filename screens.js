@@ -747,7 +747,7 @@ class BettingScreen {
     }
 
     handleClick(x, y, gameState) {
-        const canvas = ctx.canvas; // Assuming canvas size
+        const canvas = { width: 1280, height: 720 }; // Canvas dimensions
 
         // Check bet type selector
         const betTypes = [
@@ -1615,7 +1615,7 @@ class ResultsScreen {
     }
 
     handleClick(x, y, gameState) {
-        const canvas = ctx.canvas;
+        const canvas = { width: 1280, height: 720 }; // Canvas dimensions
         const btnX = canvas.width / 2 - 100;
         const btnY = 540;
         const btnWidth = 200;
