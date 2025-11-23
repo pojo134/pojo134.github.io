@@ -18,6 +18,7 @@ const RaceState = Object.freeze({
 
 const CarStatus = Object.freeze({
     RACING: 'RACING',
+    PIT_STOP: 'PIT_STOP', // New status for cars pitting
     DNF_CRASH: 'DNF_CRASH',
     DNF_MECHANICAL: 'DNF_MECHANICAL',
     FINISHED: 'FINISHED'
@@ -29,6 +30,8 @@ const EventType = Object.freeze({
     CRASH: 'CRASH',
     MECHANICAL_FAILURE: 'MECHANICAL_FAILURE',
     YELLOW_FLAG: 'YELLOW_FLAG',
+    CAUTION_END: 'CAUTION_END', // New event
+    PIT_STOP: 'PIT_STOP',       // New event
     LAP_COMPLETE: 'LAP_COMPLETE',
     RACE_FINISH: 'RACE_FINISH',
     CONTACT_USED: 'CONTACT_USED'
@@ -53,9 +56,19 @@ const PHYSICS_CONFIG = {
     OVERTAKE_OFFSET: 25,          // How far cars move sideways to overtake
     STAMINA_DECAY_RATE: 0.015,    // Stamina loss per lap
     WEATHER_RAIN_PENALTY: 0.35,   // Rain reduces cornering by 35%
-    DNF_BASE_CHANCE: 0.0005,      // Base chance of DNF per update (0.05% - reduced for realism)
+    // DNF is happening too often - reduced by a factor of 100
+    DNF_BASE_CHANCE: 0.000005,    // Base chance of DNF per update (0.0005% - significantly reduced)
     AGGRESSION_CRASH_MULT: 0.3,   // High aggression increases crash chance (reduced multiplier)
-    RELIABILITY_DNF_MULT: 0.5     // Low reliability increases DNF chance (reduced multiplier)
+    RELIABILITY_DNF_MULT: 0.5,    // Low reliability increases DNF chance (reduced multiplier)
+    
+    // Pit Stop Constants
+    PIT_STOP_BASE_TIME: 15,       // Base time in seconds for a pit stop
+    PIT_STOP_VARIANCE: 5,         // Random variance +/- seconds
+    PIT_WINDOW_LAP: 0.5,          // Pit stops are required after this lap fraction (e.g. 50% into a 10 lap race = lap 5)
+
+    // Caution Constants
+    CAUTION_MIN_DURATION: 30,     // Minimum caution duration in seconds
+    CAUTION_MAX_DURATION: 60      // Maximum caution duration in seconds
 };
 
 // ============================================================================
@@ -123,6 +136,7 @@ class RacingPhysics {
         this.track = track;
         this.waypoints = track.waypoints;
         this.weather = track.weather;
+        this.raceInfo = {}; // Will be set by RaceSimulator at start
 
         // Pre-calculate curvatures for all waypoints (optimization)
         this.curvatures = this._precalculateCurvatures();
@@ -399,6 +413,9 @@ class CarController {
         this.status = CarStatus.RACING;
         this.position = startingPosition;
         this.finishTime = null;
+        this.hasPitted = false;       // for pit stop logic
+        this.pitTimeRemaining = 0;    // for pit stop timer
+        this.raceInfo = {};           // Set by RaceSimulator at start
 
         // Performance modifiers
         this.currentStamina = 100;
@@ -439,7 +456,22 @@ class CarController {
      * Update car state for a single physics tick
      */
     update(deltaTime, physics, allCars) {
-        if (this.status !== CarStatus.RACING) return;
+        if (this.status === CarStatus.DNF_CRASH || this.status === CarStatus.DNF_MECHANICAL || this.status === CarStatus.FINISHED) {
+            this.speed = 0;
+            return;
+        }
+
+        if (this.status === CarStatus.PIT_STOP) {
+            this._updatePitStop(deltaTime, physics);
+            return;
+        }
+
+        // Apply caution slowdown if race is under caution
+        if (physics.isCaution) {
+            this.speed = lerp(this.speed, PHYSICS_CONFIG.MIN_SPEED, 0.05);
+            this._moveAlongTrack(deltaTime, physics);
+            return; // No other major updates under caution
+        }
 
         // Apply stamina degradation
         this._updateStamina();
@@ -466,6 +498,24 @@ class CarController {
 
         // Check for DNF
         this._checkDNF(physics);
+    }
+
+    /**
+     * Update car state when on pit road (slowed, waiting)
+     * @private
+     */
+    _updatePitStop(deltaTime, physics) {
+        // Slow down to minimum speed
+        this.speed = lerp(this.speed, PHYSICS_CONFIG.MIN_SPEED * 0.5, 0.1); // Pit speed
+
+        this.pitTimeRemaining -= deltaTime;
+        
+        if (this.pitTimeRemaining <= 0) {
+            this.status = CarStatus.RACING;
+            this.hasPitted = true;
+            this.speed = PHYSICS_CONFIG.MIN_SPEED * 1.5; // Quick exit speed
+            // Note: RaceSimulator handles adding the event
+        }
     }
 
     /**
@@ -532,6 +582,20 @@ class CarController {
         let remainingDistance = distanceToMove;
 
         while (remainingDistance > 0 && this.status === CarStatus.RACING) {
+            // Check for pit entry
+            if (this.currentLap > 0 && this.currentLap < this.raceInfo.totalLaps - 1 && 
+                this.currentWaypoint === 0 && !this.hasPitted && Math.random() < 0.0005) {
+                // Small chance to pit if not pitted and not final lap
+                this.status = CarStatus.PIT_STOP;
+                this.pitTimeRemaining = this.driver.traits.some(t => t.name === 'Quick Pit') 
+                    ? PHYSICS_CONFIG.PIT_STOP_BASE_TIME * 0.8 : PHYSICS_CONFIG.PIT_STOP_BASE_TIME;
+                this.pitTimeRemaining += (Math.random() - 0.5) * PHYSICS_CONFIG.PIT_STOP_VARIANCE * 2;
+                this.pitTimeRemaining = Math.max(5, this.pitTimeRemaining); // Min 5 seconds
+                
+                // Event added by RaceSimulator in _physicsUpdate
+                return;
+            }
+
             const currentWP = physics.waypoints[this.currentWaypoint];
             const nextWPIndex = (this.currentWaypoint + 1) % physics.waypoints.length;
             const nextWP = physics.waypoints[nextWPIndex];
@@ -606,7 +670,7 @@ class CarController {
 
                 case 'Closer':
                     // +20% stamina in final laps
-                    if (this.currentLap >= 8) { // Last 25% of race (assumes ~10 lap race)
+                    if (this.currentLap >= this.raceInfo.totalLaps * 0.75) {
                         this.currentStamina = Math.min(100, this.currentStamina * 1.2);
                     }
                     break;
@@ -617,6 +681,20 @@ class CarController {
                     if (isAlone) {
                         for (const stat in this.effectiveStats) {
                             this.effectiveStats[stat] *= 1.1;
+                        }
+                    }
+                    break;
+                
+                case 'Team Player':
+                    // +5% all stats when near a teammate
+                    const isNearTeammate = allCars.some(c => 
+                        c.driver.teamName === this.driver.teamName && 
+                        c.id !== this.id && 
+                        distance(this.x, this.y, c.x, c.y) < 100 // 100 units is "near"
+                    );
+                    if (isNearTeammate) {
+                        for (const stat in this.effectiveStats) {
+                            this.effectiveStats[stat] *= 1.05;
                         }
                     }
                     break;
@@ -738,7 +816,8 @@ class CarController {
             status: this.status,
             teamColor: this.teamColor,
             stamina: this.currentStamina,
-            finishTime: this.finishTime
+            finishTime: this.finishTime,
+            pitTimeRemaining: this.pitTimeRemaining
         };
     }
 }
@@ -791,7 +870,7 @@ class BurnerPhoneSystem {
     /**
      * Use a contact on a target car
      */
-    useContact(contactType, targetCar, allCars, raceTime) {
+    useContact(contactType, targetCar, allCars, raceTime, raceSimulator) {
         if (!this.canUseContact(contactType)) {
             return { success: false, reason: 'Insufficient battery or heat too high' };
         }
@@ -816,13 +895,8 @@ class BurnerPhoneSystem {
                 break;
 
             case ContactType.MARSHAL:
-                // Yellow flag - slow all cars for 10 seconds
-                for (const car of allCars) {
-                    if (car.status === CarStatus.RACING) {
-                        car.applyContactEffect('yellow_flag', contact.duration);
-                        car.speed *= 0.5; // Immediate slowdown
-                    }
-                }
+                // Yellow flag - deploy caution directly from the simulator
+                raceSimulator._deployCaution();
                 effect = `Yellow flag deployed - all cars slowed`;
                 break;
 
@@ -893,6 +967,8 @@ class RaceSimulator {
         this.raceTime = 0;
         this.updateRate = 1 / 60; // 60 updates per second
         this.accumulatedTime = 0;
+        this.isCaution = false;
+        this.cautionTimer = 0;
 
         // Initialize systems
         this.physics = new RacingPhysics(track);
@@ -921,6 +997,10 @@ class RaceSimulator {
         this.state = RaceState.RACING;
         this.raceTime = 0;
         this.burnerPhone.resetForRace();
+        
+        // Set race info for all cars (needed for trait effects)
+        this.cars.forEach(car => car.raceInfo = { totalLaps: this.totalLaps });
+        this.physics.raceInfo = { totalLaps: this.totalLaps };
 
         this._addEvent(EventType.RACE_START, {
             message: 'Race started!',
@@ -944,6 +1024,9 @@ class RaceSimulator {
 
         // Update burner phone heat decay
         this.burnerPhone.update(deltaTime);
+
+        // Handle caution timer
+        this._updateCaution(deltaTime);
     }
 
     /**
@@ -955,7 +1038,40 @@ class RaceSimulator {
 
         // Update all cars
         for (const car of this.cars) {
+            const oldStatus = car.status;
             car.update(deltaTime, this.physics, this.cars);
+
+            // Handle new race events triggered in car.update
+            if (car.status === CarStatus.PIT_STOP && oldStatus !== CarStatus.PIT_STOP) {
+                this._addEvent(EventType.PIT_STOP, {
+                    message: `${car.driver.name} pits for service.`,
+                    driver: car.driver.name,
+                    time: this.raceTime
+                });
+            } else if (car.status === CarStatus.DNF_CRASH && oldStatus !== CarStatus.DNF_CRASH) {
+                this._addEvent(EventType.CRASH, {
+                    message: `${car.driver.name} crashes out!`,
+                    driver: car.driver.name,
+                    position: car.position,
+                    time: this.raceTime
+                });
+                this._deployCaution();
+            } else if (car.status === CarStatus.DNF_MECHANICAL && oldStatus !== CarStatus.DNF_MECHANICAL) {
+                this._addEvent(EventType.MECHANICAL_FAILURE, {
+                    message: `${car.driver.name} suffers mechanical failure and is out!`,
+                    driver: car.driver.name,
+                    position: car.position,
+                    time: this.raceTime
+                });
+                this._deployCaution();
+            } else if (car.status === CarStatus.RACING && oldStatus === CarStatus.PIT_STOP) {
+                // Pit exit event
+                this._addEvent(EventType.PIT_STOP, {
+                    message: `${car.driver.name} exits the pits.`,
+                    driver: car.driver.name,
+                    time: this.raceTime
+                });
+            }
         }
 
         // NO COLLISION DETECTION - All events are pure probability-based simulation
@@ -978,8 +1094,12 @@ class RaceSimulator {
     _updatePositions() {
         // Sort cars by lap and track progress
         const sortedCars = [...this.cars]
-            .filter(car => car.status === CarStatus.RACING || car.status === CarStatus.FINISHED)
+            .filter(car => car.status === CarStatus.RACING || car.status === CarStatus.FINISHED || car.status === CarStatus.PIT_STOP)
             .sort((a, b) => {
+                // Pitting cars are last among active cars but ahead of DNFs
+                if (a.status === CarStatus.PIT_STOP && b.status === CarStatus.RACING) return 1;
+                if (a.status === CarStatus.RACING && b.status === CarStatus.PIT_STOP) return -1;
+
                 // First by lap
                 if (a.currentLap !== b.currentLap) {
                     return b.currentLap - a.currentLap;
@@ -1004,7 +1124,7 @@ class RaceSimulator {
                 // Prevent overtake spam (only log if significant time has passed)
                 const lastOvertakeTime = this.lastOvertakes.get(car.id) || 0;
 
-                if (this.raceTime - lastOvertakeTime > 1.0) { // 1 second cooldown
+                if (this.raceTime - lastOvertakeTime > 1.0 && !this.isCaution) { // 1 second cooldown and only under green flag
                     if (newPosition < oldPosition) {
                         this._addEvent(EventType.OVERTAKE, {
                             message: `${car.driver.name} moves up to P${newPosition}!`,
@@ -1031,38 +1151,48 @@ class RaceSimulator {
      * @private
      */
     _handleCollision(collision) {
-        const { car1, car2 } = collision;
+        // This method is no longer called as collision detection was removed.
+        // DNF/Crashes are now handled probabilistically in CarController._checkDNF and handled in _physicsUpdate.
+    }
 
-        // Very small chance of crash on collision (most contacts are minor)
-        const crashChance = 0.02; // 2% per collision
+    /**
+     * Deploy a caution flag
+     * @private
+     */
+    _deployCaution() {
+        if (this.isCaution || this.state !== RaceState.RACING) return;
+        
+        this.isCaution = true;
+        this.cautionTimer = PHYSICS_CONFIG.CAUTION_MIN_DURATION + 
+                            Math.random() * (PHYSICS_CONFIG.CAUTION_MAX_DURATION - PHYSICS_CONFIG.CAUTION_MIN_DURATION);
 
-        if (Math.random() < crashChance) {
-            // Rarely both crash, usually just one
-            const bothCrash = Math.random() < 0.1;
+        this._addEvent(EventType.YELLOW_FLAG, {
+            message: 'Caution! Safety Car deployed.',
+            time: this.raceTime
+        });
+    }
 
-            if ((bothCrash || Math.random() < 0.5) && car1.status === CarStatus.RACING) {
-                car1.status = CarStatus.DNF_CRASH;
-                this._addEvent(EventType.CRASH, {
-                    message: `${car1.driver.name} crashes out!`,
-                    driver: car1.driver.name,
-                    position: car1.position,
-                    time: this.raceTime
-                });
-            }
+    /**
+     * Update caution timer and state
+     * @private
+     */
+    _updateCaution(deltaTime) {
+        if (!this.isCaution) return;
 
-            if ((bothCrash || Math.random() < 0.5) && car2.status === CarStatus.RACING) {
-                car2.status = CarStatus.DNF_CRASH;
-                this._addEvent(EventType.CRASH, {
-                    message: `${car2.driver.name} crashes out!`,
-                    driver: car2.driver.name,
-                    position: car2.position,
-                    time: this.raceTime
-                });
-            }
-        } else {
-            // Minor slowdown for both cars (contact happened)
-            if (car1.status === CarStatus.RACING) car1.speed *= 0.98;
-            if (car2.status === CarStatus.RACING) car2.speed *= 0.98;
+        this.cautionTimer -= deltaTime;
+
+        if (this.cautionTimer <= 0) {
+            this.isCaution = false;
+            this._addEvent(EventType.CAUTION_END, {
+                message: 'Green flag! Caution period ends.',
+                time: this.raceTime
+            });
+            // Give all racing cars a small speed boost to accelerate after caution
+            this.cars.forEach(car => {
+                if (car.status === CarStatus.RACING) {
+                    car.speed = PHYSICS_CONFIG.BASE_SPEED;
+                }
+            });
         }
     }
 
@@ -1087,7 +1217,7 @@ class RaceSimulator {
 
                 // Check if race is over (all cars finished or DNF'd)
                 const activeCars = this.cars.filter(c =>
-                    c.status === CarStatus.RACING
+                    c.status === CarStatus.RACING || c.status === CarStatus.PIT_STOP
                 ).length;
 
                 if (activeCars === 0) {
@@ -1128,7 +1258,8 @@ class RaceSimulator {
             contactType,
             targetCar,
             this.cars,
-            this.raceTime
+            this.raceTime,
+            this
         );
 
         if (result.success) {

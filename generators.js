@@ -413,6 +413,19 @@ class TrackGenerator {
             { type: "Rain", probability: 0.25, gripModifier: 0.65 },
             { type: "Night", probability: 0.15, gripModifier: 1.0 }
         ];
+
+        this.raceTypes = [
+            { name: "Sprint Race", baseLaps: 10, pitRequired: false, driverCount: 12 },
+            { name: "Endurance Event", baseLaps: 50, pitRequired: true, pitWindow: 0.5, driverCount: 20 },
+            { name: "Feature Race", baseLaps: 25, pitRequired: false, driverCount: 16 }
+        ];
+
+        this.raceModifiers = [
+            { name: "Rain Only", effect: { weather: "Rain" }, probability: 0.05 },
+            { name: "Night Only", effect: { weather: "Night" }, probability: 0.05 },
+            { name: "Mandatory Pit", effect: { pitRequired: true, pitWindow: 0.5 }, probability: 0.15 },
+            { name: "Elimination", effect: { elimination: true }, probability: 0.01 }
+        ];
     }
 
     /**
@@ -655,9 +668,34 @@ class TrackGenerator {
     }
 
     /**
+     * Generates a complete race setting (Track, Laps, Rules)
+     */
+    generateRaceSettings(raceType = null, trackType = null, width = 800, height = 600) {
+        let selectedRaceType = raceType ? this.raceTypes.find(t => t.name === raceType) : randomChoice(this.raceTypes);
+        let settings = { ...selectedRaceType }; // Clone base settings
+        
+        // Apply a random modifier
+        if (Math.random() < 0.25) { // 25% chance of a modifier
+            const modifier = randomChoice(this.raceModifiers);
+            settings.name = `${settings.name} (${modifier.name})`;
+            settings = { ...settings, ...modifier.effect };
+        }
+
+        // Generate Track
+        const track = this.generateTrack(trackType, width, height, settings);
+
+        // Finalize settings
+        settings.totalLaps = settings.baseLaps * (track.totalDistance / 10000); // Laps scale with track length
+        settings.totalLaps = Math.max(5, Math.round(settings.totalLaps)); // Min 5 laps
+        settings.track = track;
+
+        return settings;
+    }
+
+    /**
      * Generates a complete track
      */
-    generateTrack(trackType = null, width = 800, height = 600) {
+    generateTrack(trackType = null, width = 800, height = 600, raceSettings = {}) {
         // Random track type if not specified
         if (!trackType) {
             trackType = randomChoice(this.trackTypes);
@@ -687,7 +725,12 @@ class TrackGenerator {
         }
 
         const characteristics = this.calculateCharacteristics(waypoints);
-        const weather = this.generateWeather();
+        
+        // Override weather if a race modifier demands it
+        const weather = raceSettings.weather === "Rain" ? { type: "Rain", gripModifier: 0.65 } :
+                        raceSettings.weather === "Night" ? { type: "Night", gripModifier: 1.0 } :
+                        this.generateWeather();
+
         const trackName = this.generateTrackName(trackType);
 
         // Return a Track object instead of plain object
@@ -778,7 +821,7 @@ class OddsCalculator {
     /**
      * Calculates raw win probability for each driver
      */
-    calculateWinProbabilities(field, track) {
+    calculateWinProbabilities(field, track, raceSettings) {
         const probabilities = [];
 
         for (const driver of field) {
@@ -794,7 +837,7 @@ class OddsCalculator {
             // Track suitability modifier
             const suitability = this.calculateTrackSuitability(driver, track);
 
-            // Special trait bonuses
+            // Special trait bonuses and race rule effects
             let traitBonus = 1.0;
             for (const trait of driver.traits) {
                 if (trait.name === "Qualifying Hero" && driver.startingPosition <= 3) {
@@ -804,6 +847,14 @@ class OddsCalculator {
                     traitBonus *= 1.08;
                 }
             }
+            
+            // Race rule adjustments (e.g. Mandatory Pit favors high reliability/low aggression)
+            if (raceSettings.pitRequired) {
+                // Favor reliability and stamina over aggression
+                traitBonus *= (driver.stats.reliability / 100) * 0.2 + 0.9;
+                traitBonus *= 1 - (driver.stats.aggression / 100) * 0.1; // Penalty for high aggression
+            }
+            // Elimination race logic can be added here as well if needed
 
             const rawProbability = baseStrength * suitability * traitBonus;
 
@@ -846,8 +897,8 @@ class OddsCalculator {
     /**
      * Calculates win odds for all drivers
      */
-    calculateWinOdds(field, track) {
-        const probabilities = this.calculateWinProbabilities(field, track);
+    calculateWinOdds(field, track, raceSettings) {
+        const probabilities = this.calculateWinProbabilities(field, track, raceSettings);
         const odds = [];
 
         for (const prob of probabilities) {

@@ -931,18 +931,20 @@ class Game {
             this.gameState.player.tier
         );
 
-        // Generate track
-        const track = this.trackGenerator.generateTrack(null, 800, 600);
+        // Generate race settings (Track, Laps, Rules)
+        const raceSettings = this.trackGenerator.generateRaceSettings(null, null, 800, 600);
+        const track = raceSettings.track; // Extract track object
 
         // Calculate odds
-        const winOdds = this.oddsCalculator.calculateWinOdds(drivers, track);
+        const winOdds = this.oddsCalculator.calculateWinOdds(drivers, track, raceSettings);
 
         // Setup race in game state (track is now a Track object with name)
-        this.gameState.setupRace(drivers, track, contract);
+        this.gameState.setupRace(drivers, track, contract, raceSettings);
         this.gameState.setRaceOdds(winOdds);
 
         // Store reference for screens
         this.gameState.currentTrack = track;
+        this.gameState.raceSettings = raceSettings; // Store all race settings
     }
 
     /**
@@ -954,8 +956,9 @@ class Game {
         const track = this.gameState.race.track;
         const contract = this.gameState.race.contract;
 
-        // Determine lap count from contract or default
-        const totalLaps = contract?.laps || 20;
+        // Get race settings for total laps
+        const raceSettings = this.gameState.raceSettings;
+        const totalLaps = raceSettings.totalLaps || 20;
 
         // Create race simulator
         this.raceSimulator = new RaceSimulator(
