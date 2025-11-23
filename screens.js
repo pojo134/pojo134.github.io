@@ -1098,8 +1098,10 @@ class RaceScreen {
         ctx.fillRect(x, y, width, height);
 
         const trackName = gameState?.currentTrack?.name || 'MONACO NIGHTS';
-        const lap = gameState?.race?.currentLap || 1;
-        const totalLaps = gameState?.race?.totalLaps || 20;
+        
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20 };
+        const lap = raceState.currentLap;
+        const totalLaps = raceState.totalLaps;
 
         ctx.font = 'bold 20px "Courier New", monospace';
         ctx.fillStyle = '#ff0066';
@@ -1148,11 +1150,11 @@ class RaceScreen {
         }
 
         // Draw cars on track
-        const standings = gameState?.race?.raceStandings || this.generateDummyStandings();
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: this.generateDummyStandings() };
+        const standings = raceState.leaderboard;
         this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
 
         // Lap counter at bottom (compact)
-        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20 };
         ctx.font = 'bold 12px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
@@ -1324,7 +1326,8 @@ class RaceScreen {
         }
 
         // Driver standings
-        const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: this.generateDummyStandings() };
+        const drivers = raceState.leaderboard;
         
         // Handle empty standings (all cars crashed/DNF'd)
         if (!drivers || drivers.length === 0) {

@@ -56,8 +56,8 @@ const PHYSICS_CONFIG = {
     OVERTAKE_OFFSET: 25,          // How far cars move sideways to overtake
     STAMINA_DECAY_RATE: 0.015,    // Stamina loss per lap
     WEATHER_RAIN_PENALTY: 0.35,   // Rain reduces cornering by 35%
-    // DNF is happening too often - reduced by a factor of 100
-    DNF_BASE_CHANCE: 0.000005,    // Base chance of DNF per update (0.0005% - significantly reduced)
+    // DNF base chance increased slightly after user feedback of too few events
+    DNF_BASE_CHANCE: 0.00005,     // Base chance of DNF per update (0.005%)
     AGGRESSION_CRASH_MULT: 0.3,   // High aggression increases crash chance (reduced multiplier)
     RELIABILITY_DNF_MULT: 0.5,    // Low reliability increases DNF chance (reduced multiplier)
     
@@ -416,6 +416,7 @@ class CarController {
         this.hasPitted = false;       // for pit stop logic
         this.pitTimeRemaining = 0;    // for pit stop timer
         this.raceInfo = {};           // Set by RaceSimulator at start
+        this.distanceSinceEventCheck = 0; // New: Throttle event checks to roughly twice a lap
 
         // Performance modifiers
         this.currentStamina = 100;
@@ -495,8 +496,36 @@ class CarController {
 
         // Move along track
         this._moveAlongTrack(deltaTime, physics);
+        
+        // Spontaneous event checks (DNF and potential Pit Stop)
+        this._spontaneousEventCheck(physics);
+    }
 
-        // Check for DNF
+    /**
+     * Checks for spontaneous events (DNF, Pit Stop)
+     * @private
+     */
+    _spontaneousEventCheck(physics) {
+        // Track Distance since last check (reset on lap completion)
+        const trackDistance = physics.track.totalDistance;
+
+        // Reset check on lap complete and always check DNF
+        if (this.currentWaypoint === 0 && this.waypointProgress === 0 && this.distanceSinceEventCheck > trackDistance / 3) {
+            this.distanceSinceEventCheck = 0;
+            // Check for Pit Stop only at the start/end of a lap
+            if (this.currentLap > 0 && this.currentLap < this.raceInfo.totalLaps - 1 &&
+                !this.hasPitted && Math.random() < 0.05) { // 5% chance at lap start
+                
+                this.status = CarStatus.PIT_STOP;
+                this.pitTimeRemaining = this.driver.traits.some(t => t.name === 'Quick Pit')
+                    ? PHYSICS_CONFIG.PIT_STOP_BASE_TIME * 0.8 : PHYSICS_CONFIG.PIT_STOP_BASE_TIME;
+                this.pitTimeRemaining += (Math.random() - 0.5) * PHYSICS_CONFIG.PIT_STOP_VARIANCE * 2;
+                this.pitTimeRemaining = Math.max(5, this.pitTimeRemaining); // Min 5 seconds
+                return;
+            }
+        }
+        
+        // DNF check is now a standalone call
         this._checkDNF(physics);
     }
 
@@ -582,20 +611,6 @@ class CarController {
         let remainingDistance = distanceToMove;
 
         while (remainingDistance > 0 && this.status === CarStatus.RACING) {
-            // Check for pit entry
-            if (this.currentLap > 0 && this.currentLap < this.raceInfo.totalLaps - 1 && 
-                this.currentWaypoint === 0 && !this.hasPitted && Math.random() < 0.0005) {
-                // Small chance to pit if not pitted and not final lap
-                this.status = CarStatus.PIT_STOP;
-                this.pitTimeRemaining = this.driver.traits.some(t => t.name === 'Quick Pit') 
-                    ? PHYSICS_CONFIG.PIT_STOP_BASE_TIME * 0.8 : PHYSICS_CONFIG.PIT_STOP_BASE_TIME;
-                this.pitTimeRemaining += (Math.random() - 0.5) * PHYSICS_CONFIG.PIT_STOP_VARIANCE * 2;
-                this.pitTimeRemaining = Math.max(5, this.pitTimeRemaining); // Min 5 seconds
-                
-                // Event added by RaceSimulator in _physicsUpdate
-                return;
-            }
-
             const currentWP = physics.waypoints[this.currentWaypoint];
             const nextWPIndex = (this.currentWaypoint + 1) % physics.waypoints.length;
             const nextWP = physics.waypoints[nextWPIndex];
