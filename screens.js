@@ -1602,7 +1602,6 @@ class ResultsScreen {
 
 // Export classes for use in main game
 
-if (typeof module !== 'undefined' && module.exports) {
 // ===========================
 // SETTINGS SCREEN
 // ===========================
@@ -2061,16 +2060,4 @@ class TierAdvancementScreen {
         this.animationTimer = 0;
         this.showDetails = false;
     }
-}
-    module.exports = {
-        MainMenuScreen,
-        GarageScreen,
-        BettingScreen,
-        RaceScreen,
-        ResultsScreen,
-        SettingsScreen,
-        LoadGameScreen,
-        GameOverScreen,
-        TierAdvancementScreen
-    };
 }
