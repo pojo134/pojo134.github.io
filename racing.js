@@ -49,13 +49,13 @@ const PHYSICS_CONFIG = {
     CORNERING_SLOWDOWN: 0.4,      // Speed reduction in corners (40%)
     DRAFTING_BOOST: 0.20,         // 20% speed boost when drafting
     DRAFTING_DISTANCE: 30,        // Distance threshold for drafting effect
-    COLLISION_DISTANCE: 15,       // Distance for collision detection
+    COLLISION_DISTANCE: 50,       // Distance for collision detection (increased to prevent false positives)
     OVERTAKE_OFFSET: 25,          // How far cars move sideways to overtake
     STAMINA_DECAY_RATE: 0.015,    // Stamina loss per lap
     WEATHER_RAIN_PENALTY: 0.35,   // Rain reduces cornering by 35%
-    DNF_BASE_CHANCE: 0.002,       // Base chance of DNF per update (0.2%)
-    AGGRESSION_CRASH_MULT: 0.8,   // High aggression increases crash chance
-    RELIABILITY_DNF_MULT: 1.2     // Low reliability increases DNF chance
+    DNF_BASE_CHANCE: 0.0005,      // Base chance of DNF per update (0.05% - reduced for realism)
+    AGGRESSION_CRASH_MULT: 0.3,   // High aggression increases crash chance (reduced multiplier)
+    RELIABILITY_DNF_MULT: 0.5     // Low reliability increases DNF chance (reduced multiplier)
 };
 
 // ============================================================================
@@ -958,11 +958,11 @@ class RaceSimulator {
             car.update(deltaTime, this.physics, this.cars);
         }
 
-        // Detect collisions
-        const collisions = this.physics.detectCollisions(this.cars);
-        for (const collision of collisions) {
-            this._handleCollision(collision);
-        }
+        // NO COLLISION DETECTION - All events are pure probability-based simulation
+        // Collisions happening on a 2D display don't reflect actual race positions
+        // Events are generated probabilistically during car update instead
+        
+        // (Collision detection code removed - it was causing false positives)
 
         // Update positions and leaderboard
         this._updatePositions();
@@ -1033,14 +1033,14 @@ class RaceSimulator {
     _handleCollision(collision) {
         const { car1, car2 } = collision;
 
-        // Small chance of crash on collision
-        const crashChance = 0.05; // 5% per collision
+        // Very small chance of crash on collision (most contacts are minor)
+        const crashChance = 0.02; // 2% per collision
 
         if (Math.random() < crashChance) {
-            // Randomly choose which car crashes (or both)
-            const bothCrash = Math.random() < 0.3;
+            // Rarely both crash, usually just one
+            const bothCrash = Math.random() < 0.1;
 
-            if (bothCrash || Math.random() < 0.5) {
+            if ((bothCrash || Math.random() < 0.5) && car1.status === CarStatus.RACING) {
                 car1.status = CarStatus.DNF_CRASH;
                 this._addEvent(EventType.CRASH, {
                     message: `${car1.driver.name} crashes out!`,
@@ -1050,7 +1050,7 @@ class RaceSimulator {
                 });
             }
 
-            if (bothCrash || car1.status !== CarStatus.DNF_CRASH) {
+            if ((bothCrash || Math.random() < 0.5) && car2.status === CarStatus.RACING) {
                 car2.status = CarStatus.DNF_CRASH;
                 this._addEvent(EventType.CRASH, {
                     message: `${car2.driver.name} crashes out!`,
@@ -1060,9 +1060,9 @@ class RaceSimulator {
                 });
             }
         } else {
-            // Minor slowdown for both cars
-            car1.speed *= 0.95;
-            car2.speed *= 0.95;
+            // Minor slowdown for both cars (contact happened)
+            if (car1.status === CarStatus.RACING) car1.speed *= 0.98;
+            if (car2.status === CarStatus.RACING) car2.speed *= 0.98;
         }
     }
 

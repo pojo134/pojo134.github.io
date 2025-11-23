@@ -978,6 +978,7 @@ class RaceScreen {
         this.eventLog = [];
         this.maxLogEntries = 5;
         this.tickerScrollX = 0;
+        this.lastEventDisplayTime = 0; // Throttle for event ticker
 
         // Burner Phone UI state
         this.phoneExpanded = false;
@@ -1003,19 +1004,25 @@ class RaceScreen {
         }
 
         // Get race events from simulator if available
+        // Throttle event display so ticker scrolls at readable pace
         if (gameState?.race?.simulation) {
             const raceState = gameState.race.simulation.getRaceState();
             if (raceState.events && raceState.events.length > 0) {
-                // Add new events to log
-                raceState.events.forEach(event => {
-                    if (!this.eventLog.includes(event.message)) {
-                        this.eventLog.unshift(event.message);
-                    }
-                });
+                // Only process events if enough time has passed (throttle to 2 events per second max)
+                const timeSinceLastEvent = Date.now() - (this.lastEventDisplayTime || 0);
+                if (timeSinceLastEvent > 500) { // 500ms between event displays
+                    // Add new events to log
+                    raceState.events.forEach(event => {
+                        if (!this.eventLog.includes(event.message)) {
+                            this.eventLog.unshift(event.message);
+                            this.lastEventDisplayTime = Date.now();
+                        }
+                    });
 
-                // Keep log size manageable
-                if (this.eventLog.length > 50) {
-                    this.eventLog = this.eventLog.slice(0, 50);
+                    // Keep log size manageable
+                    if (this.eventLog.length > 50) {
+                        this.eventLog = this.eventLog.slice(0, 50);
+                    }
                 }
             }
         }
@@ -1119,21 +1126,21 @@ class RaceScreen {
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Title area at top
-        ctx.font = 'bold 12px "Courier New", monospace';
+        // Title area at top (compact)
+        ctx.font = 'bold 11px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText('TRACK', x + 10, y + 18);
+        ctx.fillText('TRACK', x + 8, y + 14);
 
-        ctx.font = '11px "Courier New", monospace';
+        ctx.font = '10px "Courier New", monospace';
         ctx.fillStyle = '#00ffff';
-        ctx.fillText(track.name, x + 10, y + 30);
+        ctx.fillText(track.name, x + 8, y + 26);
 
-        // Track drawing area (use most of the space)
-        const trackDisplayX = x + 10;
-        const trackDisplayY = y + 40;
-        const trackDisplayWidth = width - 20;
-        const trackDisplayHeight = height - 80;
+        // Track drawing area (maximize space - only 8px padding each side, 8px top for title, 6px bottom for lap)
+        const trackDisplayX = x + 8;
+        const trackDisplayY = y + 30;
+        const trackDisplayWidth = width - 16;
+        const trackDisplayHeight = height - 45;
 
         // Draw track using waypoints
         if (track.waypoints && track.waypoints.length > 1) {
@@ -1144,12 +1151,12 @@ class RaceScreen {
         const standings = gameState?.race?.raceStandings || this.generateDummyStandings();
         this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
 
-        // Lap counter at bottom
+        // Lap counter at bottom (compact)
         const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20 };
-        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.font = 'bold 12px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 10, y + height - 8);
+        ctx.fillText(`LAP ${raceState.currentLap} / ${raceState.totalLaps}`, x + 8, y + height - 4);
     }
 
     /**
@@ -1318,6 +1325,19 @@ class RaceScreen {
 
         // Driver standings
         const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
+        
+        // Handle empty standings (all cars crashed/DNF'd)
+        if (!drivers || drivers.length === 0) {
+            ctx.font = '11px "Courier New", monospace';
+            ctx.fillStyle = '#ff6666';
+            ctx.textAlign = 'center';
+            ctx.fillText('NO FINISHERS', x + width / 2, y + height / 2 - 10);
+            ctx.font = '9px "Courier New", monospace';
+            ctx.fillStyle = '#aaaaaa';
+            ctx.fillText('(Race ended early)', x + width / 2, y + height / 2 + 10);
+            return;
+        }
+
         const rowHeight = 28;
         const startY = y + (this.selectedContact ? 32 : 22);
         const maxRows = Math.floor((height - startY + y) / rowHeight);
