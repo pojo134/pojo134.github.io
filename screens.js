@@ -136,6 +136,7 @@ class GarageScreen {
         this.scrollOffset = 0;
         this.selectedContract = null;
         this.hoveredUpgrade = null;
+        this.hoveredContract = null;
 
         this.upgrades = [
             {
@@ -255,14 +256,26 @@ class GarageScreen {
 
             const slot = this.contractSlots[index];
             const isSelected = this.selectedContract === index;
+            const isHovered = this.hoveredContract === index;
 
-            // Contract box
-            ctx.fillStyle = isSelected ? '#1a1a00' : '#1a1a1a';
+            // Contract box with hover effect
+            ctx.fillStyle = isSelected ? '#1a1a00' : (isHovered ? '#2a2a1a' : '#1a1a1a');
             ctx.fillRect(slot.x, slot.y, slot.width, slot.height);
 
-            ctx.strokeStyle = isSelected ? '#ffff00' : '#444444';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(slot.x, slot.y, slot.width, slot.height);
+            // Border with glow effect on hover/select
+            if (isSelected) {
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(slot.x, slot.y, slot.width, slot.height);
+            } else if (isHovered) {
+                ctx.strokeStyle = '#888888';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(slot.x, slot.y, slot.width, slot.height);
+            } else {
+                ctx.strokeStyle = '#444444';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(slot.x, slot.y, slot.width, slot.height);
+            }
 
             // Contract name
             ctx.font = 'bold 18px "Courier New", monospace';
@@ -299,15 +312,13 @@ class GarageScreen {
                 this.wrapText(ctx, contract.gimmick, slot.x + 10, slot.y + 110, slot.width - 20, 14);
             }
 
-            // Select button
-            ctx.fillStyle = isSelected ? '#ffff00' : '#333333';
-            ctx.fillRect(slot.x + 10, slot.y + 95, 100, 25);
-            ctx.strokeStyle = '#666666';
-            ctx.strokeRect(slot.x + 10, slot.y + 95, 100, 25);
-            ctx.font = '14px "Courier New", monospace';
-            ctx.fillStyle = isSelected ? '#000000' : '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText(isSelected ? 'SELECTED' : 'SELECT', slot.x + 60, slot.y + 112);
+            // Selection indicator in corner
+            if (isSelected) {
+                ctx.fillStyle = '#ffff00';
+                ctx.font = 'bold 14px "Courier New", monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('✓ SELECTED', slot.x + slot.width - 10, slot.y + 20);
+            }
         });
 
         // Continue button
@@ -327,6 +338,8 @@ class GarageScreen {
     }
 
     handleClick(x, y, gameState) {
+        const canvas = { width: 1280, height: 720 }; // Canvas dimensions
+
         // Check upgrade purchases
         for (let upgrade of this.upgrades) {
             if (x >= upgrade.x && x <= upgrade.x + upgrade.width &&
@@ -347,7 +360,7 @@ class GarageScreen {
         });
 
         // Check continue button
-        const continueBtn = { x: ctx.canvas.width - 200, y: ctx.canvas.height - 80, width: 180, height: 50 };
+        const continueBtn = { x: canvas.width - 200, y: canvas.height - 80, width: 180, height: 50 };
         if (x >= continueBtn.x && x <= continueBtn.x + continueBtn.width &&
             y >= continueBtn.y && y <= continueBtn.y + continueBtn.height &&
             this.selectedContract !== null) {
@@ -358,6 +371,7 @@ class GarageScreen {
     }
 
     handleMouseMove(x, y) {
+        // Track hovered upgrade
         this.hoveredUpgrade = null;
         for (let upgrade of this.upgrades) {
             if (x >= upgrade.x && x <= upgrade.x + upgrade.width &&
@@ -366,6 +380,15 @@ class GarageScreen {
                 break;
             }
         }
+
+        // Track hovered contract
+        this.hoveredContract = null;
+        this.contractSlots.forEach((slot, index) => {
+            if (x >= slot.x && x <= slot.x + slot.width &&
+                y >= slot.y && y <= slot.y + slot.height) {
+                this.hoveredContract = index;
+            }
+        });
     }
 
     wrapText(ctx, text, x, y, maxWidth, lineHeight) {
