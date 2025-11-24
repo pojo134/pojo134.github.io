@@ -630,6 +630,8 @@ class CarController {
         let remainingDistance = distanceToMove;
 
         while (remainingDistance > 0 && this.status === CarStatus.RACING) {
+            console.log(`[MOVE-START] ${this.driver.name} remainingDistance: ${remainingDistance.toFixed(2)}, currentWaypoint: ${this.currentWaypoint}, speed: ${this.speed.toFixed(2)}`);
+            
             const currentWP = physics.waypoints[this.currentWaypoint];
             const nextWPIndex = (this.currentWaypoint + 1) % physics.waypoints.length;
             const nextWP = physics.waypoints[nextWPIndex];
@@ -639,8 +641,10 @@ class CarController {
             const targetY = lerp(currentWP.y, nextWP.y, this.waypointProgress);
 
             const distToNext = distance(this.x, this.y, targetX, targetY);
+            console.log(`[DISTANCE-CHECK] ${this.driver.name} distToNext: ${distToNext.toFixed(2)}, remainingDistance: ${remainingDistance.toFixed(2)}`);
 
             if (remainingDistance >= distToNext) {
+                console.log(`[WAYPOINT-ADVANCE] ${this.driver.name} advancing from waypoint ${this.currentWaypoint} to ${nextWPIndex}`);
                 // Move to next waypoint
                 this.x = targetX;
                 this.y = targetY;
@@ -687,6 +691,7 @@ class CarController {
                 this.y += (targetY - this.y) * progress;
                 this.waypointProgress += progress;
                 this.totalDistance += remainingDistance;
+                console.log(`[PARTIAL-MOVE] ${this.driver.name} at waypoint ${this.currentWaypoint}, progress: ${this.waypointProgress.toFixed(2)}`);
                 remainingDistance = 0;
             }
 
