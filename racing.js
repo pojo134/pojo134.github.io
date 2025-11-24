@@ -160,7 +160,7 @@ class RacingPhysics {
             const curr = this.waypoints[i];
             const next = this.waypoints[(i + 1) % n];
 
-            curvatures.push(calculateCurvature(prev, curr, next)); // Re-typed 'calculateCurvature' to resolve potential hidden character/typo // Explicitly re-typed to fix potential hidden typo
+            curvatures.push(this._calculateCurvature(prev, curr, next));
         }
 
         return curvatures;
@@ -385,6 +385,21 @@ class RacingPhysics {
      */
     calculateTrackProgress(waypointIndex, waypointProgress) {
         return (waypointIndex + waypointProgress) / this.waypoints.length;
+    }
+
+    /**
+     * Calculate curvature at a waypoint (for cornering detection)
+     * @private
+     */
+    _calculateCurvature(prev, current, next) {
+        // angleBetween is a global utility function, so it's accessible here
+        const angle1 = angleBetween(prev.x, prev.y, current.x, current.y);
+        const angle2 = angleBetween(current.x, current.y, next.x, next.y);
+
+        let angleDiff = Math.abs(angle2 - angle1);
+        if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+        return angleDiff;
     }
 }
 

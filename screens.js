@@ -543,7 +543,9 @@ class BettingScreen {
         this.renderBetTypeSelector(ctx, 320, 100, 280, 60);
 
         // Driver list
-        this.renderDriverList(ctx, gameState, 20, this.driverListY, canvas.width - 40, 250);
+        const DRIVER_LIST_START_X = 20;
+        const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
+        this.renderDriverList(ctx, gameState, DRIVER_LIST_START_X, this.driverListY, DRIVER_LIST_WIDTH, 250);
 
         // Betting slip
         this.renderBettingSlip(ctx, gameState, canvas.width - 300, 300, 280, 280);
@@ -899,7 +901,7 @@ class BettingScreen {
 
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
-            if (x >= 20 && x <= canvas.width - 40 && y >= rowY - 20 && y <= rowY + 15) {
+            if (x >= 20 && x <= 960 && y >= rowY - 20 && y <= rowY + 15) { // Adjusted right boundary for new driver list width
                 this.selectedDriver = driver;
             }
         });
@@ -942,7 +944,7 @@ class BettingScreen {
         this.hoveredDriver = null;
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
-            if (x >= 20 && x <= 760 && y >= rowY - 20 && y <= rowY + 15) {
+            if (x >= 20 && x <= 960 && y >= rowY - 20 && y <= rowY + 15) { // Adjusted right boundary for new driver list width
                 this.hoveredDriver = driver;
             }
         });
