@@ -433,24 +433,23 @@ class TrackGenerator {
      * Scaled 10x larger for realistic lap times (60-90 seconds at 120 units/sec)
      */
     generateOval(width = 8000, height = 6000, complexity = "simple") {
-        const waypoints = [];
         const centerX = width / 2;
         const centerY = height / 2;
         const radiusX = width * 0.4;
         const radiusY = height * 0.4;
 
-        // Number of waypoints depends on complexity (more points for larger track)
-        const numPoints = complexity === "simple" ? 48 : 96;
+        // Use a few key control points for the oval
+        const controlPoints = [
+            { x: centerX, y: centerY - radiusY }, // Top
+            { x: centerX + radiusX, y: centerY }, // Right
+            { x: centerX, y: centerY + radiusY }, // Bottom
+            { x: centerX - radiusX, y: centerY }  // Left
+        ];
 
-        for (let i = 0; i < numPoints; i++) {
-            const angle = (i / numPoints) * Math.PI * 2;
-            const x = centerX + Math.cos(angle) * radiusX;
-            const y = centerY + Math.sin(angle) * radiusY;
-
-            waypoints.push({ x: Math.round(x), y: Math.round(y) });
-        }
-
-        return waypoints;
+        // Generate smooth waypoints from control points using Catmull-Rom
+        // Use a higher number of segments for a very smooth oval
+        const numSegments = complexity === "simple" ? 40 : 80; // More segments for complex ovals
+        return this._generateCatmullRomSpline(controlPoints, numSegments);
     }
 
     /**
@@ -458,16 +457,18 @@ class TrackGenerator {
      * Scaled 10x larger for realistic lap times
      */
     generateTriOval(width = 8000, height = 6000) {
-        const waypoints = [];
+        const controlPoints = []; // These will be the control points for the spline
         const centerX = width / 2;
         const centerY = height / 2;
         const radiusX = width * 0.4;
         const radiusY = height * 0.4;
 
-        const numPoints = 72;
+        // Generate points that define the overall shape, including the tri-oval kink.
+        // These will be fed to the spline generator.
+        const numBasePoints = 16; // Fewer base points, as spline will generate more detail
 
-        for (let i = 0; i < numPoints; i++) {
-            const angle = (i / numPoints) * Math.PI * 2;
+        for (let i = 0; i < numBasePoints; i++) {
+            const angle = (i / numBasePoints) * Math.PI * 2;
             let x = centerX + Math.cos(angle) * radiusX;
             let y = centerY + Math.sin(angle) * radiusY;
 
@@ -476,10 +477,11 @@ class TrackGenerator {
                 y -= height * 0.08;
             }
 
-            waypoints.push({ x: Math.round(x), y: Math.round(y) });
+            controlPoints.push({ x: Math.round(x), y: Math.round(y) });
         }
 
-        return waypoints;
+        // Generate smooth waypoints from control points using Catmull-Rom
+        return this._generateCatmullRomSpline(controlPoints, 20); // 20 segments per control point for smoothness
     }
 
     /**
@@ -559,7 +561,7 @@ class TrackGenerator {
         }
 
         // Apply smoothing to the generated waypoints using Catmull-Rom splines for better curves
-        return this._generateCatmullRomSpline(waypoints, 10); // 10 segments per control point for street circuits
+        return this._generateCatmullRomSpline(waypoints, 20); // Increased segments for smoother street circuit corners
     }
 
     /**
