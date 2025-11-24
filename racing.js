@@ -648,6 +648,7 @@ class CarController {
                 this.waypointProgress = 0;
                 remainingDistance -= distToNext;
                 this.totalDistance += distToNext;
+                this.distanceSinceEventCheck += distToNext; // Increment distance since last event check
 
                 console.log(`[DEBUG] Current Waypoint: ${this.currentWaypoint}, hasCompletedFirstWaypoint: ${this.hasCompletedFirstWaypoint}, justCrossedLine: ${this.justCrossedLine}`);
                 if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint && !this.justCrossedLine) {
