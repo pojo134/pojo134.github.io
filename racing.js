@@ -649,7 +649,7 @@ class CarController {
                 remainingDistance -= distToNext;
                 this.totalDistance += distToNext;
 
-                // Check lap completion (only after leaving the starting line and not already counted)
+                console.log(`[DEBUG] Current Waypoint: ${this.currentWaypoint}, hasCompletedFirstWaypoint: ${this.hasCompletedFirstWaypoint}, justCrossedLine: ${this.justCrossedLine}`);
                 if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint && !this.justCrossedLine) {
                     this.currentLap++;
                     this.justCrossedLine = true;
@@ -667,14 +667,17 @@ class CarController {
                     }
                 }
                 
-                // Mark that we've left the starting line (as soon as we move past waypoint 0)
-                // Reset lap crossing flag when we're far enough from start line
+                console.log(`[DEBUG] Setting hasCompletedFirstWaypoint at waypoint ${this.currentWaypoint}`);
                 if (this.currentWaypoint > 0 && !this.hasCompletedFirstWaypoint) {
                     this.hasCompletedFirstWaypoint = true;
                     console.log(`[FLAG] ${this.driver.name} hasCompletedFirstWaypoint = true at waypoint ${this.currentWaypoint}`);
                 }
-                if (this.currentWaypoint > 2) {
+                // FIX: Reset justCrossedLine when leaving waypoint 0 (not after waypoint 2)
+                // This prevents race condition where fast cars traverse 0→1→2 in single update
+                console.log(`[DEBUG] Checking justCrossedLine reset at waypoint ${this.currentWaypoint}`);
+                if (this.currentWaypoint !== 0 && this.justCrossedLine) {
                     this.justCrossedLine = false;
+                    console.log(`[FLAG-RESET] ${this.driver.name} justCrossedLine reset at waypoint ${this.currentWaypoint}`);
                 }
             } else {
                 // Move partway to next waypoint
