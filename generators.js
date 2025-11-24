@@ -518,8 +518,8 @@ class TrackGenerator {
         // Close the loop back to start
         waypoints.push({ x: Math.round(width * 0.1), y: Math.round(height * 0.5) });
 
-        // Smooth the track
-        return this.smoothWaypoints(waypoints);
+        // Smooth the track using Catmull-Rom splines for better curves
+        return this._generateCatmullRomSpline(waypoints, 15); // 15 segments per control point
     }
 
     /**
@@ -528,7 +528,7 @@ class TrackGenerator {
      */
     generateStreetCircuit(width = 8000, height = 6000) {
         const waypoints = [];
-        const gridSize = 1000;
+        const gridSize = 1000; // Not used currently, but kept for context
 
         // Create a street-like grid pattern
         const points = [
@@ -558,7 +558,8 @@ class TrackGenerator {
             }
         }
 
-        return waypoints;
+        // Apply smoothing to the generated waypoints using Catmull-Rom splines for better curves
+        return this._generateCatmullRomSpline(waypoints, 10); // 10 segments per control point for street circuits
     }
 
     /**
@@ -585,6 +586,57 @@ class TrackGenerator {
         }
 
         return smoothed;
+    }
+
+    /**
+     * Generates smooth waypoints using Catmull-Rom spline interpolation.
+     * For closed loops, it adds points at the start/end to ensure smoothness.
+     * @param {Array<Object>} points - Array of {x, y} control points.
+     * @param {number} numSegments - Number of segments to generate between each control point pair.
+     * @returns {Array<Object>} - Array of smoothed {x, y} waypoints.
+     */
+    _generateCatmullRomSpline(points, numSegments = 10) {
+        if (points.length < 2) return [...points];
+        
+        const smoothedPoints = [];
+        // For a closed loop, prepend the last two points and append the first two points
+        // to handle the interpolation at the "seams"
+        const closedPoints = [
+            points[points.length - 2], 
+            points[points.length - 1], 
+            ...points, 
+            points[0], 
+            points[1]
+        ];
+
+        // Iterate through each original control point to generate segments
+        for (let i = 0; i < points.length; i++) {
+            const p0 = closedPoints[i];
+            const p1 = closedPoints[i + 1]; // Current original point
+            const p2 = closedPoints[i + 2];
+            const p3 = closedPoints[i + 3];
+
+            for (let t = 0; t < numSegments; t++) {
+                const T = t / numSegments;
+                const T2 = T * T;
+                const T3 = T2 * T;
+
+                const x = 0.5 * (
+                    (2 * p1.x) +
+                    (-p0.x + p2.x) * T +
+                    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * T2 +
+                    (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * T3
+                );
+                const y = 0.5 * (
+                    (2 * p1.y) +
+                    (-p0.y + p2.y) * T +
+                    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * T2 +
+                    (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * T3
+                );
+                smoothedPoints.push({ x: Math.round(x), y: Math.round(y) });
+            }
+        }
+        return smoothedPoints;
     }
 
     /**

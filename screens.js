@@ -1363,7 +1363,7 @@ class RaceScreen {
         }
 
         const rowHeight = 28;
-        const startY = y + (this.selectedContact ? 32 : 22);
+        const startY = y + (this.selectedContact ? 42 : 32); // Adjusted down by 10px to clear title
         const maxRows = Math.floor((height - startY + y) / rowHeight);
 
         drivers.slice(0, maxRows).forEach((driver, index) => {

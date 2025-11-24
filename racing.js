@@ -50,7 +50,7 @@ const PHYSICS_CONFIG = {
     MIN_SPEED: 40,                // Minimum speed (crashed/damaged/caution)
     MAX_SPEED: 200,               // Maximum achievable speed
     CORNERING_SLOWDOWN: 0.35,     // Speed reduction in corners (35% - F1 data shows high cornering speeds)
-    DRAFTING_BOOST: 0.20,         // 20% speed boost when drafting (NASCAR Next Gen shows significant draft effect)
+    DRAFTING_BOOST: 0.25,         // Increased from 0.20 to 0.25 to encourage closer racing
     DRAFTING_DISTANCE: 30,        // Distance threshold for drafting effect
     COLLISION_DISTANCE: 50,       // Distance for collision detection
     OVERTAKE_OFFSET: 25,          // How far cars move sideways to overtake
@@ -190,14 +190,15 @@ class RacingPhysics {
         const stats = driver.stats;
 
         // Weight top speed vs cornering based on track section
-        let baseSpeed;
-        if (isOnStraight) {
-            baseSpeed = (stats.topSpeed * 0.7 + stats.cornering * 0.3) / 100;
-        } else {
-            baseSpeed = (stats.cornering * 0.7 + stats.topSpeed * 0.3) / 100;
-        }
+        const statValue = isOnStraight ?
+            (stats.topSpeed * 0.7 + stats.cornering * 0.3) :
+            (stats.cornering * 0.7 + stats.topSpeed * 0.3);
 
-        return PHYSICS_CONFIG.BASE_SPEED * baseSpeed;
+        // Map statValue (1-100) to a smaller multiplier range (e.g., 0.8 to 1.0)
+        // This reduces the speed gap between high-stat and low-stat drivers.
+        const statMultiplier = lerp(0.8, 1.0, (statValue - 1) / 99); // Map 1-100 to 0.8-1.0 range
+
+        return PHYSICS_CONFIG.BASE_SPEED * statMultiplier;
     }
 
     /**
