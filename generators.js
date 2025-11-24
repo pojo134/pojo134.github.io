@@ -398,6 +398,7 @@ class DriverGenerator {
 class TrackGenerator {
     constructor() {
         this.trackTypes = [
+            "Go-Kart Track", // New track type
             "Oval",
             "Road Course",
             "Dirt Oval",
@@ -407,6 +408,15 @@ class TrackGenerator {
             "Short Oval",
             "Superspeedway"
         ];
+
+        // Define track types available per league tier
+        this.tierTrackTypes = {
+            1: ["Go-Kart Track", "Short Oval"], // Tier 1: Go-Karts
+            2: ["Short Oval", "Dirt Oval", "Road Course", "Oval"], // Tier 2: Basic Ovals, Dirt, Road Courses
+            3: ["Oval", "Tri-Oval", "Road Course (Technical)", "Street Circuit", "Superspeedway"], // Tier 3: Advanced Ovals, Technical Road Courses, Street Circuits
+            4: ["Superspeedway", "Road Course (Technical)", "Street Circuit", "Tri-Oval"] // Tier 4: High-speed, high-skill tracks
+        };
+        // "Drag Strip" will be handled separately as a special event, not a general track type.
 
         this.weatherConditions = [
             { type: "Clear", probability: 0.60, gripModifier: 1.0 },
@@ -563,6 +573,40 @@ class TrackGenerator {
     }
 
     /**
+     * Generates a go-kart track (smaller, tighter, more technical)
+     */
+    generateGoKartTrack(width = 8000, height = 6000) {
+        // This will be a miniature road course, very technical
+        return this.generateRoadCourse(width * 0.5, height * 0.5, "high");
+    }
+
+    /**
+     * Generates a simple drag strip track (long straight, turn, long straight)
+     */
+    generateDragStripTrack(width = 8000, height = 1000) { // Drag strips are typically narrow and long
+        const waypoints = [];
+        const trackWidth = width * 0.9;
+        const trackHeight = height * 0.8;
+
+        const startX = width * 0.05;
+        const startY = height * 0.5;
+
+        // Start straight
+        waypoints.push({ x: Math.round(startX), y: Math.round(startY) });
+        waypoints.push({ x: Math.round(startX + trackWidth), y: Math.round(startY) });
+
+        // U-turn (simplified for now, ideally more curved)
+        waypoints.push({ x: Math.round(startX + trackWidth), y: Math.round(startY + trackHeight * 0.5) }); // Control point for turn
+        waypoints.push({ x: Math.round(startX), y: Math.round(startY + trackHeight * 0.5) });
+
+        // Return straight
+        waypoints.push({ x: Math.round(startX), y: Math.round(startY) }); // Connects back to start
+
+        // Apply smoothing to the generated waypoints for a cleaner turn
+        return this.smoothWaypoints(waypoints);
+    }
+
+    /**
      * Smooths waypoints using simple averaging
      */
     smoothWaypoints(waypoints, passes = 2) {
@@ -677,7 +721,7 @@ class TrackGenerator {
     /**
      * Generates a complete race setting (Track, Laps, Rules)
      */
-    generateRaceSettings(raceType = null, trackType = null, width = 800, height = 600) {
+    generateRaceSettings(raceType = null, trackType = null, width = 800, height = 600, leagueTier = 1) { // Added leagueTier parameter
         let selectedRaceType = raceType ? this.raceTypes.find(t => t.name === raceType) : randomChoice(this.raceTypes);
         let settings = { ...selectedRaceType }; // Clone base settings
         
@@ -689,7 +733,7 @@ class TrackGenerator {
         }
 
         // Generate Track
-        const track = this.generateTrack(trackType, width, height, settings);
+        const track = this.generateTrack(trackType, width, height, settings, leagueTier); // Pass leagueTier to generateTrack
 
         // Finalize settings
         settings.totalLaps = settings.baseLaps * (track.totalDistance / 10000); // Laps scale with track length
@@ -702,16 +746,27 @@ class TrackGenerator {
     /**
      * Generates a complete track
      */
-    generateTrack(trackType = null, width = 800, height = 600, raceSettings = {}) {
+    generateTrack(trackType = null, width = 800, height = 600, raceSettings = {}, leagueTier = 1) { // Added leagueTier parameter
+        // Get allowed track types for the current league tier
+        const allowedTrackTypes = this.tierTrackTypes[leagueTier] || this.trackTypes; // Fallback to all if tier not found
+
         // Random track type if not specified
         if (!trackType) {
-            trackType = randomChoice(this.trackTypes);
+            trackType = randomChoice(allowedTrackTypes);
+        } else {
+            // If a specific track type is requested, ensure it's allowed for the current tier
+            if (!allowedTrackTypes.includes(trackType)) {
+                console.warn(`Requested track type "${trackType}" not allowed for Tier ${leagueTier}. Choosing a random allowed track.`);
+                trackType = randomChoice(allowedTrackTypes);
+            }
         }
 
         let waypoints;
 
         // Generate waypoints based on track type
-        if (trackType.includes("Oval") && !trackType.includes("Dirt")) {
+        if (trackType === "Go-Kart Track") { // Handle new Go-Kart Track type
+            waypoints = this.generateGoKartTrack(width, height);
+        } else if (trackType.includes("Oval") && !trackType.includes("Dirt")) {
             if (trackType === "Short Oval") {
                 waypoints = this.generateOval(width * 0.8, height * 0.8, "simple");
             } else if (trackType === "Superspeedway") {
@@ -761,6 +816,20 @@ class TrackGenerator {
         ];
 
         return `${randomChoice(locations)} ${randomChoice(suffixes)}`;
+    }
+
+    /**
+     * Generates a random track type appropriate for the given league tier.
+     * @param {number} leagueTier - The current league tier.
+     * @returns {string} - A randomly chosen track type string.
+     */
+    generateTrackType(leagueTier) {
+        const allowedTrackTypes = this.tierTrackTypes[leagueTier];
+        if (!allowedTrackTypes || allowedTrackTypes.length === 0) {
+            console.warn(`No track types defined for Tier ${leagueTier}. Falling back to all types.`);
+            return randomChoice(this.trackTypes);
+        }
+        return randomChoice(allowedTrackTypes);
     }
 }
 
@@ -1028,8 +1097,10 @@ class OddsCalculator {
 // ============================================================================
 
 class SeasonGenerator {
-    constructor() {
+    constructor(trackGenerator) { // Added trackGenerator parameter
         this.raceWeeks = 16; // Standard season length
+        this.racesSinceLastDrag = 0; // Counter for drag race events
+        this.trackGenerator = trackGenerator; // Store TrackGenerator instance
 
         this.contractTypes = {
             safe: {
@@ -1101,7 +1172,31 @@ class SeasonGenerator {
             entryFee,
             payouts,
             gimmick,
-            riskLevel: contractConfig.riskLevel
+            riskLevel: contractConfig.riskLevel,
+            trackType: this.trackGenerator.generateTrackType(leagueTier) // Dynamically generate track type
+        };
+    }
+
+    /**
+     * Generates a special drag race contract
+     */
+    generateDragRaceContract(week, leagueTier) {
+        // Drag races have specific characteristics
+        const basePrizePool = 25000 * leagueTier;
+        const prizePool = randomInt(basePrizePool * 0.8, basePrizePool * 1.2);
+        const entryFee = Math.round(prizePool * 0.1); // 10% of prize pool
+
+        return {
+            week,
+            type: "Drag Race",
+            description: "Head-to-head elimination drag race tournament!",
+            fieldSize: 8, // Fixed 8-car bracket for drag races
+            prizePool,
+            entryFee,
+            payouts: this.generatePayoutStructure(prizePool, 8), // Payouts for an 8-car bracket
+            gimmick: "Bracket Elimination",
+            riskLevel: 0.8, // High risk, high reward
+            isDragRace: true // Flag to identify this as a drag race
         };
     }
 
@@ -1140,14 +1235,26 @@ class SeasonGenerator {
      */
     generateSeason(leagueTier = 1) {
         const calendar = [];
+        this.racesSinceLastDrag = 0; // Reset counter for a new season
 
         for (let week = 1; week <= this.raceWeeks; week++) {
             const contracts = [];
 
             // Generate 3 contract options per week
             contracts.push(this.generateContract("safe", week, leagueTier));
+            this.racesSinceLastDrag++;
+
             contracts.push(this.generateContract("risky", week, leagueTier));
-            contracts.push(this.generateContract("special", week, leagueTier));
+            this.racesSinceLastDrag++;
+
+            // Check if it's time for a drag race special event
+            if (this.racesSinceLastDrag >= 3) {
+                contracts.push(this.generateDragRaceContract(week, leagueTier)); // Assuming this method exists
+                this.racesSinceLastDrag = 0; // Reset counter
+            } else {
+                contracts.push(this.generateContract("special", week, leagueTier));
+                this.racesSinceLastDrag++;
+            }
 
             calendar.push({
                 week,

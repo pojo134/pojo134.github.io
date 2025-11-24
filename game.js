@@ -9,6 +9,7 @@ const GameStates = Object.freeze({
     GARAGE: 'GARAGE',
     BETTING: 'BETTING',
     RACE: 'RACE',
+    DRAG_RACE: 'DRAG_RACE', // Added DRAG_RACE state
     RESULTS: 'RESULTS',
     SETTINGS: 'SETTINGS',
     LOAD_GAME: 'LOAD_GAME',
@@ -510,6 +511,9 @@ class Game {
             case GameStates.RACE:
                 this._updateRace(scaledDeltaTime);
                 break;
+            case GameStates.DRAG_RACE: // Added DRAG_RACE state
+                this._updateDragRace(scaledDeltaTime);
+                break;
             case GameStates.RESULTS:
                 this._updateResults(deltaTime);
                 break;
@@ -555,6 +559,9 @@ class Game {
             case GameStates.RACE:
                 this._renderRace();
                 break;
+            case GameStates.DRAG_RACE: // Added DRAG_RACE state
+                this._renderDragRace();
+                break;
             case GameStates.RESULTS:
                 this._renderResults();
                 break;
@@ -594,7 +601,7 @@ class Game {
         this.driverGenerator = new DriverGenerator();
         this.trackGenerator = new TrackGenerator();
         this.oddsCalculator = new OddsCalculator();
-        this.seasonGenerator = new SeasonGenerator();
+        this.seasonGenerator = new SeasonGenerator(this.trackGenerator); // Pass TrackGenerator instance
 
         // Create screens
         this.screens = {
@@ -602,6 +609,7 @@ class Game {
             garage: new GarageScreen(),
             betting: new BettingScreen(),
             race: new RaceScreen(),
+            dragRace: new DragRaceScreen(), // Added DragRaceScreen
             results: new ResultsScreen(),
             settings: new SettingsScreen(),
             loadGame: new LoadGameScreen(),
@@ -769,6 +777,42 @@ class Game {
         this.screens.race.handleMouseMove(mouse.x, mouse.y, this.gameState);
     }
 
+    _updateDragRace(scaledDeltaTime) {
+        this.screens.dragRace.update(scaledDeltaTime, this.gameState);
+
+        // Update drag race simulator
+        if (this.raceSimulator) { // This will be DragRaceSimulator instance
+            this.raceSimulator.update(scaledDeltaTime);
+
+            // Check if drag race is complete
+            const dragRaceState = this.raceSimulator.getRaceState();
+            if (dragRaceState.state === RaceState.FINISHED) {
+                // Auto-transition to results after a delay
+                if (!this._dragRaceCompleteTime) {
+                    this._dragRaceCompleteTime = Date.now();
+                }
+
+                if (Date.now() - this._dragRaceCompleteTime > 2000) {
+                    this._finishDragRace(); // New method to handle drag race results
+                    this.screenManager.changeState(GameStates.RESULTS);
+                    this._dragRaceCompleteTime = null;
+                }
+            }
+        }
+
+        // Handle mouse clicks for drag race screen
+        if (this.inputManager.isMouseClicked()) {
+            const mouse = this.inputManager.getMousePosition();
+            const action = this.screens.dragRace.handleClick(mouse.x, mouse.y, this.gameState);
+
+            if (action && action.action === 'continue') {
+                // After drag race, transition back to garage or next relevant state
+                this.screens.dragRace.reset();
+                this.screenManager.changeState(GameStates.GARAGE);
+            }
+        }
+    }
+
     _updateResults(deltaTime) {
         this.screens.results.update(deltaTime, this.gameState);
 
@@ -778,26 +822,37 @@ class Game {
             const action = this.screens.results.handleClick(mouse.x, mouse.y, this.gameState);
 
             if (action && action.action === 'continue') {
-                // Advance to next week
-                const result = this.gameState.advanceWeek();
+                // Determine if the last completed race was a drag race
+                const lastContractWasDragRace = this.gameState.season.selectedContract?.isDragRace;
 
-                if (result === 'continue') {
-                    // Continue to next week
+                if (lastContractWasDragRace) {
+                    // For drag races, reset the results screen and go back to garage
+                    // Do NOT advance week or season
                     this.screens.results.reset();
                     this.screenManager.changeState(GameStates.GARAGE);
-                } else if (result.status === 'season_complete') {
-                    // Season complete - check if can advance tier
-                    if (result.canAdvance && this.gameState.advanceTier()) {
-                        this.screens.results.reset();
-                        this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
-                    } else {
-                        // Can't advance - continue with same tier
+                } else {
+                    // Original logic for regular races
+                    // Advance to next week
+                    const result = this.gameState.advanceWeek();
+
+                    if (result === 'continue') {
+                        // Continue to next week
                         this.screens.results.reset();
                         this.screenManager.changeState(GameStates.GARAGE);
+                    } else if (result.status === 'season_complete') {
+                        // Season complete - check if can advance tier
+                        if (result.canAdvance && this.gameState.advanceTier()) {
+                            this.screens.results.reset();
+                            this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
+                        } else {
+                            // Can't advance - continue with same tier
+                            this.screens.results.reset();
+                            this.screenManager.changeState(GameStates.GARAGE);
+                        }
                     }
                 }
 
-                // Autosave
+                // Autosave (always save after any race completion)
                 this.saveManager.autoSave(this._createSaveSlot());
             }
         }
@@ -901,6 +956,10 @@ class Game {
         this.screens.race.render(this.ctx, this.gameState);
     }
 
+    _renderDragRace() {
+        this.screens.dragRace.render(this.ctx, this.gameState);
+    }
+
     _renderResults() {
         this.screens.results.render(this.ctx, this.gameState);
     }
@@ -938,7 +997,14 @@ class Game {
         );
 
         // Generate race settings (Track, Laps, Rules)
-        const raceSettings = this.trackGenerator.generateRaceSettings(null, null, 800, 600);
+        // Pass the contract's trackType and the current leagueTier to generateRaceSettings
+        const raceSettings = this.trackGenerator.generateRaceSettings(
+            null, // raceType is derived from contract
+            contract.trackType, // Use the track type from the contract
+            800, // default width
+            600, // default height
+            this.gameState.player.tier // Pass leagueTier
+        );
         const track = raceSettings.track; // Extract track object
 
         // Calculate odds
@@ -961,25 +1027,38 @@ class Game {
         const drivers = this.gameState.race.drivers;
         const track = this.gameState.race.track;
         const contract = this.gameState.race.contract;
+        const leagueTier = this.gameState.player.tier; // Get current league tier
 
-        // Get race settings for total laps
-        const raceSettings = this.gameState.raceSettings;
-        const totalLaps = raceSettings.totalLaps || 20;
+        if (contract.isDragRace) {
+            // If it's a drag race, use DragRaceSimulator
+            this.raceSimulator = new DragRaceSimulator(
+                drivers,
+                track,
+                leagueTier
+            );
+            this.raceSimulator.start();
+            this.gameState.race.simulation = this.raceSimulator;
+            this.screenManager.changeState(GameStates.DRAG_RACE); // Transition to DRAG_RACE screen
+        } else {
+            // Original logic for regular races
+            // Get race settings for total laps
+            const raceSettings = this.gameState.raceSettings;
+            const totalLaps = raceSettings.totalLaps || 20;
 
-        // Create race simulator
-        this.raceSimulator = new RaceSimulator(
-            drivers,
-            track,
-            totalLaps
-        );
+            // Create regular race simulator
+            this.raceSimulator = new RaceSimulator(
+                drivers,
+                track,
+                totalLaps
+            );
 
-        // Start the race
-        this.raceSimulator.start();
+            // Start the race
+            this.raceSimulator.start();
+            this.gameState.race.simulation = this.raceSimulator;
+            this.screenManager.changeState(GameStates.RACE); // Transition to regular RACE screen
+        }
 
-        // Store reference in game state for easy access
-        this.gameState.race.simulation = this.raceSimulator;
-
-        this.gameState.startRace();
+        this.gameState.startRace(); // This method might need to be adjusted if it assumes a regular race
     }
 
     /**
@@ -994,6 +1073,23 @@ class Game {
 
         // Store results for results screen
         this.gameState.raceResults = results;
+    }
+
+    /**
+     * Finishes the drag race and calculates results
+     * @private
+     */
+    _finishDragRace() {
+        if (!this.raceSimulator) return; // This will be DragRaceSimulator instance
+
+        const results = this.raceSimulator.getResults(); // DragRaceSimulator.getResults()
+        // For drag races, we just need to know who won.
+        // Update game state with drag race results, e.g., give player winnings if they bet on champion.
+        // This logic needs to be integrated with GameState.
+        // For now, let's just store the results.
+        this.gameState.raceResults = results; // Store results for results screen
+        // Also update player's bankroll based on results if betting was implemented for drag races
+        // (This will be a future enhancement if drag race betting is added)
     }
 
     /**

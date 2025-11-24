@@ -1409,6 +1409,154 @@ class RaceSimulator {
 }
 
 // ============================================================================
+// DRAG RACE SIMULATOR CLASS
+// ============================================================================
+class DragRaceSimulator {
+    constructor(drivers, track, leagueTier = 1) {
+        this.drivers = drivers; // All drivers in the bracket (e.g., 8)
+        this.track = track;     // The drag strip track
+        this.leagueTier = leagueTier;
+
+        this.state = RaceState.PRE_RACE;
+        this.raceTime = 0;
+        this.updateRate = 1 / 60; // 60 updates per second
+        this.accumulatedTime = 0;
+
+        this.currentRound = 0;
+        this.bracket = []; // Stores driver matchups for each round
+        this.roundWinners = [];
+        this.champion = null;
+
+        // Initialize physics (simplified for drag races)
+        // Note: RacingPhysics requires a raceSimulator, but DragRaceSimulator isn't a RaceSimulator
+        // For simplicity, we'll pass 'this' and ensure RacingPhysics doesn't call back to it for race events
+        this.physics = new RacingPhysics(track, this); 
+
+        this._initializeBracket();
+    }
+
+    _initializeBracket() {
+        // For an 8-car bracket (drivers array assumed to be 8)
+        // Round 1: 4 heats, 4 winners
+        // Round 2 (Semi-Finals): 2 heats, 2 winners
+        // Round 3 (Finals): 1 heat, 1 winner
+
+        // Shuffle drivers for fair matchups
+        const shuffledDrivers = [...this.drivers].sort(() => 0.5 - Math.random());
+
+        // Initial seeding for Round 1 heats (e.g., 8 drivers -> 4 heats)
+        // Each element in `bracket` array represents a round's matchups
+        // `bracket[0]` = drivers for Round 1
+        // `bracket[1]` = drivers for Round 2 (winners of Round 1)
+        // `bracket[2]` = drivers for Round 3 (winners of Round 2)
+        // `bracket[3]` = champion (winner of Round 3)
+        this.bracket = [
+            shuffledDrivers, // Round 1 participants
+            [],              // Round 2 participants
+            [],              // Round 3 participants
+            []               // Champion
+        ];
+    }
+
+    start() {
+        this.state = RaceState.RACING;
+        this.raceTime = 0;
+        this.currentRound = 1; // Start with Round 1
+        console.log(`Drag Race started! Round ${this.currentRound}`);
+    }
+
+    update(scaledDeltaTime) {
+        if (this.state !== RaceState.RACING || this.champion) return;
+
+        // Fixed timestep for deterministic simulation
+        this.accumulatedTime += scaledDeltaTime;
+
+        while (this.accumulatedTime >= this.updateRate) {
+            this._simulateDragRound(this.updateRate); // deltaTime is updateRate for physics update
+            this.accumulatedTime -= this.updateRate;
+        }
+    }
+
+    _simulateDragRound(deltaTime) { // deltaTime not directly used here, but kept for consistency
+        // If the current round has participants
+        if (this.bracket[this.currentRound - 1].length > 0) {
+            // Check if all heats for the current round have been processed
+            if (this.bracket[this.currentRound - 1].length === 0 && this.roundWinners.length > 0) {
+                // All heats finished, move winners to next round
+                this.bracket[this.currentRound] = [...this.roundWinners]; // Populate next round with winners
+                this.roundWinners = []; // Clear winners for next round
+                
+                // Check if it was the final round (only one driver left in the next round)
+                if (this.bracket[this.currentRound].length === 1) { 
+                    this.champion = this.bracket[this.currentRound][0]; // The single winner of the final round
+                    this.state = RaceState.FINISHED;
+                    console.log(`Drag Race Finished! Champion: ${this.champion.name}`); // Access driver.name directly
+                    return;
+                }
+
+                this.currentRound++;
+                console.log(`Advancing to Drag Race Round ${this.currentRound}`);
+            }
+            
+            // Run heats two cars at a time
+            // Only run if there are enough drivers left in the current round to form a heat
+            if (this.bracket[this.currentRound - 1].length >= 2) {
+                const driversInRound = this.bracket[this.currentRound - 1];
+                const car1 = driversInRound.shift(); // Get next two drivers
+                const car2 = driversInRound.shift();
+                
+                const winner = this._runHeat(car1, car2); // Simulate heat
+                this.roundWinners.push(winner); // Add winner to current round's winners
+                console.log(`Heat: ${car1.name} vs ${car2.name}. Winner: ${winner.name}`); // Access driver.name directly
+            } else if (this.bracket[this.currentRound - 1].length === 1 && this.roundWinners.length === 0) {
+                // This handles a bye if a bracket is not perfectly sized, but for fixed 8-car, this shouldn't occur
+                // unless previous logic put an odd number of drivers in a round.
+                // If it were a bye, the driver would automatically advance.
+                 this.roundWinners.push(this.bracket[this.currentRound - 1].shift());
+            }
+        }
+    }
+
+    _runHeat(driver1, driver2) {
+        // Simplified drag race simulation: determine winner based on stats, primarily topSpeed and some randomness
+        // We'll simulate a "race" over a fixed distance for a simplified win/loss.
+        
+        // Simulating 1/4 mile drag (approximate)
+        const DRAG_DISTANCE = 400; // units (e.g., meters)
+
+        // Calculate a "finish time" based on top speed and a bit of aggression/reliability for variance
+        // Drivers have 'stats' property
+        const time1 = DRAG_DISTANCE / (driver1.stats.topSpeed * (1 + driver1.stats.aggression/200) + (Math.random() * 20 - 10));
+        const time2 = DRAG_DISTANCE / (driver2.stats.topSpeed * (1 + driver2.stats.aggression/200) + (Math.random() * 20 - 10));
+
+        // The driver with the lower time wins
+        return time1 < time2 ? driver1 : driver2;
+    }
+
+    getRaceState() {
+        return {
+            state: this.state,
+            currentRound: this.currentRound,
+            bracket: this.bracket,
+            roundWinners: this.roundWinners,
+            champion: this.champion
+        };
+    }
+
+    getResults() {
+        if (this.state !== RaceState.FINISHED) {
+            return null;
+        }
+        return {
+            finalStandings: [this.champion], // For now, just the champion
+            winner: this.champion,
+            totalTime: this.raceTime, 
+            totalEvents: 0,
+            dnfCount: 0
+        };
+    }
+}
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -1417,6 +1565,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         RacingPhysics,
         RaceSimulator,
+        DragRaceSimulator, // Added DragRaceSimulator
         CarController,
         BurnerPhoneSystem,
         RaceState,
