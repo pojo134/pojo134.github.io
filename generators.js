@@ -583,27 +583,24 @@ class TrackGenerator {
     /**
      * Generates a simple drag strip track (long straight, turn, long straight)
      */
-    generateDragStripTrack(width = 8000, height = 1000) { // Drag strips are typically narrow and long
+    generateDragStripTrack(width = 8000, height = 6000) { // Keep proportions reasonable
         const waypoints = [];
-        const trackWidth = width * 0.9;
-        const trackHeight = height * 0.8;
+        const centerX = width / 2;
+        const centerY = height / 2;
 
-        const startX = width * 0.05;
-        const startY = height * 0.5;
+        // Make it a very elongated oval
+        const halfWidth = width * 0.45; // Long straight sections
+        const halfHeight = height * 0.05; // Very narrow turns
 
-        // Start straight
-        waypoints.push({ x: Math.round(startX), y: Math.round(startY) });
-        waypoints.push({ x: Math.round(startX + trackWidth), y: Math.round(startY) });
+        const numPoints = 60; // For a smooth oval
+        for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * Math.PI * 2;
+            const x = centerX + Math.cos(angle) * halfWidth;
+            const y = centerY + Math.sin(angle) * halfHeight;
+            waypoints.push({ x: Math.round(x), y: Math.round(y) });
+        }
 
-        // U-turn (simplified for now, ideally more curved)
-        waypoints.push({ x: Math.round(startX + trackWidth), y: Math.round(startY + trackHeight * 0.5) }); // Control point for turn
-        waypoints.push({ x: Math.round(startX), y: Math.round(startY + trackHeight * 0.5) });
-
-        // Return straight
-        waypoints.push({ x: Math.round(startX), y: Math.round(startY) }); // Connects back to start
-
-        // Apply smoothing to the generated waypoints for a cleaner turn
-        return this.smoothWaypoints(waypoints);
+        return this.smoothWaypoints(waypoints, 3); // Apply smoothing
     }
 
     /**
@@ -764,7 +761,9 @@ class TrackGenerator {
         let waypoints;
 
         // Generate waypoints based on track type
-        if (trackType === "Go-Kart Track") { // Handle new Go-Kart Track type
+        if (trackType === "Drag Race") { // Handle Drag Race track type
+            waypoints = this.generateDragStripTrack(width, height);
+        } else if (trackType === "Go-Kart Track") { // Handle new Go-Kart Track type
             waypoints = this.generateGoKartTrack(width, height);
         } else if (trackType.includes("Oval") && !trackType.includes("Dirt")) {
             if (trackType === "Short Oval") {
@@ -1239,21 +1238,23 @@ class SeasonGenerator {
 
         for (let week = 1; week <= this.raceWeeks; week++) {
             const contracts = [];
+            let regularContractsGenerated = 0;
 
-            // Generate 3 contract options per week
+            // Generate 2 regular contract options
             contracts.push(this.generateContract("safe", week, leagueTier));
-            this.racesSinceLastDrag++;
+            regularContractsGenerated++;
 
             contracts.push(this.generateContract("risky", week, leagueTier));
-            this.racesSinceLastDrag++;
+            regularContractsGenerated++;
 
-            // Check if it's time for a drag race special event
-            if (this.racesSinceLastDrag >= 3) {
-                contracts.push(this.generateDragRaceContract(week, leagueTier)); // Assuming this method exists
-                this.racesSinceLastDrag = 0; // Reset counter
+            // Decide whether to add a special contract or a drag race contract
+            // A drag race occurs *instead of* the third regular contract
+            if (this.racesSinceLastDrag >= 2 && regularContractsGenerated === 2) { // 2 regular races + 1 drag race = 3 events
+                contracts.push(this.generateDragRaceContract(week, leagueTier));
+                this.racesSinceLastDrag = 0; // Reset counter after drag race
             } else {
                 contracts.push(this.generateContract("special", week, leagueTier));
-                this.racesSinceLastDrag++;
+                this.racesSinceLastDrag++; // Only increment for regular contracts
             }
 
             calendar.push({

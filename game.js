@@ -1098,9 +1098,61 @@ class Game {
      */
     _createSaveSlot() {
         const slot = new SaveSlot('auto');
-        // Use the GameState's toJSON method to ensure a complete and valid gameState object
-        // is passed to the SaveSlot, satisfying SaveSlot.validate()
-        slot.gameState = this.gameState.toJSON();
+        // Manually construct the gameState object to match the flat structure expected by SaveSlot.validate()
+        slot.gameState = {
+            // Player Economy
+            bankroll: this.gameState.player.bankroll,
+            totalEarnings: this.gameState.player.totalProfit, // GameState.player.totalProfit is net profit from bets
+            totalLosses: this.gameState.player.totalLosses || 0, // Assuming totalLosses is directly on player
+            netProfit: this.gameState.player.totalProfit,       // Net profit from GameState.player.totalProfit
+
+            // Progression
+            currentTier: this.gameState.player.tier,
+            currentSeason: this.gameState.player.season,
+            currentWeek: this.gameState.player.week,
+            reputationScore: this.gameState.player.reputationScore || 0, // Default to 0 if not tracked
+            licensesPurchased: this.gameState.player.licensesPurchased || ['kart'], // Default to ['kart'] if not tracked
+
+            // Garage Upgrades: Convert array of upgrade IDs to an object mapping ID to level (assuming level 1 for now)
+            ownedUpgrades: this.gameState.player.upgrades.reduce((acc, upgradeId) => {
+                acc[upgradeId] = 1; // Assuming 1 is the base level if only ID is stored
+                return acc;
+            }, {}),
+
+            // Driver Roster (current season)
+            currentRoster: this.gameState.season.currentRoster || [], // Default to empty array
+
+            // Race History (last 50 races) - GameState currently doesn't track this at top-level
+            raceHistory: this.gameState.raceHistory || [], // Default to empty array
+
+            // Statistics: Pull from GameState.player and GameState.season.seasonStats where available
+            stats: {
+                totalRaces: this.gameState.player.totalRaces,
+                totalWins: this.gameState.player.totalWins,
+                totalBets: this.gameState.season.seasonStats?.totalSpent || 0, // Total spent on bets, from seasonStats
+                winRate: this.gameState.player.totalRaces > 0
+                    ? (this.gameState.player.totalWins / this.gameState.player.totalRaces) * 100
+                    : 0,
+                biggestWin: this.gameState.player.biggestWin || 0, // Default to 0
+                biggestLoss: this.gameState.player.biggestLoss || 0, // Default to 0
+                favoriteTrack: this.gameState.player.favoriteTrack || null, // Default to null
+                favoriteVehicleType: this.gameState.player.favoriteVehicleType || null, // Default to null
+                heatIncidents: this.gameState.player.heatIncidents || 0, // Default to 0
+                perfectRaces: this.gameState.player.perfectRaces || 0 // Default to 0
+            },
+
+            // Active Contacts (Burner Phone)
+            availableContacts: this.gameState.player.availableContacts || ['spotter'], // Default to ['spotter']
+
+            // Flags & Events
+            flags: this.gameState.player.flags || { // Default to an object
+                tutorialCompleted: false,
+                firstSeasonComplete: false,
+                unlockedDragStrip: false,
+                investigationActive: false,
+                investigationCooldown: 0
+            }
+        };
         return slot;
     }
 
