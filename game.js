@@ -1083,13 +1083,42 @@ class Game {
         if (!this.raceSimulator) return; // This will be DragRaceSimulator instance
 
         const results = this.raceSimulator.getResults(); // DragRaceSimulator.getResults()
-        // For drag races, we just need to know who won.
-        // Update game state with drag race results, e.g., give player winnings if they bet on champion.
-        // This logic needs to be integrated with GameState.
-        // For now, let's just store the results.
-        this.gameState.raceResults = results; // Store results for results screen
-        // Also update player's bankroll based on results if betting was implemented for drag races
-        // (This will be a future enhancement if drag race betting is added)
+        
+        // Ensure results and champion are available
+        if (!results || !results.champion) {
+            console.error("DragRace: No champion found in results.");
+            return;
+        }
+
+        // Store results for results screen
+        this.gameState.raceResults = {
+            finalStandings: [results.champion], // Simplified to just the champion
+            winner: results.champion,
+            totalTime: results.totalTime,
+            isDragRace: true // Flag to indicate it was a drag race
+        };
+
+        // Mark the selected contract as completed
+        if (this.gameState.season.selectedContract) {
+            this.gameState.season.selectedContract.completed = true;
+        }
+
+        // Handle player's bet on the champion (if implemented)
+        // For now, assume no betting is placed on drag races or it's a "free" event.
+        // If the player had a bet for this event, we'd process it here.
+        // Since drag races are "bonus rounds", there's no betting.
+        // We'll explicitly set betResult to indicate no active bet.
+        this.gameState.race.betResult = {
+            betAmount: 0,
+            payout: 0,
+            won: false,
+            message: "No bet placed for bonus drag race."
+        };
+
+        // This will be called in _updateResults after this method,
+        // and _updateResults will handle advancing the week/season for non-drag races.
+        // For drag races, _updateResults needs to know not to advance.
+        // The flag `isDragRace` in `raceResults` will help with this.
     }
 
     /**

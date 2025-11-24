@@ -1768,11 +1768,11 @@ class DragRaceScreen {
             return;
         }
 
-        // Render the drag race bracket
+        // Render the drag race bracket on the left
         this.renderBracket(ctx, this.bracketState);
 
-        // Render current heat (if any)
-        this.renderCurrentHeat(ctx, this.bracketState);
+        // Render the dedicated race display on the right
+        this.renderRaceDisplay(ctx, this.bracketState);
 
         // Render champion (if race finished)
         if (this.bracketState.state === RaceState.FINISHED && this.bracketState.champion) {
@@ -1870,8 +1870,130 @@ class DragRaceScreen {
 
 
     renderCurrentHeat(ctx, bracketState) {
-        // Implement rendering for the active heat
-        // This could be a more detailed view of the two cars currently racing
+        // This method will now call renderRaceDisplay
+        this.renderRaceDisplay(ctx, bracketState);
+    }
+
+    renderRaceDisplay(ctx, bracketState) {
+        const canvas = ctx.canvas;
+        const raceDisplayWidth = canvas.width * 0.4; // Right 40% of screen
+        const raceDisplayX = canvas.width * 0.6; // Starts after bracket
+        const raceDisplayY = 100;
+        const raceDisplayHeight = canvas.height - raceDisplayY - 80; // Adjusted for title and footer
+
+        // Draw background for race display
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(raceDisplayX, raceDisplayY, raceDisplayWidth, raceDisplayHeight);
+        ctx.strokeStyle = '#ff0066';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(raceDisplayX, raceDisplayY, raceDisplayWidth, raceDisplayHeight);
+
+        // Title
+        ctx.font = 'bold 24px "Courier New", monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'center';
+        ctx.fillText('CURRENT HEAT', raceDisplayX + raceDisplayWidth / 2, raceDisplayY + 30);
+
+        // Dividing line (track lines)
+        ctx.strokeStyle = '#888888';
+        ctx.lineWidth = 4; // Thicker lines for track boundaries
+        ctx.beginPath();
+        // Top lane boundary
+        ctx.moveTo(raceDisplayX + 20, raceDisplayY + raceDisplayHeight / 2 - 40);
+        ctx.lineTo(raceDisplayX + raceDisplayWidth - 20, raceDisplayY + raceDisplayHeight / 2 - 40);
+        // Bottom lane boundary
+        ctx.moveTo(raceDisplayX + 20, raceDisplayY + raceDisplayHeight / 2 + 40);
+        ctx.lineTo(raceDisplayX + raceDisplayWidth - 20, raceDisplayY + raceDisplayHeight / 2 + 40);
+        ctx.stroke();
+
+        // Start line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(raceDisplayX + 30, raceDisplayY + raceDisplayHeight / 2 - 40);
+        ctx.lineTo(raceDisplayX + 30, raceDisplayY + raceDisplayHeight / 2 + 40);
+        ctx.stroke();
+
+        // Finish line (DRAG_DISTANCE in simulator, map to display)
+        const finishLineX = raceDisplayX + raceDisplayWidth - 30; // 30px from right edge
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(finishLineX, raceDisplayY + raceDisplayHeight / 2 - 40);
+        ctx.lineTo(finishLineX, raceDisplayY + raceDisplayHeight / 2 + 40);
+        ctx.stroke();
+
+
+        // Render drag tree dynamically
+        this.renderDragTree(ctx, raceDisplayX + raceDisplayWidth / 2, raceDisplayY + raceDisplayHeight - 80, bracketState.startLightState);
+
+        // Render cars if a heat is active
+        const heatState = bracketState.heatState;
+        if (heatState && heatState.car1 && heatState.car2) {
+            const car1 = heatState.car1;
+            const car2 = heatState.car2;
+
+            // Map car progress (currentWaypoint from 0 to DRAG_DISTANCE) to display X-position
+            const trackStartX = raceDisplayX + 30; // After start line
+            const trackEndX = finishLineX;        // At finish line
+            const trackLength = trackEndX - trackStartX;
+            
+            // Calculate display position (clamp to prevent going off-screen before finish)
+            const car1DisplayX = trackStartX + (car1.currentWaypoint / bracketState.DRAG_DISTANCE) * trackLength;
+            const car2DisplayX = trackStartX + (car2.currentWaypoint / bracketState.DRAG_DISTANCE) * trackLength;
+
+            // Car 1 (top lane)
+            ctx.font = '16px "Courier New", monospace';
+            ctx.fillStyle = heatState.heatWinner && heatState.heatWinner.name === car1.driver.name ? '#00ff00' : '#ffffff';
+            ctx.textAlign = 'left';
+            ctx.fillText(car1.driver.name, car1DisplayX, raceDisplayY + raceDisplayHeight / 2 - 20);
+
+            // Car 2 (bottom lane)
+            ctx.font = '16px "Courier New", monospace';
+            ctx.fillStyle = heatState.heatWinner && heatState.heatWinner.name === car2.driver.name ? '#00ff00' : '#ffffff';
+            ctx.textAlign = 'left';
+            ctx.fillText(car2.driver.name, car2DisplayX, raceDisplayY + raceDisplayHeight / 2 + 30);
+            
+            // If heat finished, display winner prominently
+            if (heatState.heatFinished && heatState.heatWinner) {
+                 ctx.font = 'bold 24px "Courier New", monospace';
+                 ctx.fillStyle = '#00ff00';
+                 ctx.textAlign = 'center';
+                 ctx.fillText(`WINNER: ${heatState.heatWinner.name}`, raceDisplayX + raceDisplayWidth / 2, raceDisplayY + raceDisplayHeight - 120);
+            }
+
+        } else {
+            ctx.font = '18px "Courier New", monospace';
+            ctx.fillStyle = '#888888';
+            ctx.textAlign = 'center';
+            ctx.fillText('Waiting for heat to start...', raceDisplayX + raceDisplayWidth / 2, raceDisplayY + raceDisplayHeight / 2);
+        }
+    }
+
+    renderDragTree(ctx, x, y, startLightState) {
+        // Yellow lights
+        ctx.fillStyle = startLightState === 'YELLOW1' ? '#ffff00' : '#333300';
+        ctx.beginPath();
+        ctx.arc(x, y - 40, 10, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = startLightState === 'YELLOW2' ? '#ffff00' : '#333300';
+        ctx.beginPath();
+        ctx.arc(x, y - 20, 10, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = startLightState === 'YELLOW3' ? '#ffff00' : '#333300';
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
+
+        // Green/Red light
+        let mainLightColor = '#330000'; // Off state
+        if (startLightState === 'GREEN') {
+            mainLightColor = '#00ff00';
+        } else if (startLightState === 'RED') { // For false starts
+            mainLightColor = '#ff0000';
+        }
+        ctx.fillStyle = mainLightColor;
+        ctx.beginPath();
+        ctx.arc(x, y + 20, 15, 0, Math.PI * 2); ctx.fill();
     }
 
     renderContinueButton(ctx, x, y, width, height) {

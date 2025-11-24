@@ -1418,19 +1418,33 @@ class DragRaceSimulator {
         this.leagueTier = leagueTier;
 
         this.state = RaceState.PRE_RACE;
-        this.raceTime = 0;
+        this.raceTime = 0; // Total time spent in DragRaceSimulator
         this.updateRate = 1 / 60; // 60 updates per second
         this.accumulatedTime = 0;
 
         this.currentRound = 0;
+        this.currentHeatIndex = 0; // Index of the heat within the current round
         this.bracket = []; // Stores driver matchups for each round
         this.roundWinners = [];
         this.champion = null;
 
-        // Initialize physics (simplified for drag races)
-        // Note: RacingPhysics requires a raceSimulator, but DragRaceSimulator isn't a RaceSimulator
-        // For simplicity, we'll pass 'this' and ensure RacingPhysics doesn't call back to it for race events
-        this.physics = new RacingPhysics(track, this); 
+        // Current heat simulation state
+        this.heatState = null; // { driver1, driver2, car1, car2, carPositions: [{x,y}, {x,y}], heatWinner, heatFinished, heatRaceTime }
+        this.heatSimulationDuration = 3.0; // Simulated duration of a single heat (e.g., 3 seconds for 1/4 mile)
+        this.heatSimulationTimer = 0;
+
+        // Drag Tree / Start Light state
+        this.startLightState = 'OFF'; // 'OFF', 'YELLOW1', 'YELLOW2', 'YELLOW3', 'GREEN', 'RED'
+        this.startLightTimer = 0;
+        this.DRAG_TREE_DELAY_YELLOW = 0.6; // Time each yellow light stays on
+        this.DRAG_TREE_DELAY_GREEN = 0.5; // Time green light shows before cars move
+
+        // Track positions for a drag strip for car movement
+        // Assuming a normalized track segment for linear progress
+        this.DRAG_DISTANCE = 400; // Units, e.g., meters
+
+        // Physics for each car in the heat (simplified CarController)
+        this._carPhysics = new Map(); // Map to hold CarController instances for the current heat
 
         this._initializeBracket();
     }
@@ -1459,61 +1473,128 @@ class DragRaceSimulator {
     }
 
     start() {
-        this.state = RaceState.RACING;
+        this.state = RaceState.PRE_HEAT; // Start in pre-heat state to allow setup
         this.raceTime = 0;
         this.currentRound = 1; // Start with Round 1
+        this.currentHeatIndex = 0; // Start with the first heat of Round 1
+        this._carPhysics.clear(); // Clear any previous car physics instances
+
+        this._setupNextHeat(); // Prepare the first heat
+
         console.log(`Drag Race started! Round ${this.currentRound}`);
     }
 
-    update(scaledDeltaTime) {
-        if (this.state !== RaceState.RACING || this.champion) return;
-
-        // Fixed timestep for deterministic simulation
-        this.accumulatedTime += scaledDeltaTime;
-
-        while (this.accumulatedTime >= this.updateRate) {
-            this._simulateDragRound(this.updateRate); // deltaTime is updateRate for physics update
-            this.accumulatedTime -= this.updateRate;
+    _setupNextHeat() {
+        if (this.champion) {
+            this.state = RaceState.FINISHED;
+            return;
         }
+
+        const driversInRound = this.bracket[this.currentRound - 1];
+
+        // If no more drivers in this round, advance round or finish race
+        if (!driversInRound || driversInRound.length === 0 || this.currentHeatIndex * 2 >= driversInRound.length) {
+            this._advanceRound();
+            if (this.champion) return; // If advancing round resulted in a champion
+            
+            // If new round was set up and has drivers, then setup its first heat
+            if (this.bracket[this.currentRound - 1] && this.bracket[this.currentRound - 1].length > 0) {
+                 return this._setupNextHeat(); // Setup heat for the new round
+            } else {
+                // If there are no more rounds or drivers left, it means the bracket is finished
+                this.state = RaceState.FINISHED;
+                return;
+            }
+        }
+
+        // Get the two drivers for the current heat
+        const driver1 = driversInRound[this.currentHeatIndex * 2];
+        const driver2 = driversInRound[this.currentHeatIndex * 2 + 1];
+
+        // Handle bye (should not happen in 8-car bracket unless logic error)
+        if (!driver1 || !driver2) {
+            // This is a bye, advance driver1 automatically if only one exists
+            if (driver1) {
+                this.roundWinners.push(driver1);
+                console.log(`Heat: ${driver1.name} has a bye and advances.`);
+            }
+            this.currentHeatIndex++;
+            return this._setupNextHeat(); // Setup next heat
+        }
+
+        // Create simplified CarController instances for these two drivers
+        // These CarController instances are primarily for tracking animated position/speed
+        const car1 = new CarController(driver1.id, driver1, 0, this.track); // Position and track params are dummy for this context
+        const car2 = new CarController(driver2.id, driver2, 1, this.track); // ID, driver, startPos, track
+
+        this._carPhysics.set(car1.id, car1);
+        this._carPhysics.set(car2.id, car2);
+
+        // Calculate a base speed for each car based on their topSpeed stat
+        // This will be used to determine their "real" finish time in the simulation
+        const baseSpeed1 = car1.driver.stats.topSpeed * (1 + car1.driver.stats.aggression/200);
+        const baseSpeed2 = car2.driver.stats.topSpeed * (1 + car2.driver.stats.aggression/200);
+        
+        // Introduce some random variance to the finish time for realism
+        const variance1 = (Math.random() * 0.2 - 0.1); // +/- 10%
+        const variance2 = (Math.random() * 0.2 - 0.1);
+
+        const theoreticalTime1 = this.DRAG_DISTANCE / (baseSpeed1 * (1 + variance1));
+        const theoreticalTime2 = this.DRAG_DISTANCE / (baseSpeed2 * (1 + variance2));
+
+        // The actual duration of the animation will be heatSimulationDuration
+        // We'll use these theoretical times to determine the actual winner when simulation finishes
+        this.heatState = {
+            driver1: driver1,
+            driver2: driver2,
+            car1: car1, // CarController instances for animation
+            car2: car2,
+            carPositions: [{ x: 0, y: 0 }, { x: 0, y: 0 }], // Normalized progress 0-1
+            actualFinishTime1: theoreticalTime1,
+            actualFinishTime2: theoreticalTime2,
+            heatWinner: null,
+            heatFinished: false,
+            heatRaceTime: 0,
+            animationProgress: 0, // 0-1 progress of the visual animation
+            car1Started: false,
+            car2Started: false,
+            reactionTime1: Math.random() * 0.3, // Simulate reaction time
+            reactionTime2: Math.random() * 0.3,
+            falseStart1: false,
+            falseStart2: false
+        };
+        this.heatSimulationTimer = 0;
+        this.startLightState = 'OFF';
+        this.startLightTimer = 0;
+        this.state = RaceState.PRE_HEAT;
+
+        console.log(`Setting up Round ${this.currentRound}, Heat ${this.currentHeatIndex + 1}: ${driver1.name} vs ${driver2.name}`);
     }
 
-    _simulateDragRound(deltaTime) { // deltaTime not directly used here, but kept for consistency
-        // If the current round has participants
-        if (this.bracket[this.currentRound - 1].length > 0) {
-            // Check if all heats for the current round have been processed
-            if (this.bracket[this.currentRound - 1].length === 0 && this.roundWinners.length > 0) {
-                // All heats finished, move winners to next round
-                this.bracket[this.currentRound] = [...this.roundWinners]; // Populate next round with winners
-                this.roundWinners = []; // Clear winners for next round
-                
-                // Check if it was the final round (only one driver left in the next round)
-                if (this.bracket[this.currentRound].length === 1) { 
-                    this.champion = this.bracket[this.currentRound][0]; // The single winner of the final round
-                    this.state = RaceState.FINISHED;
-                    console.log(`Drag Race Finished! Champion: ${this.champion.name}`); // Access driver.name directly
-                    return;
-                }
+    _advanceRound() {
+        // If there are winners from the current round
+        if (this.roundWinners.length > 0) {
+            // Check if this was the final round (only one winner expected)
+            const expectedWinnersForNextRound = Math.ceil(this.bracket[this.currentRound - 1].length / 2);
 
-                this.currentRound++;
+            if (this.roundWinners.length === 1 && this.currentRound === Math.ceil(Math.log2(this.drivers.length))) {
+                // This means the final heat has been run, and we have a champion
+                this.champion = this.roundWinners[0];
+                this.state = RaceState.FINISHED;
+                console.log(`Drag Race Finished! Champion: ${this.champion.name}`);
+                return;
+            } else if (this.roundWinners.length > 0) { // If there are winners, but not the champion yet
+                this.bracket[this.currentRound] = [...this.roundWinners]; // Promote winners to next round
+                this.roundWinners = []; // Clear current round winners
+                this.currentRound++; // Advance to next round
+                this.currentHeatIndex = 0; // Reset heat index for the new round
                 console.log(`Advancing to Drag Race Round ${this.currentRound}`);
             }
-            
-            // Run heats two cars at a time
-            // Only run if there are enough drivers left in the current round to form a heat
-            if (this.bracket[this.currentRound - 1].length >= 2) {
-                const driversInRound = this.bracket[this.currentRound - 1];
-                const car1 = driversInRound.shift(); // Get next two drivers
-                const car2 = driversInRound.shift();
-                
-                const winner = this._runHeat(car1, car2); // Simulate heat
-                this.roundWinners.push(winner); // Add winner to current round's winners
-                console.log(`Heat: ${car1.name} vs ${car2.name}. Winner: ${winner.name}`); // Access driver.name directly
-            } else if (this.bracket[this.currentRound - 1].length === 1 && this.roundWinners.length === 0) {
-                // This handles a bye if a bracket is not perfectly sized, but for fixed 8-car, this shouldn't occur
-                // unless previous logic put an odd number of drivers in a round.
-                // If it were a bye, the driver would automatically advance.
-                 this.roundWinners.push(this.bracket[this.currentRound - 1].shift());
-            }
+        } else {
+            // This case might happen if _advanceRound is called but no heats were run
+            // or if the initial setup has fewer than 2 drivers for a heat.
+            // In a perfectly balanced bracket, this path should not be frequently hit
+            console.warn("DragRaceSimulator: _advanceRound called with no winners to promote.");
         }
     }
 
