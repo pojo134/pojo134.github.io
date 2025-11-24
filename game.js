@@ -1002,23 +1002,9 @@ class Game {
      */
     _createSaveSlot() {
         const slot = new SaveSlot('auto');
-        slot.gameState = {
-            bankroll: this.gameState.player.bankroll,
-            totalEarnings: this.gameState.player.totalProfit,
-            totalLosses: 0,
-            netProfit: this.gameState.player.totalProfit,
-            currentTier: this.gameState.player.tier,
-            currentSeason: this.gameState.player.season,
-            currentWeek: this.gameState.player.week,
-            ownedUpgrades: {},
-            stats: {
-                totalRaces: this.gameState.player.totalRaces,
-                totalWins: this.gameState.player.totalWins,
-                winRate: this.gameState.player.totalRaces > 0
-                    ? (this.gameState.player.totalWins / this.gameState.player.totalRaces) * 100
-                    : 0
-            }
-        };
+        // Use the GameState's toJSON method to ensure a complete and valid gameState object
+        // is passed to the SaveSlot, satisfying SaveSlot.validate()
+        slot.gameState = this.gameState.toJSON();
         return slot;
     }
 
