@@ -1029,15 +1029,16 @@ class Game {
         const contract = this.gameState.race.contract;
         const leagueTier = this.gameState.player.tier; // Get current league tier
 
+        // Always clear the previous simulator instance
+        this.raceSimulator = null; 
+        this.gameState.race.simulation = null; // Clear from gameState as well
+
         if (contract.isDragRace) {
             // If it's a drag race, use DragRaceSimulator
-            this.raceSimulator = new DragRaceSimulator(
-                drivers,
-                track,
-                leagueTier
-            );
+            const dragSimulator = new DragRaceSimulator(drivers, track, leagueTier);
+            this.raceSimulator = dragSimulator;
             this.raceSimulator.start();
-            this.gameState.race.simulation = this.raceSimulator;
+            this.gameState.race.simulation = this.raceSimulator; // Assign to gameState for screens
             this.screenManager.changeState(GameStates.DRAG_RACE); // Transition to DRAG_RACE screen
         } else {
             // Original logic for regular races
@@ -1046,15 +1047,11 @@ class Game {
             const totalLaps = raceSettings.totalLaps || 20;
 
             // Create regular race simulator
-            this.raceSimulator = new RaceSimulator(
-                drivers,
-                track,
-                totalLaps
-            );
-
+            const regularSimulator = new RaceSimulator(drivers, track, totalLaps);
+            this.raceSimulator = regularSimulator;
             // Start the race
             this.raceSimulator.start();
-            this.gameState.race.simulation = this.raceSimulator;
+            this.gameState.race.simulation = this.raceSimulator; // Assign to gameState for screens
             this.screenManager.changeState(GameStates.RACE); // Transition to regular RACE screen
         }
 
@@ -1228,6 +1225,26 @@ class Game {
         this.isRunning = false;
     }
 }
+
+// ===== INITIALIZATION =====
+window.addEventListener('load', () => {
+    try {
+        const game = new Game();
+        game.start();
+
+        // Make game instance globally accessible for debugging (dev only)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            window.game = game;
+        }
+    } catch (error) {
+        document.body.innerHTML = `
+            <div style="color: #ff0040; font-family: monospace; padding: 40px; text-align: center;">
+                <h1>FATAL ERROR</h1>
+                <p>${error.message}</p>
+            </div>
+        `;
+    }
+});
 
 // ===== INITIALIZATION =====
 window.addEventListener('load', () => {
