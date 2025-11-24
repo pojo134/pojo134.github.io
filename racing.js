@@ -160,7 +160,7 @@ class RacingPhysics {
             const curr = this.waypoints[i];
             const next = this.waypoints[(i + 1) % n];
 
-            curvatures.push(calculateCurvature(prev, curr, next));
+            curvatures.push(calculateCurvature(prev, curr, next)); // Re-typed 'calculateCurvature' to resolve potential hidden character/typo // Explicitly re-typed to fix potential hidden typo
         }
 
         return curvatures;
