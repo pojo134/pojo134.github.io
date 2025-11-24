@@ -3,6 +3,13 @@
  * Retro racing betting game with a fighting game aesthetic
  */
 
+/**
+ * Linear interpolation
+ */
+function lerp(start, end, t) {
+    return start + (end - start) * t;
+}
+
 // ===========================
 // MAIN MENU SCREEN
 // ===========================
@@ -1045,12 +1052,10 @@ class RaceScreen {
         const INFO_BAR_HEIGHT = 40;
         const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge
 
-        // Clear and border (Using actual canvas dimensions)
+        // Clear the entire canvas
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(1, 1, CANVAS_WIDTH - 2, CANVAS_HEIGHT - 2);
+        // Removed the green border around the entire canvas as requested.
         
         // Render main race info (Track name, Lap counter)
         this.renderRaceInfo(ctx, gameState, 0, 0, CANVAS_WIDTH, INFO_BAR_HEIGHT);
@@ -1733,14 +1738,39 @@ class ResultsScreen {
     constructor() {
         this.animationTimer = 0;
         this.showPayout = false;
+        this.animatedNetChange = 0; // Tracks the animated profit/loss
+        this.finalNetChange = 0;    // Stores the actual profit/loss
+        this.animationDuration = 1.0; // seconds for the money animation
+        this.bankrollAnimationStarted = false; // Flag to ensure animation plays once
+        this.animationStartTime = 0; // To track when the animation started
     }
 
     update(deltaTime, gameState) {
         this.animationTimer += deltaTime;
 
         // Show payout after 2 seconds
-        if (this.animationTimer > 2000 && !this.showPayout) {
+        if (this.animationTimer > 2.0 && !this.showPayout) { // Changed from 2000 to 2.0 (seconds)
             this.showPayout = true;
+            
+            // Initialize net change for animation once payout is shown
+            if (!this.bankrollAnimationStarted && gameState?.race?.betResult) {
+                const betResult = gameState.race.betResult;
+                this.finalNetChange = betResult.won ? (betResult.payout - betResult.betAmount) : -betResult.betAmount;
+                this.animatedNetChange = 0; // Start animation from 0
+                this.bankrollAnimationStarted = true;
+                this.animationStartTime = this.animationTimer; // Store start time for animation
+            }
+        }
+
+        // Animate money change
+        if (this.bankrollAnimationStarted) {
+            const animationProgress = (this.animationTimer - this.animationStartTime);
+            if (animationProgress < this.animationDuration) {
+                const progress = animationProgress / this.animationDuration;
+                this.animatedNetChange = Math.round(lerp(0, this.finalNetChange, progress));
+            } else {
+                this.animatedNetChange = this.finalNetChange; // Ensure final value is set
+            }
         }
     }
 
@@ -1817,17 +1847,21 @@ class ResultsScreen {
 
     renderPayoutBreakdown(ctx, gameState, x, y, width, height) {
         const betResult = gameState?.race?.betResult || { won: false, betAmount: 100, payout: 0 };
+        const rawNetChange = betResult.won ? (betResult.payout - betResult.betAmount) : -betResult.betAmount;
+        const displayNetChange = this.bankrollAnimationStarted ? this.animatedNetChange : rawNetChange;
+        const netChangeText = `${displayNetChange >= 0 ? '+' : ''}$${Math.abs(displayNetChange).toLocaleString()}`; // Format as +$X or -$X
+        const netChangeColor = displayNetChange >= 0 ? '#00ff00' : '#ff0000'; // Green for positive, red for negative
 
         // Container
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = betResult.won ? '#00ff00' : '#ff0000';
+        ctx.strokeStyle = netChangeColor; // Container border reflects win/loss
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, width, height);
 
         // Win/Loss indicator
         ctx.font = 'bold 36px "Courier New", monospace';
-        ctx.fillStyle = betResult.won ? '#00ff00' : '#ff0000';
+        ctx.fillStyle = netChangeColor; // Text color reflects win/loss
         ctx.textAlign = 'center';
         ctx.fillText(betResult.won ? 'YOU WIN!' : 'YOU LOSE', x + width / 2, y + 40);
 
@@ -1838,7 +1872,7 @@ class ResultsScreen {
         ctx.fillText('BET AMOUNT:', x + 30, y + 75);
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'right';
-        ctx.fillText(`$${betResult.betAmount}`, x + width - 30, y + 75);
+        ctx.fillText(`$${betResult.betAmount.toLocaleString()}`, x + width - 30, y + 75);
 
         if (betResult.won) {
             ctx.fillStyle = '#ffffff';
@@ -1846,22 +1880,19 @@ class ResultsScreen {
             ctx.fillText('PAYOUT:', x + 30, y + 105);
             ctx.fillStyle = '#00ff00';
             ctx.textAlign = 'right';
-            ctx.fillText(`$${betResult.payout}`, x + width - 30, y + 105);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'left';
-            ctx.fillText('NET PROFIT:', x + 30, y + 135);
-            ctx.fillStyle = '#00ff00';
-            ctx.textAlign = 'right';
-            ctx.fillText(`+$${betResult.payout - betResult.betAmount}`, x + width - 30, y + 135);
+            ctx.fillText(`$${betResult.payout.toLocaleString()}`, x + width - 30, y + 105);
         } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'left';
-            ctx.fillText('NET LOSS:', x + 30, y + 105);
-            ctx.fillStyle = '#ff0000';
-            ctx.textAlign = 'right';
-            ctx.fillText(`-$${betResult.betAmount}`, x + width - 30, y + 105);
+            // If lost, Payout line is not applicable, but show net change at same Y
+            // So, no specific Payout line if lost, directly to net change.
         }
+
+        // Display NET PROFIT/LOSS based on animated value
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.fillText(betResult.won ? 'NET PROFIT:' : 'NET LOSS:', x + 30, y + 135);
+        ctx.fillStyle = netChangeColor;
+        ctx.textAlign = 'right';
+        ctx.fillText(netChangeText, x + width - 30, y + 135);
     }
 
     renderContinueButton(ctx, x, y, width, height) {
@@ -1904,6 +1935,10 @@ class ResultsScreen {
     reset() {
         this.animationTimer = 0;
         this.showPayout = false;
+        this.animatedNetChange = 0;
+        this.finalNetChange = 0;
+        this.bankrollAnimationStarted = false;
+        this.animationStartTime = 0;
     }
 }
 

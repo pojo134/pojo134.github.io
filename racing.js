@@ -119,21 +119,17 @@ function angleBetween(x1, y1, x2, y2) {
 }
 
 /**
- * Calculate curvature at a waypoint (for cornering detection)
+ * Linearly interpolates between two angles, taking the shortest path around the circle.
  */
-function calculateCurvature(prev, current, next) {
-    const angle1 = angleBetween(prev.x, prev.y, current.x, current.y);
-    const angle2 = angleBetween(current.x, current.y, next.x, next.y);
-
-    let angleDiff = Math.abs(angle2 - angle1);
-    if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-    return angleDiff;
+function lerpAngle(startAngle, endAngle, t) {
+    let diff = endAngle - startAngle;
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    return startAngle + diff * t;
 }
 
 // ============================================================================
 // RACING PHYSICS CLASS
-// ============================================================================
 
 class RacingPhysics {
     constructor(track, raceSimulator) {
@@ -698,8 +694,9 @@ class CarController {
             this.x += this.overtakeOffset * Math.cos(this.heading + Math.PI / 2);
             this.y += this.overtakeOffset * Math.sin(this.heading + Math.PI / 2);
     
-            // Update heading towards the next waypoint
-            this.heading = angleBetween(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
+            // Smoothly update heading towards the next segment's direction
+            const targetHeading = angleBetween(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
+            this.heading = lerpAngle(this.heading, targetHeading, 0.1); // Adjust 0.1 for desired steering responsiveness
         }
     }
 
