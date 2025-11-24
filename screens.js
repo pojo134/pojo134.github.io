@@ -1761,7 +1761,9 @@ class ResultsScreen {
         ctx.fillText('RACE RESULTS', canvas.width / 2, 60);
 
         // Podium display
-        this.renderPodium(ctx, gameState, 150, 100, 500, 250);
+        const podiumWidth = 500;
+        const podiumX = (canvas.width / 2) - (podiumWidth / 2);
+        this.renderPodium(ctx, gameState, podiumX, 100, podiumWidth, 250);
 
         // Payout breakdown
         if (this.showPayout) {
