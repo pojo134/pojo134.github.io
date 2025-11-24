@@ -1247,21 +1247,14 @@ class SeasonGenerator {
             contracts.push(this.generateContract("risky", week, leagueTier));
             regularContractsGenerated++;
 
-            // --- DEBUGGING: FORCE DRAG RACE IN FIRST WEEK ---
-            if (week === 1) {
+            // Decide whether to add a special contract or a drag race contract
+            // A drag race occurs *instead of* the third regular contract
+            if (this.racesSinceLastDrag >= 2 && regularContractsGenerated === 2) { // 2 regular races + 1 drag race = 3 events
                 contracts.push(this.generateDragRaceContract(week, leagueTier));
-                // Do not increment racesSinceLastDrag for forced drag race
+                this.racesSinceLastDrag = 0; // Reset counter after drag race
             } else {
-            // --- END DEBUGGING ---
-                // Decide whether to add a special contract or a drag race contract
-                // A drag race occurs *instead of* the third regular contract
-                if (this.racesSinceLastDrag >= 2 && regularContractsGenerated === 2) { // 2 regular races + 1 drag race = 3 events
-                    contracts.push(this.generateDragRaceContract(week, leagueTier));
-                    this.racesSinceLastDrag = 0; // Reset counter after drag race
-                } else {
-                    contracts.push(this.generateContract("special", week, leagueTier));
-                    this.racesSinceLastDrag++; // Only increment for regular contracts
-                }
+                contracts.push(this.generateContract("special", week, leagueTier));
+                this.racesSinceLastDrag++; // Only increment for regular contracts
             }
 
             calendar.push({

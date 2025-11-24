@@ -1024,6 +1024,7 @@ class Game {
      * @private
      */
     _startRace() {
+        console.log("DEBUG: Game._startRace called.");
         const drivers = this.gameState.race.drivers;
         const track = this.gameState.race.track;
         const contract = this.gameState.race.contract;
@@ -1034,13 +1035,17 @@ class Game {
         this.gameState.race.simulation = null; // Clear from gameState as well
 
         if (contract.isDragRace) {
+            console.log("DEBUG: Game._startRace: Initiating DragRaceSimulator.");
             // If it's a drag race, use DragRaceSimulator
             const dragSimulator = new DragRaceSimulator(drivers, track, leagueTier);
             this.raceSimulator = dragSimulator;
             this.raceSimulator.start();
             this.gameState.race.simulation = this.raceSimulator; // Assign to gameState for screens
             this.screenManager.changeState(GameStates.DRAG_RACE); // Transition to DRAG_RACE screen
+            console.log("DEBUG: Game._startRace: this.raceSimulator assigned (Drag):", this.raceSimulator);
+            console.log("DEBUG: Game._startRace: this.raceSimulator is instanceof DragRaceSimulator?", this.raceSimulator instanceof DragRaceSimulator);
         } else {
+            console.log("DEBUG: Game._startRace: Initiating RaceSimulator.");
             // Original logic for regular races
             // Get race settings for total laps
             const raceSettings = this.gameState.raceSettings;
@@ -1053,9 +1058,12 @@ class Game {
             this.raceSimulator.start();
             this.gameState.race.simulation = this.raceSimulator; // Assign to gameState for screens
             this.screenManager.changeState(GameStates.RACE); // Transition to regular RACE screen
+            console.log("DEBUG: Game._startRace: this.raceSimulator assigned (Regular):", this.raceSimulator);
+            console.log("DEBUG: Game._startRace: this.raceSimulator is instanceof RaceSimulator?", this.raceSimulator instanceof RaceSimulator);
         }
 
         this.gameState.startRace(); // This method might need to be adjusted if it assumes a regular race
+        console.log("DEBUG: Game._startRace finished.");
     }
 
     /**
@@ -1225,26 +1233,6 @@ class Game {
         this.isRunning = false;
     }
 }
-
-// ===== INITIALIZATION =====
-window.addEventListener('load', () => {
-    try {
-        const game = new Game();
-        game.start();
-
-        // Make game instance globally accessible for debugging (dev only)
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            window.game = game;
-        }
-    } catch (error) {
-        document.body.innerHTML = `
-            <div style="color: #ff0040; font-family: monospace; padding: 40px; text-align: center;">
-                <h1>FATAL ERROR</h1>
-                <p>${error.message}</p>
-            </div>
-        `;
-    }
-});
 
 // ===== INITIALIZATION =====
 window.addEventListener('load', () => {

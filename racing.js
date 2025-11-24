@@ -10,13 +10,13 @@
 // CONSTANTS AND CONFIGURATION
 // ============================================================================
 
-const RaceState = Object.freeze({
+window.RaceState = Object.freeze({
     PRE_RACE: 'PRE_RACE',
     RACING: 'RACING',
     FINISHED: 'FINISHED'
 });
 
-const CarStatus = Object.freeze({
+window.CarStatus = Object.freeze({
     RACING: 'RACING',
     PIT_STOP: 'PIT_STOP', // New status for cars pitting
     DNF_CRASH: 'DNF_CRASH',
@@ -24,7 +24,7 @@ const CarStatus = Object.freeze({
     FINISHED: 'FINISHED'
 });
 
-const EventType = Object.freeze({
+window.EventType = Object.freeze({
     RACE_START: 'RACE_START',
     OVERTAKE: 'OVERTAKE',
     CRASH: 'CRASH',
@@ -37,7 +37,7 @@ const EventType = Object.freeze({
     CONTACT_USED: 'CONTACT_USED'
 });
 
-const ContactType = Object.freeze({
+window.ContactType = Object.freeze({
     SPOTTER: 'Spotter',
     MARSHAL: 'Marshal',
     HECKLER: 'Heckler',
@@ -1637,21 +1637,4 @@ class DragRaceSimulator {
         };
     }
 }
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
-// For Node.js environments
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        RacingPhysics,
-        RaceSimulator,
-        DragRaceSimulator, // Added DragRaceSimulator
-        CarController,
-        BurnerPhoneSystem,
-        RaceState,
-        CarStatus,
-        EventType,
-        ContactType
-    };
-}
