@@ -628,40 +628,39 @@ class CarController {
     _moveAlongTrack(deltaTime, physics) {
         const distanceToMove = this.speed * deltaTime;
         let remainingDistance = distanceToMove;
-
+    
         while (remainingDistance > 0 && this.status === CarStatus.RACING) {
-            console.log(`[MOVE-START] ${this.driver.name} remainingDistance: ${remainingDistance.toFixed(2)}, currentWaypoint: ${this.currentWaypoint}, speed: ${this.speed.toFixed(2)}`);
-            
             const currentWP = physics.waypoints[this.currentWaypoint];
             const nextWPIndex = (this.currentWaypoint + 1) % physics.waypoints.length;
             const nextWP = physics.waypoints[nextWPIndex];
+    
+            const segmentLength = distance(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
+            // If segment length is 0, something is wrong with the track data, but we must avoid an infinite loop.
+            // We'll break out and the car will just stop for this frame.
+            if (segmentLength <= 0) {
+                console.error(`[ERROR] Zero-length segment detected at waypoint ${this.currentWaypoint}. Halting car ${this.driver.name}.`);
+                remainingDistance = 0; // Prevent infinite loop
+                continue;
+            }
 
-            // Add overtake offset
-            const targetX = lerp(currentWP.x, nextWP.x, this.waypointProgress) + this.overtakeOffset;
-            const targetY = lerp(currentWP.y, nextWP.y, this.waypointProgress);
-
-            const distToNext = distance(this.x, this.y, targetX, targetY);
-            console.log(`[DISTANCE-CHECK] ${this.driver.name} distToNext: ${distToNext.toFixed(2)}, remainingDistance: ${remainingDistance.toFixed(2)}`);
-
-            if (remainingDistance >= distToNext) {
-                console.log(`[WAYPOINT-ADVANCE] ${this.driver.name} advancing from waypoint ${this.currentWaypoint} to ${nextWPIndex}`);
-                // Move to next waypoint
-                this.x = targetX;
-                this.y = targetY;
+            const distanceRemainingInSegment = segmentLength * (1 - this.waypointProgress);
+    
+            if (remainingDistance >= distanceRemainingInSegment) {
+                // Move to the next waypoint
+                remainingDistance -= distanceRemainingInSegment;
+                this.totalDistance += distanceRemainingInSegment;
+                this.distanceSinceEventCheck += distanceRemainingInSegment;
+    
                 this.currentWaypoint = nextWPIndex;
                 this.waypointProgress = 0;
-                remainingDistance -= distToNext;
-                this.totalDistance += distToNext;
-                this.distanceSinceEventCheck += distToNext; // Increment distance since last event check
-
-                console.log(`[DEBUG] Current Waypoint: ${this.currentWaypoint}, hasCompletedFirstWaypoint: ${this.hasCompletedFirstWaypoint}, justCrossedLine: ${this.justCrossedLine}`);
+    
+                // Update position to be exactly at the new waypoint
+                this.x = nextWP.x;
+                this.y = nextWP.y;
+    
                 if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint && !this.justCrossedLine) {
                     this.currentLap++;
                     this.justCrossedLine = true;
-                    
-                    console.log(`[LAP] ${this.driver.name} completes Lap ${this.currentLap}`);
-                    
-                    // Log lap complete event (if race simulator is available)
                     if (this.raceSimulator) {
                         this.raceSimulator._addEvent(EventType.LAP_COMPLETE, {
                             message: `${this.driver.name} completes Lap ${this.currentLap}.`,
@@ -671,35 +670,35 @@ class CarController {
                         });
                     }
                 }
-                
-                console.log(`[DEBUG] Setting hasCompletedFirstWaypoint at waypoint ${this.currentWaypoint}`);
-                if (this.currentWaypoint > 0 && !this.hasCompletedFirstWaypoint) {
+    
+                if (this.currentWaypoint > 0) {
                     this.hasCompletedFirstWaypoint = true;
-                    console.log(`[FLAG] ${this.driver.name} hasCompletedFirstWaypoint = true at waypoint ${this.currentWaypoint}`);
                 }
-                // FIX: Reset justCrossedLine when leaving waypoint 0 (not after waypoint 2)
-                // This prevents race condition where fast cars traverse 0→1→2 in single update
-                console.log(`[DEBUG] Checking justCrossedLine reset at waypoint ${this.currentWaypoint}`);
+    
                 if (this.currentWaypoint !== 0 && this.justCrossedLine) {
                     this.justCrossedLine = false;
-                    console.log(`[FLAG-RESET] ${this.driver.name} justCrossedLine reset at waypoint ${this.currentWaypoint}`);
                 }
+    
             } else {
-                // Move partway to next waypoint
-                const progress = remainingDistance / distToNext;
-                this.x += (targetX - this.x) * progress;
-                this.y += (targetY - this.y) * progress;
-                this.waypointProgress += progress;
+                // Move partway along the current segment
+                const progressThisFrame = remainingDistance / segmentLength;
+                this.waypointProgress += progressThisFrame;
                 this.totalDistance += remainingDistance;
-                console.log(`[PARTIAL-MOVE] ${this.driver.name} at waypoint ${this.currentWaypoint}, progress: ${this.waypointProgress.toFixed(2)}`);
+    
+                // Update position via interpolation
+                this.x = lerp(currentWP.x, nextWP.x, this.waypointProgress);
+                this.y = lerp(currentWP.y, nextWP.y, this.waypointProgress);
+    
                 remainingDistance = 0;
             }
-
-            // Update heading
-            this.heading = angleBetween(this.x, this.y,
-                physics.waypoints[(this.currentWaypoint + 1) % physics.waypoints.length].x,
-                physics.waypoints[(this.currentWaypoint + 1) % physics.waypoints.length].y
-            );
+    
+            // Smoothly update overtake offset
+            this.overtakeOffset += (this.targetOffset - this.overtakeOffset) * 0.1;
+            this.x += this.overtakeOffset * Math.cos(this.heading + Math.PI / 2);
+            this.y += this.overtakeOffset * Math.sin(this.heading + Math.PI / 2);
+    
+            // Update heading towards the next waypoint
+            this.heading = angleBetween(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
         }
     }
 
