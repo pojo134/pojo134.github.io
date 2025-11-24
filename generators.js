@@ -433,23 +433,24 @@ class TrackGenerator {
      * Scaled 10x larger for realistic lap times (60-90 seconds at 120 units/sec)
      */
     generateOval(width = 8000, height = 6000, complexity = "simple") {
+        const waypoints = [];
         const centerX = width / 2;
         const centerY = height / 2;
         const radiusX = width * 0.4;
         const radiusY = height * 0.4;
 
-        // Use a few key control points for the oval
-        const controlPoints = [
-            { x: centerX, y: centerY - radiusY }, // Top
-            { x: centerX + radiusX, y: centerY }, // Right
-            { x: centerX, y: centerY + radiusY }, // Bottom
-            { x: centerX - radiusX, y: centerY }  // Left
-        ];
+        // Number of waypoints depends on complexity (more points for larger track)
+        const numPoints = complexity === "simple" ? 48 : 96;
 
-        // Generate smooth waypoints from control points using Catmull-Rom
-        // Use a higher number of segments for a very smooth oval
-        const numSegments = complexity === "simple" ? 40 : 80; // More segments for complex ovals
-        return this._generateCatmullRomSpline(controlPoints, numSegments);
+        for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * Math.PI * 2;
+            const x = centerX + Math.cos(angle) * radiusX;
+            const y = centerY + Math.sin(angle) * radiusY;
+
+            waypoints.push({ x: Math.round(x), y: Math.round(y) });
+        }
+
+        return waypoints;
     }
 
     /**
@@ -457,18 +458,16 @@ class TrackGenerator {
      * Scaled 10x larger for realistic lap times
      */
     generateTriOval(width = 8000, height = 6000) {
-        const controlPoints = []; // These will be the control points for the spline
+        const waypoints = [];
         const centerX = width / 2;
         const centerY = height / 2;
         const radiusX = width * 0.4;
         const radiusY = height * 0.4;
 
-        // Generate points that define the overall shape, including the tri-oval kink.
-        // These will be fed to the spline generator.
-        const numBasePoints = 16; // Fewer base points, as spline will generate more detail
+        const numPoints = 72;
 
-        for (let i = 0; i < numBasePoints; i++) {
-            const angle = (i / numBasePoints) * Math.PI * 2;
+        for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * Math.PI * 2;
             let x = centerX + Math.cos(angle) * radiusX;
             let y = centerY + Math.sin(angle) * radiusY;
 
@@ -477,11 +476,10 @@ class TrackGenerator {
                 y -= height * 0.08;
             }
 
-            controlPoints.push({ x: Math.round(x), y: Math.round(y) });
+            waypoints.push({ x: Math.round(x), y: Math.round(y) });
         }
 
-        // Generate smooth waypoints from control points using Catmull-Rom
-        return this._generateCatmullRomSpline(controlPoints, 20); // 20 segments per control point for smoothness
+        return waypoints;
     }
 
     /**
@@ -520,8 +518,8 @@ class TrackGenerator {
         // Close the loop back to start
         waypoints.push({ x: Math.round(width * 0.1), y: Math.round(height * 0.5) });
 
-        // Smooth the track using Catmull-Rom splines for better curves
-        return this._generateCatmullRomSpline(waypoints, 15); // 15 segments per control point
+        // Smooth the track
+        return this.smoothWaypoints(waypoints);
     }
 
     /**
@@ -560,8 +558,8 @@ class TrackGenerator {
             }
         }
 
-        // Apply smoothing to the generated waypoints using Catmull-Rom splines for better curves
-        return this._generateCatmullRomSpline(waypoints, 20); // Increased segments for smoother street circuit corners
+        // Apply smoothing to the generated waypoints
+        return this.smoothWaypoints(waypoints);
     }
 
     /**
@@ -590,56 +588,7 @@ class TrackGenerator {
         return smoothed;
     }
 
-    /**
-     * Generates smooth waypoints using Catmull-Rom spline interpolation.
-     * For closed loops, it adds points at the start/end to ensure smoothness.
-     * @param {Array<Object>} points - Array of {x, y} control points.
-     * @param {number} numSegments - Number of segments to generate between each control point pair.
-     * @returns {Array<Object>} - Array of smoothed {x, y} waypoints.
-     */
-    _generateCatmullRomSpline(points, numSegments = 10) {
-        if (points.length < 2) return [...points];
-        
-        const smoothedPoints = [];
-        // For a closed loop, prepend the last two points and append the first two points
-        // to handle the interpolation at the "seams"
-        const closedPoints = [
-            points[points.length - 2], 
-            points[points.length - 1], 
-            ...points, 
-            points[0], 
-            points[1]
-        ];
 
-        // Iterate through each original control point to generate segments
-        for (let i = 0; i < points.length; i++) {
-            const p0 = closedPoints[i];
-            const p1 = closedPoints[i + 1]; // Current original point
-            const p2 = closedPoints[i + 2];
-            const p3 = closedPoints[i + 3];
-
-            for (let t = 0; t < numSegments; t++) {
-                const T = t / numSegments;
-                const T2 = T * T;
-                const T3 = T2 * T;
-
-                const x = 0.5 * (
-                    (2 * p1.x) +
-                    (-p0.x + p2.x) * T +
-                    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * T2 +
-                    (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * T3
-                );
-                const y = 0.5 * (
-                    (2 * p1.y) +
-                    (-p0.y + p2.y) * T +
-                    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * T2 +
-                    (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * T3
-                );
-                smoothedPoints.push({ x: Math.round(x), y: Math.round(y) });
-            }
-        }
-        return smoothedPoints;
-    }
 
     /**
      * Calculates track characteristics from waypoints
