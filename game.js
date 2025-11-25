@@ -4,20 +4,25 @@
    ======================================== */
 
 // ===== GAME STATES =====
-const GameStates = Object.freeze({
-    MAIN_MENU: 'MAIN_MENU',
-    GARAGE: 'GARAGE',
-    BETTING: 'BETTING',
-    RACE: 'RACE',
-    DRAG_RACE: 'DRAG_RACE', // Added DRAG_RACE state
-    RESULTS: 'RESULTS',
-    SETTINGS: 'SETTINGS',
-    LOAD_GAME: 'LOAD_GAME',
-    GAME_OVER: 'GAME_OVER',
-    TIER_ADVANCEMENT: 'TIER_ADVANCEMENT'
-});
+import { GameStates, RaceState } from './constants.js';
 
 // ===== ASSET MANAGER =====
+import { MainMenuScreen } from './screens/mainMenuScreen.js';
+import { GarageScreen } from './screens/garageScreen.js';
+import { BettingScreen } from './screens/bettingScreen.js';
+import { RaceScreen } from './screens/raceScreen.js';
+import { DragRaceScreen } from './screens/dragRaceScreen.js';
+import { ResultsScreen } from './screens/resultsScreen.js';
+import { SettingsScreen } from './screens/settingsScreen.js';
+import { LoadGameScreen } from './screens/loadGameScreen.js';
+import { GameOverScreen } from './screens/gameOverScreen.js';
+import { TierAdvancementScreen } from './screens/tierAdvancementScreen.js';
+import { RaceSimulator, DragRaceSimulator } from './racing.js';
+import { SaveSlot, SaveManager } from './saveload.js';
+import { GameState } from './gamestate.js';
+import { DriverGenerator, TrackGenerator, OddsCalculator, SeasonGenerator } from './generators.js';
+import { createProceduralTrack } from './track.js';
+
 class AssetManager {
     constructor() {
         this.images = new Map();
@@ -769,7 +774,7 @@ class Game {
             this.gameState.race.totalLaps = raceState.totalLaps;
 
             // Check if race is complete
-            if (raceState.state === 'FINISHED') {
+            if (raceState.state === RaceState.FINISHED) {
                 // Auto-transition to results after a delay
                 if (!this._raceCompleteTime) {
                     this._raceCompleteTime = Date.now();

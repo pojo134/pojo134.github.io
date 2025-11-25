@@ -849,10 +849,4 @@ class SaveManager {
     }
 }
 
-// ===== EXPORT =====
-// Make SaveManager globally accessible
-if (typeof window !== 'undefined') {
-    window.SaveManager = SaveManager;
-    window.SaveSlot = SaveSlot;
-    window.SettingsManager = SettingsManager;
-}
+export { SaveManager, SaveSlot, SettingsManager };

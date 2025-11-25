@@ -761,28 +761,31 @@ class TrackGenerator {
         let waypoints;
 
         // Generate waypoints based on track type
+        const finalWidth = Math.max(200, width);
+        const finalHeight = Math.max(200, height);
+
         if (trackType === "Drag Race") { // Handle Drag Race track type
-            waypoints = this.generateDragStripTrack(width, height);
+            waypoints = this.generateDragStripTrack(finalWidth, finalHeight);
         } else if (trackType === "Go-Kart Track") { // Handle new Go-Kart Track type
-            waypoints = this.generateGoKartTrack(width, height);
+            waypoints = this.generateGoKartTrack(finalWidth, finalHeight);
         } else if (trackType.includes("Oval") && !trackType.includes("Dirt")) {
             if (trackType === "Short Oval") {
-                waypoints = this.generateOval(width * 0.8, height * 0.8, "simple");
+                waypoints = this.generateOval(finalWidth * 0.8, finalHeight * 0.8, "simple");
             } else if (trackType === "Superspeedway") {
-                waypoints = this.generateOval(width, height, "simple");
+                waypoints = this.generateOval(finalWidth, finalHeight, "simple");
             } else if (trackType === "Tri-Oval") {
-                waypoints = this.generateTriOval(width, height);
+                waypoints = this.generateTriOval(finalWidth, finalHeight);
             } else {
-                waypoints = this.generateOval(width, height, "simple");
+                waypoints = this.generateOval(finalWidth, finalHeight, "simple");
             }
         } else if (trackType === "Dirt Oval") {
-            waypoints = this.generateOval(width * 0.85, height * 0.85, "simple");
+            waypoints = this.generateOval(finalWidth * 0.85, finalHeight * 0.85, "simple");
         } else if (trackType === "Street Circuit") {
-            waypoints = this.generateStreetCircuit(width, height);
+            waypoints = this.generateStreetCircuit(finalWidth, finalHeight);
         } else if (trackType.includes("Technical")) {
-            waypoints = this.generateRoadCourse(width, height, "high");
+            waypoints = this.generateRoadCourse(finalWidth, finalHeight, "high");
         } else {
-            waypoints = this.generateRoadCourse(width, height, "medium");
+            waypoints = this.generateRoadCourse(finalWidth, finalHeight, "medium");
         }
 
         const characteristics = this.calculateCharacteristics(waypoints);

@@ -10,39 +10,7 @@
 // CONSTANTS AND CONFIGURATION
 // ============================================================================
 
-window.RaceState = Object.freeze({
-    PRE_RACE: 'PRE_RACE',
-    RACING: 'RACING',
-    FINISHED: 'FINISHED'
-});
-
-window.CarStatus = Object.freeze({
-    RACING: 'RACING',
-    PIT_STOP: 'PIT_STOP', // New status for cars pitting
-    DNF_CRASH: 'DNF_CRASH',
-    DNF_MECHANICAL: 'DNF_MECHANICAL',
-    FINISHED: 'FINISHED'
-});
-
-window.EventType = Object.freeze({
-    RACE_START: 'RACE_START',
-    OVERTAKE: 'OVERTAKE',
-    CRASH: 'CRASH',
-    MECHANICAL_FAILURE: 'MECHANICAL_FAILURE',
-    YELLOW_FLAG: 'YELLOW_FLAG',
-    CAUTION_END: 'CAUTION_END', // New event
-    PIT_STOP: 'PIT_STOP',       // New event
-    LAP_COMPLETE: 'LAP_COMPLETE',
-    RACE_FINISH: 'RACE_FINISH',
-    CONTACT_USED: 'CONTACT_USED'
-});
-
-window.ContactType = Object.freeze({
-    SPOTTER: 'Spotter',
-    MARSHAL: 'Marshal',
-    HECKLER: 'Heckler',
-    ENGINEER: 'Engineer'
-});
+import { RaceState, CarStatus, EventType, ContactType } from './constants.js';
 
 // Physics constants - Based on 2024/2025 motorsport research data
 const PHYSICS_CONFIG = {
@@ -1638,3 +1606,5 @@ class DragRaceSimulator {
     }
 }
 
+
+export { RaceSimulator, DragRaceSimulator };
