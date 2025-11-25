@@ -2,6 +2,7 @@
   "name": "redline-roulette",
   "version": "1.0.0",
   "description": "A racing game simulation.",
+  "type": "module",
   "main": "index.html",
   "scripts": {
     "start": "node server.js"
