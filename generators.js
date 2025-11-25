@@ -1,3 +1,5 @@
+import { Track } from './track.js';
+
 /**
  * REDLINE ROULETTE - PROCEDURAL GENERATION SYSTEMS
  *
