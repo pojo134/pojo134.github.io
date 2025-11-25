@@ -15,11 +15,7 @@
     <!-- Favicon (simple racing flag icon) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23000' width='32' height='32'/%3E%3Crect fill='%23fff' x='0' y='0' width='16' height='16'/%3E%3Crect fill='%23fff' x='16' y='16' width='16' height='16'/%3E%3C/svg%3E">
 
-    <!-- Styles -->
     <link rel="stylesheet" href="styles.css">
-
-    <!-- Preload critical assets -->
-    <link rel="preload" href="game.js" as="script">
 </head>
 <body>
     <div class="game-container">
@@ -42,14 +38,7 @@
         </footer>
     </div>
 
-    <!-- Load game modules in order -->
-    <script src="track.js"></script>
-    <script src="generators.js"></script>
-    <script src="enhanced_race_rendering.js"></script>
-    <script src="screens.js"></script>
-    <script src="racing.js"></script>
-    <script src="saveload.js"></script>
-    <script src="gamestate.js"></script>
-    <script src="game.js"></script>
+    <!-- Load game module -->
+    <script type="module" src="game.js"></script>
 </body>
 </html>
