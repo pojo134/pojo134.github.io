@@ -1345,15 +1345,12 @@ class SeasonGenerator {
 // EXPORTS
 // ============================================================================
 
-// For Node.js environments
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        DriverGenerator,
-        TrackGenerator,
-        OddsCalculator,
-        SeasonGenerator
-    };
-}
+export {
+    DriverGenerator,
+    TrackGenerator,
+    OddsCalculator,
+    SeasonGenerator
+};
 
 // ============================================================================
 // USAGE EXAMPLE / TESTING
