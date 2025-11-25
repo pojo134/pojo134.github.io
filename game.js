@@ -7,16 +7,16 @@
 import { GameStates, RaceState } from './constants.js';
 
 // ===== ASSET MANAGER =====
-import { MainMenuScreen } from './screens/mainMenuScreen.js';
-import { GarageScreen } from './screens/garageScreen.js';
-import { BettingScreen } from './screens/bettingScreen.js';
-import { RaceScreen } from './screens/raceScreen.js';
-import { DragRaceScreen } from './screens/dragRaceScreen.js';
-import { ResultsScreen } from './screens/resultsScreen.js';
-import { SettingsScreen } from './screens/settingsScreen.js';
-import { LoadGameScreen } from './screens/loadGameScreen.js';
-import { GameOverScreen } from './screens/gameOverScreen.js';
-import { TierAdvancementScreen } from './screens/tierAdvancementScreen.js';
+import MainMenuScreen from './screens/mainMenuScreen.js';
+import GarageScreen from './screens/garageScreen.js';
+import BettingScreen from './screens/bettingScreen.js';
+import RaceScreen from './screens/raceScreen.js';
+import DragRaceScreen from './screens/dragRaceScreen.js';
+import ResultsScreen from './screens/resultsScreen.js';
+import SettingsScreen from './screens/settingsScreen.js';
+import LoadGameScreen from './screens/loadGameScreen.js';
+import GameOverScreen from './screens/gameOverScreen.js';
+import TierAdvancementScreen from './screens/tierAdvancementScreen.js';
 import { RaceSimulator, DragRaceSimulator } from './racing.js';
 import { SaveSlot, SaveManager } from './saveload.js';
 import { GameState } from './gamestate.js';
