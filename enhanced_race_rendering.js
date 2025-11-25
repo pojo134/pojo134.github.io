@@ -41,13 +41,17 @@ function drawColoredCarSprite(ctx, sprite, x, y, color, rotation = 0) {
 /**
  * Draw track with texture
  * @param {CanvasRenderingContext2D} ctx
- * @param {Array} waypoints
+ * @param {object|Array} trackObject - The full track object or a simple array of waypoints
  * @param {HTMLImageElement} trackTexture
  * @param {HTMLImageElement} grassTexture
  * @param {number} width
  * @param {number} height
  */
-function drawTexturedTrack(ctx, waypoints, trackTexture, grassTexture, width, height) {
+function drawTexturedTrack(ctx, trackObject, trackTexture, grassTexture, width, height) {
+    // Determine if we have the full track object or a simple array of waypoints (for backwards compatibility)
+    const isFullTrackObject = trackObject && trackObject.trackData && Array.isArray(trackObject.trackData.leftBorder);
+    const waypoints = isFullTrackObject ? trackObject.waypoints : trackObject;
+    
     if (!waypoints || waypoints.length === 0) return;
 
     // Fill background with grass texture (if available)
@@ -60,35 +64,89 @@ function drawTexturedTrack(ctx, waypoints, trackTexture, grassTexture, width, he
         ctx.fillRect(0, 0, width, height);
     }
 
-    // Draw track surface
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 60;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // Draw track surface (for generated tracks, use borders for accurate shape)
+    if (isFullTrackObject) {
+        const leftBorder = trackObject.trackData.leftBorder;
+        const rightBorder = trackObject.trackData.rightBorder;
+        // Combine borders to form the track polygon
+        const trackSurfacePoints = [...rightBorder, ...leftBorder.slice().reverse()];
+        
+        ctx.beginPath();
+        ctx.moveTo(trackSurfacePoints[0].x, trackSurfacePoints[0].y);
+        for (let i = 1; i < trackSurfacePoints.length; i++) {
+            ctx.lineTo(trackSurfacePoints[i].x, trackSurfacePoints[i].y);
+        }
+        ctx.closePath();
+        
+        // Draw track surface with texture (using the defined clip path)
+        if (trackTexture) {
+            ctx.save();
+            ctx.clip(); // Clip to the track surface path defined above
+            const pattern = ctx.createPattern(trackTexture, 'repeat');
+            ctx.fillStyle = pattern;
+            ctx.fill();
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#333333'; // Asphalt gray
+            ctx.fill();
+        }
+        
+        // Draw Borders
+        ctx.strokeStyle = '#ffffff'; // White border color
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([]);
+        
+        // Draw Left Border
+        ctx.beginPath();
+        ctx.moveTo(leftBorder[0].x, leftBorder[0].y);
+        for (let i = 1; i < leftBorder.length; i++) {
+            ctx.lineTo(leftBorder[i].x, leftBorder[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
 
-    // Draw main track path
-    ctx.beginPath();
-    ctx.moveTo(waypoints[0].x, waypoints[0].y);
-    for (let i = 1; i < waypoints.length; i++) {
-        ctx.lineTo(waypoints[i].x, waypoints[i].y);
-    }
-    ctx.closePath();
-    ctx.stroke();
+        // Draw Right Border
+        ctx.beginPath();
+        ctx.moveTo(rightBorder[0].x, rightBorder[0].y);
+        for (let i = 1; i < rightBorder.length; i++) {
+            ctx.lineTo(rightBorder[i].x, rightBorder[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
 
-    // Draw track surface with texture (if available)
-    if (trackTexture) {
-        ctx.save();
-        ctx.clip();
-        const pattern = ctx.createPattern(trackTexture, 'repeat');
-        ctx.fillStyle = pattern;
-        ctx.fill();
-        ctx.restore();
     } else {
-        ctx.fillStyle = '#333333'; // Asphalt gray
-        ctx.fill();
+        // Fallback for legacy waypoints array (draw as thick stroke)
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 60;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Draw main track path
+        ctx.beginPath();
+        ctx.moveTo(waypoints[0].x, waypoints[0].y);
+        for (let i = 1; i < waypoints.length; i++) {
+            ctx.lineTo(waypoints[i].x, waypoints[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        
+        // Draw track surface with texture (if available)
+        if (trackTexture) {
+            ctx.save();
+            ctx.clip();
+            const pattern = ctx.createPattern(trackTexture, 'repeat');
+            ctx.fillStyle = pattern;
+            ctx.fill();
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#333333'; // Asphalt gray
+            ctx.fill();
+        }
     }
 
-    // Draw center line
+    // Draw center line (use the racing line waypoints)
     ctx.strokeStyle = '#ffff00';
     ctx.lineWidth = 2;
     ctx.setLineDash([10, 10]);
@@ -105,14 +163,20 @@ function drawTexturedTrack(ctx, waypoints, trackTexture, grassTexture, width, he
     if (waypoints.length > 1) {
         const startX = waypoints[0].x;
         const startY = waypoints[0].y;
-        const angle = Math.atan2(waypoints[1].y - startY, waypoints[1].x - startX);
+        
+        // Use tangent from the generated waypoints (or calculate from next point as fallback)
+        const tangent = waypoints[0].tangent || {
+            x: waypoints[1].x - startX,
+            y: waypoints[1].y - startY
+        };
+        const angle = Math.atan2(tangent.y, tangent.x);
 
         ctx.save();
         ctx.translate(startX, startY);
         ctx.rotate(angle + Math.PI / 2);
 
         // Checkered pattern for start/finish
-        const lineWidth = 60;
+        const lineWidth = isFullTrackObject ? trackObject.trackData.trackWidth : 60; // Use actual track width or fallback
         const squareSize = 10;
         for (let i = -lineWidth / 2; i < lineWidth / 2; i += squareSize) {
             for (let j = -5; j < 5; j += squareSize) {

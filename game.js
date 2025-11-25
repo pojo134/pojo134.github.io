@@ -424,6 +424,27 @@ class Game {
         // Queue assets
         this._queueAssets();
     }
+    
+    /**
+     * Generates a procedural track and sets up the race state.
+     * This replaces the need to load static track data for the game.
+     * @param {object} contract - The selected race contract which contains track details.
+     * @param {Array<object>} drivers - Array of driver objects.
+     */
+    setupProceduralRace(contract, drivers) {
+        // Assume global function createProceduralTrack is available from trackIntegration.js
+        const track = createProceduralTrack({
+            name: contract.trackName || 'Procedural Track',
+            seed: contract.seed || Math.floor(Math.random() * 1000000), // Use contract seed or a random one
+            // Use generous bounds for the game visualization
+            bounds: { width: 1500, height: 1000 },
+            pointCount: contract.complexity || 25,
+            trackWidth: contract.trackWidth || 30
+        });
+        
+        // Pass the generated track object to the GameState
+        this.gameState.setupRace(drivers, track, contract);
+    }
 
     /**
      * Queue all game assets for loading
