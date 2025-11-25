@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Segment Track Test</title>
+    <style>
+        body { background: #1a1a1a; color: white; font-family: Arial; margin: 20px; }
+        canvas { border: 1px solid #444; display: block; margin: 20px 0; }
+        .controls { margin: 10px 0; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        select { padding: 8px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Segment-Based Track Generator Test</h1>
+    
+    <div class="controls">
+        <label>Track Width: </label>
+        <input type="range" id="trackWidth" min="20" max="60" value="30">
+        <span id="widthValue">30</span>
+        
+        <button onclick="generateAndRender('oval')">Oval</button>
+        <button onclick="generateAndRender('circuit_1')">Circuit 1</button>
+        <button onclick="generateAndRender('monza')">Monza Style</button>
+        <button onclick="generateAndRender('monaco')">Monaco Style</button>
+        <button onclick="generateAndRender('simplegp')">Simple GP</button>
+        <button onclick="generateAndRender('procedural')">Procedural</button>
+    </div>
+
+    <div id="proceduralControls" style="display:none; margin-top: 10px;">
+        <label>Seed: </label><input type="number" id="seed" value="12345">
+        <label>Num Segments: </label><input type="range" id="numSegments" min="5" max="25" value="15">
+        <label>Min Straight: </label><input type="range" id="minStraight" min="50" max="200" value="100">
+        <label>Max Straight: </label><input type="range" id="maxStraight" min="200" max="500" value="300">
+        <label>Min Radius: </label><input type="range" id="minRadius" min="30" max="100" value="50">
+        <label>Max Radius: </label><input type="range" id="maxRadius" min="100" max="250" value="150">
+        <label>Min Angle: </label><input type="range" id="minAngle" min="20" max="60" value="30">
+        <label>Max Angle: </label><input type="range" id="maxAngle" min="60" max="120" value="90">
+    </div>
+    
+    <canvas id="trackCanvas" width="800" height="600"></canvas>
+    
+    <div id="info"></div>
+
+    <script src="segmentTrackGenerator.js"></script>
+
+    <script>
+        function renderTrack(trackData) {
+            const canvas = document.getElementById('trackCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Calculate scale and offset to fit track in canvas
+            const bounds = calculateBounds(trackData);
+            const scale = calculateScale(bounds, canvas.width, canvas.height, 50); // 50px padding
+            const offset = calculateOffset(bounds, canvas.width, canvas.height, scale);
+            
+            // Draw grass background
+            ctx.fillStyle = '#2d5a2d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw track surface (polygon from borders)
+            drawTrackSurface(ctx, trackData, scale, offset);
+            
+            // Draw borders
+            drawBorder(ctx, trackData.leftBorder, scale, offset, '#ffffff', 2);
+            drawBorder(ctx, trackData.rightBorder, scale, offset, '#ffffff', 2);
+            
+            // Draw centerline (dashed)
+            drawCenterline(ctx, trackData.centerline, scale, offset);
+            
+            // Draw start/finish line
+            drawStartFinish(ctx, trackData.centerline[0], trackData.leftBorder[0], trackData.rightBorder[0], scale, offset);
+        }
+
+        function calculateBounds(trackData) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            [...trackData.centerline, ...trackData.leftBorder, ...trackData.rightBorder].forEach(p => {
+                minX = Math.min(minX, p.x);
+                minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            });
+            return { minX, minY, maxX, maxY };
+        }
+
+        function calculateScale(bounds, canvasWidth, canvasHeight, padding) {
+            const trackWidth = bounds.maxX - bounds.minX;
+            const trackHeight = bounds.maxY - bounds.minY;
+            const scaleX = (canvasWidth - 2 * padding) / trackWidth;
+            const scaleY = (canvasHeight - 2 * padding) / trackHeight;
+            return Math.min(scaleX, scaleY);
+        }
+
+        function calculateOffset(bounds, canvasWidth, canvasHeight, scale) {
+            const trackWidth = bounds.maxX - bounds.minX;
+            const trackHeight = bounds.maxY - bounds.minY;
+            return {
+                x: (canvasWidth - trackWidth * scale) / 2 - bounds.minX * scale,
+                y: (canvasHeight - trackHeight * scale) / 2 - bounds.minY * scale
+            };
+        }
+
+        function transformPoint(p, scale, offset) {
+            return {
+                x: p.x * scale + offset.x,
+                y: p.y * scale + offset.y
+            };
+        }
+
+        function drawTrackSurface(ctx, trackData, scale, offset) {
+            ctx.fillStyle = '#333333';
+            ctx.beginPath();
+            
+            // Draw left border forward
+            trackData.leftBorder.forEach((p, i) => {
+                const tp = transformPoint(p, scale, offset);
+                if (i === 0) ctx.moveTo(tp.x, tp.y);
+                else ctx.lineTo(tp.x, tp.y);
+            });
+            
+            // Draw right border backward to close the shape
+            for (let i = trackData.rightBorder.length - 1; i >= 0; i--) {
+                const tp = transformPoint(trackData.rightBorder[i], scale, offset);
+                ctx.lineTo(tp.x, tp.y);
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawBorder(ctx, border, scale, offset, color, lineWidth) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.beginPath();
+            border.forEach((p, i) => {
+                const tp = transformPoint(p, scale, offset);
+                if (i === 0) ctx.moveTo(tp.x, tp.y);
+                else ctx.lineTo(tp.x, tp.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function drawCenterline(ctx, centerline, scale, offset) {
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            centerline.forEach((p, i) => {
+                const tp = transformPoint(p, scale, offset);
+                if (i === 0) ctx.moveTo(tp.x, tp.y);
+                else ctx.lineTo(tp.x, tp.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawStartFinish(ctx, center, left, right, scale, offset) {
+            const tc = transformPoint(center, scale, offset);
+            const tl = transformPoint(left, scale, offset);
+            const tr = transformPoint(right, scale, offset);
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(tl.x, tl.y);
+            ctx.lineTo(tr.x, tr.y);
+            ctx.stroke();
+        }
+
+        function generateAndRender(template) {
+            template = template || 'oval'; // Default to oval
+            const trackWidth = parseInt(document.getElementById('trackWidth').value);
+            let trackData;
+
+            if (template === 'procedural') {
+                document.getElementById('proceduralControls').style.display = 'block';
+                const proceduralOptions = {
+                    seed: parseInt(document.getElementById('seed').value),
+                    numSegments: parseInt(document.getElementById('numSegments').value),
+                    minStraight: parseInt(document.getElementById('minStraight').value),
+                    maxStraight: parseInt(document.getElementById('maxStraight').value),
+                    minRadius: parseInt(document.getElementById('minRadius').value),
+                    maxRadius: parseInt(document.getElementById('maxRadius').value),
+                    minAngle: parseInt(document.getElementById('minAngle').value),
+                    maxAngle: parseInt(document.getElementById('maxAngle').value),
+                };
+                trackData = generateSegmentTrack({
+                    template: 'procedural',
+                    proceduralOptions: proceduralOptions,
+                    trackWidth: trackWidth,
+                    startX: 100,
+                    startY: 300,
+                    startDirectionDegrees: 0
+                });
+            } else {
+                document.getElementById('proceduralControls').style.display = 'none';
+                trackData = generateSegmentTrack({
+                    template: template,
+                    trackWidth: trackWidth,
+                    startX: 100,
+                    startY: 300,
+                    startDirectionDegrees: 0
+                });
+            }
+            
+            renderTrack(trackData);
+            
+            // Display info
+            document.getElementById('info').innerHTML = `
+                <p><strong>Track Length:</strong> ${trackData.totalLength.toFixed(0)} units</p>
+                <p><strong>Centerline Points:</strong> ${trackData.centerline.length}</p>
+            `;
+        }
+
+        // Update width display
+        document.getElementById('trackWidth').addEventListener('input', function() {
+            document.getElementById('widthValue').textContent = this.value;
+        });
+
+        // Generate initial track on load
+        window.onload = () => generateAndRender('oval');
+    </script>
+</body>
+</html>
