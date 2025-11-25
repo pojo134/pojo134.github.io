@@ -451,7 +451,4 @@ class GameState {
     }
 }
 
-// Export for use in main game
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { GameState };
-}
+export { GameState };
