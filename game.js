@@ -21,7 +21,7 @@ import { RaceSimulator, DragRaceSimulator } from './racing.js';
 import { SaveSlot, SaveManager } from './saveload.js';
 import { GameState } from './gamestate.js';
 import { DriverGenerator, TrackGenerator, OddsCalculator, SeasonGenerator } from './generators.js';
-import { createProceduralTrack } from './track.js';
+
 
 class AssetManager {
     constructor() {
@@ -438,14 +438,7 @@ class Game {
      */
     setupProceduralRace(contract, drivers) {
         // Assume global function createProceduralTrack is available from trackIntegration.js
-        const track = createProceduralTrack({
-            name: contract.trackName || 'Procedural Track',
-            seed: contract.seed || Math.floor(Math.random() * 1000000), // Use contract seed or a random one
-            // Use generous bounds for the game visualization
-            bounds: { width: 1500, height: 1000 },
-            pointCount: contract.complexity || 25,
-            trackWidth: contract.trackWidth || 30
-        });
+        const track = this.trackGenerator.generateTrack(contract.trackType || 'Road Course', 1500, 1000, {}, this.gameState.player.tier);
         
         // Pass the generated track object to the GameState
         this.gameState.setupRace(drivers, track, contract);
