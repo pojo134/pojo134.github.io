@@ -4,6 +4,7 @@ class GarageScreen {
         this.selectedContract = null;
         this.hoveredUpgrade = null;
         this.hoveredContract = null;
+        this.debugDragBtnBounds = null; // To store bounds for click detection
 
         this.upgrades = [
             {
@@ -202,6 +203,21 @@ class GarageScreen {
         ctx.fillStyle = canContinue ? '#ffffff' : '#666666';
         ctx.textAlign = 'center';
         ctx.fillText('CONTINUE', continueBtn.x + continueBtn.width / 2, continueBtn.y + 32);
+
+        // --- DRAG DEBUG BUTTON ---
+        const debugDragBtn = { x: canvas.width - 200, y: canvas.height - 140, width: 180, height: 50 };
+        this.debugDragBtnBounds = debugDragBtn; // Store for click detection
+
+        ctx.fillStyle = '#0066ff'; // Blue color for debug button
+        ctx.fillRect(debugDragBtn.x, debugDragBtn.y, debugDragBtn.width, debugDragBtn.height);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(debugDragBtn.x, debugDragBtn.y, debugDragBtn.width, debugDragBtn.height);
+
+        ctx.font = 'bold 18px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('DRAG DEBUG', debugDragBtn.x + debugDragBtn.width / 2, debugDragBtn.y + 32);
     }
 
     handleClick(x, y, gameState) {
@@ -232,6 +248,14 @@ class GarageScreen {
             y >= continueBtn.y && y <= continueBtn.y + continueBtn.height &&
             this.selectedContract !== null) {
             return { action: 'startRace', contractIndex: this.selectedContract };
+        }
+
+        // Check DRAG DEBUG button
+        if (this.debugDragBtnBounds && 
+            x >= this.debugDragBtnBounds.x && x <= this.debugDragBtnBounds.x + this.debugDragBtnBounds.width &&
+            y >= this.debugDragBtnBounds.y && y <= this.debugDragBtnBounds.y + this.debugDragBtnBounds.height) {
+            
+            return { action: 'debugDragRace' };
         }
 
         return null;

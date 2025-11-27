@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Generation Visualizer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #111;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #ff0066;
+            text-shadow: 0 0 10px #ff0066;
+        }
+        #controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: #ff0066;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #ff3385;
+        }
+        #tracks-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .track-card {
+            background-color: #222;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .track-info {
+            width: 100%;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .league-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #00ffff;
+        }
+        .track-name {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        .track-stats {
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 5px;
+            width: 100%;
+            text-align: left;
+        }
+        canvas {
+            background-color: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <h1>Track Generation Visualizer</h1>
+    
+    <div id="controls">
+        <button id="regenerate-btn">Regenerate All Tracks</button>
+    </div>
+
+    <div id="tracks-container">
+        <!-- Tracks will be inserted here -->
+    </div>
+
+    <script type="module">
+        import { TrackGenerator } from './src/systems/generators.js';
+
+        const trackGen = new TrackGenerator();
+        const container = document.getElementById('tracks-container');
+        const regenerateBtn = document.getElementById('regenerate-btn');
+
+        function generateAndRender() {
+            container.innerHTML = ''; // Clear existing
+
+            // Get leagues from settings
+            const leagues = Object.keys(trackGen.leagueSettings);
+            
+            // Also add a Drag Race test
+            leagues.push("Drag Race");
+
+            leagues.forEach(leagueName => {
+                // Generate track
+                let track;
+                if (leagueName === "Drag Race") {
+                    track = trackGen.generateTrack("Drag Race", 8000, 2000);
+                } else {
+                    track = trackGen.generateTrackForLeague(leagueName, 8000, 6000);
+                }
+
+                // Create Card
+                const card = document.createElement('div');
+                card.className = 'track-card';
+
+                // Info Header
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'track-info';
+                
+                const leagueTitle = document.createElement('span');
+                leagueTitle.className = 'league-name';
+                leagueTitle.textContent = leagueName;
+                
+                const trackName = document.createElement('span');
+                trackName.className = 'track-name';
+                trackName.textContent = track.name;
+
+                infoDiv.appendChild(leagueTitle);
+                infoDiv.appendChild(trackName);
+
+                // Canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = 400;
+                canvas.height = 300;
+                const ctx = canvas.getContext('2d');
+
+                // Render Track (Wire Outline)
+                // Use a slight padding for the view
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                track.renderWireOutline(ctx, 20, 20, canvas.width - 40, canvas.height - 40);
+
+                // Stats Footer
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'track-stats';
+                const chars = track.characteristics;
+                if (chars) {
+                    statsDiv.innerHTML = `
+                        Type: ${track.type} | Distance: ${chars.totalDistance}m<br>
+                        Turns: ${chars.turnCount} | Straight: ${chars.maxStraightLength}m<br>
+                        Tech: ${chars.technicalDifficulty} | Width: ${track.trackWidth}
+                    `;
+                } else {
+                     statsDiv.innerHTML = `Type: ${track.type} | Width: ${track.trackWidth}`;
+                }
+
+                card.appendChild(infoDiv);
+                card.appendChild(canvas);
+                card.appendChild(statsDiv);
+                container.appendChild(card);
+            });
+        }
+
+        regenerateBtn.addEventListener('click', generateAndRender);
+
+        // Initial render
+        window.addEventListener('load', generateAndRender);
+    </script>
+</body>
+</html>

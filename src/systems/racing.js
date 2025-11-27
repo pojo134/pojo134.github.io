@@ -10,7 +10,7 @@
 // CONSTANTS AND CONFIGURATION
 // ============================================================================
 
-import { RaceState, CarStatus, EventType, ContactType } from './constants.js';
+import { RaceState, CarStatus, EventType, ContactType } from '../core/constants.js';
 
 // Physics constants - Based on 2024/2025 motorsport research data
 const PHYSICS_CONFIG = {
@@ -427,6 +427,16 @@ class CarController {
      * @private
      */
     _initializeStartingPosition(position, track) {
+        // Check if track has waypoints (Drag Race might not use them standardly)
+        if (!track.waypoints || track.waypoints.length < 2) {
+            this.x = 0;
+            this.y = 0;
+            this.currentWaypoint = 0;
+            this.waypointProgress = 0;
+            this.heading = 0;
+            return;
+        }
+
         // Start at waypoint 0, but spread out based on position
         const startWaypoint = track.waypoints[0];
 
@@ -611,9 +621,39 @@ class CarController {
     
         while (remainingDistance > 0 && this.status === CarStatus.RACING) {
             const currentWP = physics.waypoints[this.currentWaypoint];
-            const nextWPIndex = (this.currentWaypoint + 1) % physics.waypoints.length;
+            
+            let nextWPIndex;
+            let isLastSegment = false;
+
+            if (physics.track.isLoop) {
+                nextWPIndex = (this.currentWaypoint + 1) % physics.waypoints.length;
+            } else {
+                // For non-looping tracks, don't wrap around
+                if (this.currentWaypoint === physics.waypoints.length - 1) {
+                    isLastSegment = true;
+                    nextWPIndex = this.currentWaypoint; // Stay on the last waypoint
+                } else {
+                    nextWPIndex = this.currentWaypoint + 1;
+                }
+            }
+            
             const nextWP = physics.waypoints[nextWPIndex];
-    
+            
+            // If on the last segment of a non-looping track, and we've reached the end
+            if (isLastSegment && this.waypointProgress >= 1.0) {
+                this.status = CarStatus.FINISHED; // Car has completed the track
+                remainingDistance = 0; // Stop moving
+                this.finishTime = this.raceSimulator.raceTime; // Record finish time
+                if (this.raceSimulator) {
+                    this.raceSimulator._addEvent(EventType.RACE_FINISH, {
+                        message: `${this.driver.name} finishes the drag race.`,
+                        driver: this.driver.name,
+                        time: this.raceSimulator.raceTime
+                    });
+                }
+                continue; // Skip to next iteration (which will exit)
+            }
+
             const segmentLength = distance(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
             // If segment length is 0, something is wrong with the track data, but we must avoid an infinite loop.
             // We'll break out and the car will just stop for this frame.
@@ -638,31 +678,46 @@ class CarController {
                 this.x = nextWP.x;
                 this.y = nextWP.y;
     
-                if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint && !this.justCrossedLine) {
-                    this.currentLap++;
-                    this.justCrossedLine = true;
-                    if (this.raceSimulator) {
-                        this.raceSimulator._addEvent(EventType.LAP_COMPLETE, {
-                            message: `${this.driver.name} completes Lap ${this.currentLap}.`,
-                            driver: this.driver.name,
-                            lap: this.currentLap,
-                            time: this.raceSimulator.raceTime
-                        });
+                if (physics.track.isLoop) {
+                    if (this.currentWaypoint === 0 && this.hasCompletedFirstWaypoint && !this.justCrossedLine) {
+                        this.currentLap++;
+                        this.justCrossedLine = true;
+                        if (this.raceSimulator) {
+                            this.raceSimulator._addEvent(EventType.LAP_COMPLETE, {
+                                message: `${this.driver.name} completes Lap ${this.currentLap}.`,
+                                driver: this.driver.name,
+                                lap: this.currentLap,
+                                time: this.raceSimulator.raceTime
+                            });
+                        }
                     }
-                }
-    
-                if (this.currentWaypoint > 0) {
-                    this.hasCompletedFirstWaypoint = true;
-                }
-    
-                if (this.currentWaypoint !== 0 && this.justCrossedLine) {
-                    this.justCrossedLine = false;
+        
+                    if (this.currentWaypoint > 0) {
+                        this.hasCompletedFirstWaypoint = true;
+                    }
+        
+                    if (this.currentWaypoint !== 0 && this.justCrossedLine) {
+                        this.justCrossedLine = false;
+                    }
+                } else {
+                    // For non-looping track, if we reached the end, consider it finished
+                    if (isLastSegment) { // currentWaypoint is now the last one.
+                        this.status = CarStatus.FINISHED;
+                        this.finishTime = this.raceSimulator.raceTime;
+                        if (this.raceSimulator) {
+                            this.raceSimulator._addEvent(EventType.RACE_FINISH, {
+                                message: `${this.driver.name} finishes the drag race.`,
+                                driver: this.driver.name,
+                                time: this.raceSimulator.raceTime
+                            });
+                        }
+                        return; // Exit update as car is finished
+                    }
                 }
     
             } else {
                 // Move partway along the current segment
-                const progressThisFrame = remainingDistance / segmentLength;
-                this.waypointProgress += progressThisFrame;
+                this.waypointProgress += remainingDistance / segmentLength;
                 this.totalDistance += remainingDistance;
     
                 // Update position via interpolation
@@ -872,7 +927,7 @@ class CarController {
 // BURNER PHONE SYSTEM CLASS
 // ============================================================================
 
-class BurnerPhoneSystem {
+export class BurnerPhoneSystem {
     constructor() {
         this.maxBattery = 10;
         this.currentBattery = this.maxBattery;
@@ -1409,7 +1464,7 @@ class DragRaceSimulator {
 
         // Track positions for a drag strip for car movement
         // Assuming a normalized track segment for linear progress
-        this.DRAG_DISTANCE = 400; // Units, e.g., meters
+        this.DRAG_DISTANCE = 1200; // Units, e.g., meters. Increased to make the track feel longer.
 
         // Physics for each car in the heat (simplified CarController)
         this._carPhysics = new Map(); // Map to hold CarController instances for the current heat
@@ -1491,24 +1546,27 @@ class DragRaceSimulator {
         }
 
         // Create simplified CarController instances for these two drivers
-        // These CarController instances are primarily for tracking animated position/speed
-        const car1 = new CarController(driver1.id, driver1, 0, this.track); // Position and track params are dummy for this context
-        const car2 = new CarController(driver2.id, driver2, 1, this.track); // ID, driver, startPos, track
+        const car1 = new CarController(driver1.id, driver1, 0, this.track); 
+        const car2 = new CarController(driver2.id, driver2, 1, this.track); 
 
         this._carPhysics.set(car1.id, car1);
         this._carPhysics.set(car2.id, car2);
 
-        // Calculate a base speed for each car based on their topSpeed stat
-        // This will be used to determine their "real" finish time in the simulation
-        const baseSpeed1 = car1.driver.stats.topSpeed * (1 + car1.driver.stats.aggression/200);
-        const baseSpeed2 = car2.driver.stats.topSpeed * (1 + car2.driver.stats.aggression/200);
+        // Calculate target ET based on stats (8-10s range)
+        // Stats usually range 50-95. We map ~50->10s and ~100->8s.
+        // Use topSpeed and aggression (proxy for acceleration/launch)
+        const stats1 = (driver1.stats.topSpeed + driver1.stats.aggression) / 2;
+        const stats2 = (driver2.stats.topSpeed + driver2.stats.aggression) / 2;
         
-        // Introduce some random variance to the finish time for realism
-        const variance1 = (Math.random() * 0.2 - 0.1); // +/- 10%
-        const variance2 = (Math.random() * 0.2 - 0.1);
+        // Map: 12.0 - (stat / 100 * 4.0). 
+        // 50 => 12 - 2 = 10.0s
+        // 100 => 12 - 4 = 8.0s
+        const baseET1 = 12.0 - (Math.max(50, Math.min(100, stats1)) / 100) * 4.0;
+        const baseET2 = 12.0 - (Math.max(50, Math.min(100, stats2)) / 100) * 4.0;
 
-        const theoreticalTime1 = this.DRAG_DISTANCE / (baseSpeed1 * (1 + variance1));
-        const theoreticalTime2 = this.DRAG_DISTANCE / (baseSpeed2 * (1 + variance2));
+        // Add variance (+/- 0.25s) for close racing
+        const et1 = baseET1 + (Math.random() * 0.5 - 0.25);
+        const et2 = baseET2 + (Math.random() * 0.5 - 0.25);
 
         // The actual duration of the animation will be heatSimulationDuration
         // We'll use these theoretical times to determine the actual winner when simulation finishes
@@ -1518,16 +1576,16 @@ class DragRaceSimulator {
             car1: car1, // CarController instances for animation
             car2: car2,
             carPositions: [{ x: 0, y: 0 }, { x: 0, y: 0 }], // Normalized progress 0-1
-            actualFinishTime1: theoreticalTime1,
-            actualFinishTime2: theoreticalTime2,
+            actualFinishTime1: et1,
+            actualFinishTime2: et2,
             heatWinner: null,
             heatFinished: false,
             heatRaceTime: 0,
             animationProgress: 0, // 0-1 progress of the visual animation
             car1Started: false,
             car2Started: false,
-            reactionTime1: Math.random() * 0.3, // Simulate reaction time
-            reactionTime2: Math.random() * 0.3,
+            reactionTime1: Math.random() * 0.15 + 0.05, // 0.05s to 0.20s reaction
+            reactionTime2: Math.random() * 0.15 + 0.05,
             falseStart1: false,
             falseStart2: false
         };
@@ -1536,7 +1594,7 @@ class DragRaceSimulator {
         this.startLightTimer = 0;
         this.state = RaceState.PRE_HEAT;
 
-        console.log(`Setting up Round ${this.currentRound}, Heat ${this.currentHeatIndex + 1}: ${driver1.name} vs ${driver2.name}`);
+        console.log(`Setting up Round ${this.currentRound}, Heat ${this.currentHeatIndex + 1}: ${driver1.name} (ET:${et1.toFixed(3)}) vs ${driver2.name} (ET:${et2.toFixed(3)})`);
     }
 
     _advanceRound() {
@@ -1582,13 +1640,115 @@ class DragRaceSimulator {
         return time1 < time2 ? driver1 : driver2;
     }
 
+    update(deltaTime) {
+        this.raceTime += deltaTime;
+        this.accumulatedTime += deltaTime;
+
+        if (this.state === RaceState.FINISHED) return;
+
+        // Update Start Lights
+        if (this.state === RaceState.PRE_HEAT) {
+            this.startLightTimer += deltaTime;
+
+            if (this.startLightState === 'OFF' && this.startLightTimer > 1.0) {
+                this.startLightState = 'YELLOW1';
+                this.startLightTimer = 0;
+            } else if (this.startLightState === 'YELLOW1' && this.startLightTimer > this.DRAG_TREE_DELAY_YELLOW) {
+                this.startLightState = 'YELLOW2';
+                this.startLightTimer = 0;
+            } else if (this.startLightState === 'YELLOW2' && this.startLightTimer > this.DRAG_TREE_DELAY_YELLOW) {
+                this.startLightState = 'YELLOW3';
+                this.startLightTimer = 0;
+            } else if (this.startLightState === 'YELLOW3' && this.startLightTimer > this.DRAG_TREE_DELAY_YELLOW) {
+                this.startLightState = 'GREEN';
+                this.startLightTimer = 0;
+                this.state = RaceState.RACING;
+                // Set reaction times here if we want to be precise, but we simulated them in setup
+            }
+        }
+
+        // Update Racing Logic
+        if (this.state === RaceState.RACING && this.heatState) {
+            this.heatState.heatRaceTime += deltaTime;
+
+            // Update Car 1
+            // Movement logic: x = 0.5 * a * t^2
+            // We know TargetTime (ET). So x = D * (t / ET)^2
+            // We account for reaction time: t_run = time - reaction
+            if (!this.heatState.car1Finished) {
+                const timeRun = Math.max(0, this.heatState.heatRaceTime - this.heatState.reactionTime1);
+                if (timeRun > 0) {
+                    // Quadratic acceleration curve
+                    const progress = Math.pow(timeRun / this.heatState.actualFinishTime1, 2);
+                    this.heatState.car1.currentWaypoint = Math.min(progress, 1.0) * this.DRAG_DISTANCE;
+                    
+                    if (progress >= 1.0) {
+                        this.heatState.car1.currentWaypoint = this.DRAG_DISTANCE;
+                        this.heatState.car1Finished = true;
+                        this.heatState.car1ET = this.heatState.actualFinishTime1;
+                    }
+                }
+            }
+
+            // Update Car 2
+            if (!this.heatState.car2Finished) {
+                const timeRun = Math.max(0, this.heatState.heatRaceTime - this.heatState.reactionTime2);
+                if (timeRun > 0) {
+                    const progress = Math.pow(timeRun / this.heatState.actualFinishTime2, 2);
+                    this.heatState.car2.currentWaypoint = Math.min(progress, 1.0) * this.DRAG_DISTANCE;
+                    
+                    if (progress >= 1.0) {
+                        this.heatState.car2.currentWaypoint = this.DRAG_DISTANCE;
+                        this.heatState.car2Finished = true;
+                        this.heatState.car2ET = this.heatState.actualFinishTime2;
+                    }
+                }
+            }
+
+            // Check for Heat Finish
+            if (this.heatState.car1Finished && this.heatState.car2Finished) {
+                this.state = RaceState.HEAT_FINISHED;
+                
+                // Determine Winner based on Total Time (Reaction + ET)
+                const totalTime1 = this.heatState.reactionTime1 + this.heatState.car1ET;
+                const totalTime2 = this.heatState.reactionTime2 + this.heatState.car2ET;
+
+                if (totalTime1 < totalTime2) {
+                    this.heatState.heatWinner = this.heatState.driver1;
+                    this.roundWinners.push(this.heatState.driver1);
+                } else {
+                    this.heatState.heatWinner = this.heatState.driver2;
+                    this.roundWinners.push(this.heatState.driver2);
+                }
+                this.heatState.heatFinished = true;
+                
+                // Log result
+                console.log(`Heat Finished! Winner: ${this.heatState.heatWinner.name}`);
+                console.log(`  ${this.heatState.driver1.name}: ${totalTime1.toFixed(3)}s (R:${this.heatState.reactionTime1.toFixed(3)} + E:${this.heatState.car1ET.toFixed(3)})`);
+                console.log(`  ${this.heatState.driver2.name}: ${totalTime2.toFixed(3)}s (R:${this.heatState.reactionTime2.toFixed(3)} + E:${this.heatState.car2ET.toFixed(3)})`);
+            }
+        }
+
+        // Handle Heat Transition
+        if (this.state === RaceState.HEAT_FINISHED) {
+            this.heatSimulationTimer += deltaTime;
+            if (this.heatSimulationTimer > 3.0) { // Wait 3 seconds before next heat
+                this.currentHeatIndex++;
+                this._setupNextHeat();
+            }
+        }
+    }
+
     getRaceState() {
         return {
             state: this.state,
             currentRound: this.currentRound,
             bracket: this.bracket,
             roundWinners: this.roundWinners,
-            champion: this.champion
+            champion: this.champion,
+            heatState: this.heatState,
+            startLightState: this.startLightState,
+            DRAG_DISTANCE: this.DRAG_DISTANCE
         };
     }
 

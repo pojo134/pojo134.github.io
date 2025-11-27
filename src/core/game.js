@@ -7,20 +7,20 @@
 import { GameStates, RaceState } from './constants.js';
 
 // ===== ASSET MANAGER =====
-import MainMenuScreen from './screens/mainMenuScreen.js';
-import GarageScreen from './screens/garageScreen.js';
-import BettingScreen from './screens/bettingScreen.js';
-import RaceScreen from './screens/raceScreen.js';
-import DragRaceScreen from './screens/dragRaceScreen.js';
-import ResultsScreen from './screens/resultsScreen.js';
-import SettingsScreen from './screens/settingsScreen.js';
-import LoadGameScreen from './screens/loadGameScreen.js';
-import GameOverScreen from './screens/gameOverScreen.js';
-import TierAdvancementScreen from './screens/tierAdvancementScreen.js';
-import { RaceSimulator, DragRaceSimulator } from './racing.js';
+import MainMenuScreen from '../screens/mainMenuScreen.js';
+import GarageScreen from '../screens/garageScreen.js';
+import BettingScreen from '../screens/bettingScreen.js';
+import RaceScreen from '../screens/raceScreen.js';
+import DragRaceScreen from '../screens/dragRaceScreen.js';
+import ResultsScreen from '../screens/resultsScreen.js';
+import SettingsScreen from '../screens/settingsScreen.js';
+import LoadGameScreen from '../screens/loadGameScreen.js';
+import GameOverScreen from '../screens/gameOverScreen.js';
+import TierAdvancementScreen from '../screens/tierAdvancementScreen.js';
+import { RaceSimulator, DragRaceSimulator } from '../systems/racing.js';
 import { SaveSlot, SaveManager } from './saveload.js';
 import { GameState } from './gamestate.js';
-import { DriverGenerator, TrackGenerator, OddsCalculator, SeasonGenerator } from './generators.js';
+import { DriverGenerator, TrackGenerator, OddsCalculator, SeasonGenerator } from '../systems/generators.js';
 
 
 class AssetManager {
@@ -450,17 +450,17 @@ class Game {
      */
     _queueAssets() {
         // Vehicle sprites
-        this.assetManager.queueImage('gokart', 'gokart.png');
-        this.assetManager.queueImage('gt3', 'gt3.png');
-        this.assetManager.queueImage('openwheel', 'openwheel.png');
-        this.assetManager.queueImage('stockcar', 'stockcar.png');
-        this.assetManager.queueImage('topfuel', 'topfuel.png');
+        this.assetManager.queueImage('gokart', 'assets/images/gokart.png');
+        this.assetManager.queueImage('gt3', 'assets/images/gt3.png');
+        this.assetManager.queueImage('openwheel', 'assets/images/openwheel.png');
+        this.assetManager.queueImage('stockcar', 'assets/images/stockcar.png');
+        this.assetManager.queueImage('topfuel', 'assets/images/topfuel.png');
 
         // Track textures
-        this.assetManager.queueImage('dirt_sample', 'dirt_sample.png');
-        this.assetManager.queueImage('grass_sample', 'grass_sample.png');
-        this.assetManager.queueImage('track_sample', 'track_sample.png');
-        this.assetManager.queueImage('track_side_strip', 'track_side_strip.png');
+        this.assetManager.queueImage('dirt_sample', 'assets/images/dirt_sample.png');
+        this.assetManager.queueImage('grass_sample', 'assets/images/grass_sample.png');
+        this.assetManager.queueImage('track_sample', 'assets/images/track_sample.png');
+        this.assetManager.queueImage('track_side_strip', 'assets/images/track_side_strip.png');
     }
 
     /**
@@ -709,6 +709,20 @@ class Game {
                 } else if (action.action === 'startRace') {
                     // Select contract and prepare race
                     this.gameState.selectContract(action.contractIndex);
+                    this._prepareRace();
+                    this.screenManager.changeState(GameStates.BETTING);
+                } else if (action.action === 'debugDragRace') {
+                    // Create and select dummy drag race contract
+                    const dummyDragContract = {
+                        type: 'Drag Race',
+                        trackType: 'Drag Race',
+                        fieldSize: 8,
+                        isDragRace: true,
+                        entryFee: 0,
+                        basePayout: 5000,
+                        description: 'DEBUG DRAG TOURNAMENT'
+                    };
+                    this.gameState.season.selectedContract = dummyDragContract;
                     this._prepareRace();
                     this.screenManager.changeState(GameStates.BETTING);
                 }

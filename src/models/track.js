@@ -6,13 +6,14 @@
  */
 
 class Track {
-    constructor(type, name, waypoints, characteristics = {}, weather = {}, trackWidth = 30) {
+    constructor(type, name, waypoints, characteristics = {}, weather = {}, trackWidth = 30, isLoop = true) {
         this.type = type;
         this.name = name;
         this.waypoints = waypoints || [];
         this.characteristics = characteristics;
         this.weather = weather;
         this.trackWidth = trackWidth; // Store track width as a property
+        this.isLoop = isLoop; // New: indicates if the track is a closed loop (e.g., for drag strips)
 
         // Calculate derived properties
         this.totalDistance = this.calculateTotalDistance();
@@ -174,6 +175,18 @@ class Track {
             characteristics: this.characteristics,
             weather: this.weather
         };
+    }
+
+    clone() {
+        return new Track(
+            this.type,
+            this.name,
+            JSON.parse(JSON.stringify(this.waypoints)),
+            JSON.parse(JSON.stringify(this.characteristics)),
+            JSON.parse(JSON.stringify(this.weather)),
+            this.trackWidth,
+            this.isLoop // Include isLoop in clone
+        );
     }
 
     /**

@@ -6,7 +6,8 @@
  */
 
 // Import required modules
-const { BurnerPhoneSystem, ContactType } = require('./racing.js');
+import { BurnerPhoneSystem } from '../src/systems/racing.js';
+import { ContactType } from '../src/core/constants.js'; // ContactType is in constants.js now
 
 console.log('=== BURNER PHONE SYSTEM TEST ===\n');
 

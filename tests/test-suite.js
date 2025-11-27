@@ -7,16 +7,16 @@
  * Usage: Open test.html in browser - tests run automatically
  */
 
-import { GameState } from './gamestate.js';
-import { DriverGenerator, TrackGenerator, SeasonGenerator, OddsCalculator } from './generators.js';
-import { RaceSimulator, RacingPhysics } from './racing.js';
-import { RaceState, CarStatus } from './constants.js';
-import { SaveManager, SaveSlot, SettingsManager } from './saveload.js';
-import MainMenuScreen from './screens/mainMenuScreen.js';
-import GarageScreen from './screens/garageScreen.js';
-import BettingScreen from './screens/bettingScreen.js';
-import RaceScreen from './screens/raceScreen.js';
-import ResultsScreen from './screens/resultsScreen.js';
+import { GameState } from '../src/core/gamestate.js';
+import { DriverGenerator, TrackGenerator, SeasonGenerator, OddsCalculator } from '../src/systems/generators.js';
+import { RaceSimulator, RacingPhysics } from '../src/systems/racing.js';
+import { RaceState, CarStatus } from '../src/core/constants.js';
+import { SaveManager, SaveSlot, SettingsManager } from '../src/core/saveload.js';
+import MainMenuScreen from '../src/screens/mainMenuScreen.js';
+import GarageScreen from '../src/screens/garageScreen.js';
+import BettingScreen from '../src/screens/bettingScreen.js';
+import RaceScreen from '../src/screens/raceScreen.js';
+import ResultsScreen from '../src/screens/resultsScreen.js';
 
 // ============================================================================ 
 // TEST UTILITIES

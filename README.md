@@ -1,28 +1,3 @@
-We have made tremendous progress on our racing simulation betting game. While I was away I built a working demo of track generation. That file is in the folder named New Track Generator.html. Implement these exact generation methods in our javascript game. Generate the track object with typical properties and a wire outline version for the betting desk screen and the full track for the race screen. Use the waypoints generated for the cars to follow around the track. Ensure we keep the start finish line logic we have currently so the cars can complete laps. Here are the settings ranges that tracks for each league should use. I believe there is logic in the F1 track generation we should be able to use to generate a tri-oval with no other twists or turns. Spawn background agents to do the work, testing, verification, and fixes for you. 
-
-Go-Kart -
--Complexity: 20-40
--Windiness: 0.70-0.80
--Straight Length: 75-86
-
-GT -
--Complexity: 40-50
--Windiness: 0.80-0.90
--Straight Length: 65-75
-
-LM -
--Complexity: 45-50
--Windiness: 1.00-1.10
--Straight Length: 60
-
-Open wheel -
--Complexity: 55-60
--Windiness: 1.10-1.30
--Straight Length: 70
--5% chance to use oval or tri-oval
-
-Stock Car- Oval, Tri-Ovals of slightly different scales.
-
 # 🏁 Redline Roulette
 
 **A Racing Betting Simulator with Roguelike Elements**

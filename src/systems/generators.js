@@ -1,4 +1,4 @@
-import Track from './track.js';
+import Track from '../models/track.js';
 
 /**
  * REDLINE ROULETTE - PROCEDURAL GENERATION SYSTEMS
@@ -393,7 +393,7 @@ class DriverGenerator {
     }
 }
 
-import { Vec2, getSplinePoint, pointToSegmentDistance, intersect, checkCollision } from './utils.js';
+import { Vec2, getSplinePoint, pointToSegmentDistance, intersect, checkCollision } from '../utils/utils.js';
 
 // ============================================================================
 // TRACK GENERATOR CLASS
@@ -468,11 +468,11 @@ class TrackGenerator {
                 trackStyle: 'oval', // Default, but with variation
                 ovalVariation: true // Allows for oval or tri-oval selection within generateTrackForLeague
             },
-            'Road Course': { // A generic road course for when no specific league is matched
-                complexity: { min: 35, max: 55 },
-                windiness: { min: 0.90, max: 1.10 },
-                straightLength: { min: 60, max: 80 },
-                trackStyle: 'circuit'
+            'Tri-Oval': { // Explicit Tri-Oval category
+                complexity: { min: 45, max: 55 },
+                windiness: { min: 0.7, max: 0.9 },
+                straightLength: { min: 50, max: 70 },
+                trackStyle: 'tri-oval'
             }
         };
     }
@@ -501,37 +501,73 @@ class TrackGenerator {
                 pts.push(new Vec2(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius));
             }
         } else if (trackStyle === 'oval') {
-            const rx = width * 0.35;
-            const ry = height * 0.22;
-            // Top straight
-            pts.push(new Vec2(center.x - rx, center.y - ry));
-            pts.push(new Vec2(center.x + rx, center.y - ry));
-            // Right Arc (bottom-right to top-right)
-            for (let i = 0; i <= 8; i++) {
-                const angle = Math.PI / 2 + (i / 8) * Math.PI; // from 90 deg to 270 deg
-                pts.push(new Vec2(center.x + rx + Math.cos(angle) * ry, center.y + Math.sin(angle) * ry));
+            const rx = width * 0.35; const ry = height * 0.22;
+            // Right Arc
+            for(let i=0; i<4; i++) {
+                const angle = -Math.PI/2 + (i/4)*Math.PI;
+                pts.push(new Vec2(center.x + rx + Math.cos(angle)*ry, center.y + Math.sin(angle)*ry));
             }
-            // Bottom straight
+            // Bottom
             pts.push(new Vec2(center.x + rx, center.y + ry));
+            pts.push(new Vec2(center.x, center.y + ry));
             pts.push(new Vec2(center.x - rx, center.y + ry));
-            // Left Arc (top-left to bottom-left)
-            for (let i = 0; i <= 8; i++) {
-                const angle = 3 * Math.PI / 2 + (i / 8) * Math.PI; // from 270 deg to 450 (90) deg
-                pts.push(new Vec2(center.x - rx + Math.cos(angle) * ry, center.y + Math.sin(angle) * ry));
+            // Left Arc
+            for(let i=0; i<4; i++) {
+                const angle = Math.PI/2 + (i/4)*Math.PI;
+                pts.push(new Vec2(center.x - rx + Math.cos(angle)*ry, center.y + Math.sin(angle)*ry));
             }
-        } else if (trackStyle === 'tri-oval') {
-            const radius = Math.min(width, height) * 0.35;
-            const numPoints = 3; // For a triangle base
-            const outerScale = 1.2;
-            const innerScale = 0.8;
+            // Top
+            pts.push(new Vec2(center.x - rx, center.y - ry));
+            pts.push(new Vec2(center.x, center.y - ry));
+            pts.push(new Vec2(center.x + rx, center.y - ry));
 
-            for (let i = 0; i < numPoints; i++) {
-                const angle = (i / numPoints) * Math.PI * 2 - (Math.PI / 2); // Start at top
-                pts.push(new Vec2(center.x + Math.cos(angle) * radius * outerScale, center.y + Math.sin(angle) * radius * outerScale));
-                const nextAngle = ((i + 1) / numPoints) * Math.PI * 2 - (Math.PI / 2);
-                const midAngle = (angle + nextAngle) / 2;
-                // Add an inner point to create the 'bend' of the tri-oval
-                pts.push(new Vec2(center.x + Math.cos(midAngle) * radius * innerScale, center.y + Math.sin(midAngle) * radius * innerScale));
+        } else if (trackStyle === 'tri-oval') {
+            const turnRadius = height * 0.25;
+            const straightOffset = width * 0.3;
+            const triOvalDepth = height * 0.15;
+            
+            // 1. Backstretch (Top) - Left to Right
+            // Start Turn 2 exit / Turn 3 entry
+            pts.push(new Vec2(center.x - straightOffset, center.y - turnRadius));
+            // Add midpoint for stability
+            pts.push(new Vec2(center.x, center.y - turnRadius));
+            pts.push(new Vec2(center.x + straightOffset, center.y - turnRadius));
+
+            // 2. Turns 3 & 4 (Right) - Arc from -90 (Top) to 90 (Bottom)
+            const rightTurnCenter = new Vec2(center.x + straightOffset, center.y);
+            for (let i = 1; i <= 8; i++) {
+                const angle = -Math.PI / 2 + (i / 8) * Math.PI; // -PI/2 to PI/2
+                pts.push(new Vec2(
+                    rightTurnCenter.x + Math.cos(angle) * turnRadius,
+                    rightTurnCenter.y + Math.sin(angle) * turnRadius
+                ));
+            }
+
+            // 3. Frontstretch (Tri-Oval) - Right to Left with V-shape
+            // Start Turn 4 exit
+            const startFront = new Vec2(center.x + straightOffset, center.y + turnRadius);
+            const apex = new Vec2(center.x, center.y + turnRadius + triOvalDepth);
+            const endFront = new Vec2(center.x - straightOffset, center.y + turnRadius);
+
+            // Segment 1: Turn 4 to Apex
+            // Add intermediate points for smoother V
+            pts.push(startFront.add(apex.sub(startFront).mul(0.33)));
+            pts.push(startFront.add(apex.sub(startFront).mul(0.66)));
+            pts.push(apex);
+
+            // Segment 2: Apex to Turn 1
+            pts.push(apex.add(endFront.sub(apex).mul(0.33)));
+            pts.push(apex.add(endFront.sub(apex).mul(0.66)));
+            pts.push(endFront);
+
+            // 4. Turns 1 & 2 (Left) - Arc from 90 (Bottom) to 270 (Top)
+            const leftTurnCenter = new Vec2(center.x - straightOffset, center.y);
+            for (let i = 1; i <= 8; i++) { // Start at 1 to avoid duplicate of endFront
+                const angle = Math.PI / 2 + (i / 8) * Math.PI; // PI/2 to 3PI/2
+                pts.push(new Vec2(
+                    leftTurnCenter.x + Math.cos(angle) * turnRadius,
+                    leftTurnCenter.y + Math.sin(angle) * turnRadius
+                ));
             }
         }
 
@@ -673,13 +709,15 @@ class TrackGenerator {
             console.warn(`Unknown league: ${leagueName}. Using default circuit.`);
             // Fallback to a default circuit if settings are not found
             return new Track(
-                'Road Course',
-                this.generateTrackName('Road Course'),
+                'Circuit', // Changed from Road Course for clarity
+                this.generateTrackName('Circuit'),
                 this._generateBaseProceduralTrack('circuit', 30, 1.0, 70, 30, 800, 600)
                     .map(wp => ({ x: Math.round(wp.x * (width / 800)), y: Math.round(wp.y * (height / 600)) })),
                 this.calculateCharacteristics(this._generateBaseProceduralTrack('circuit', 30, 1.0, 70, 30, 800, 600)
                     .map(wp => ({ x: Math.round(wp.x * (width / 800)), y: Math.round(wp.y * (height / 600)) }))),
-                this.generateWeather()
+                this.generateWeather(),
+                30, // Default track width
+                true // isLoop = true for all default fallback tracks
             );
         }
 
@@ -696,22 +734,22 @@ class TrackGenerator {
                 trackStyle = randomChoice(['oval', 'tri-oval', 'oval', 'oval']); // Weighted towards oval
             }
         }
-        // If trackStyle is still circuit, ensure it's not trying to use oval params
+        
+        // Set parameters based on determined trackStyle or explicit league settings
         if (trackStyle === 'circuit') {
             complexity = randomInt(settings.complexity.min, settings.complexity.max);
             windiness = randomFloat(settings.windiness.min, settings.windiness.max);
             straightLength = randomInt(settings.straightLength.min, settings.straightLength.max);
-        } else { // For oval or tri-oval styles
-            // Use specific params for ovals as defined in NewTrackGenerator.html presets
-            if (trackStyle === 'oval') {
-                complexity = randomInt(14, 20); // From oval preset
-                windiness = randomFloat(0.0, 0.2); // From oval preset
-                straightLength = randomInt(100, 150); // From oval preset
-            } else if (trackStyle === 'tri-oval') {
-                complexity = randomInt(55, 65); // From tri-oval preset, slightly adjusted
-                windiness = randomFloat(0.5, 0.9); // From tri-oval preset
-                straightLength = randomInt(50, 70); // From tri-oval preset
-            }
+        } else if (trackStyle === 'oval') {
+            // Force clean oval parameters for Stock Car/Ovals
+            complexity = randomInt(12, 16); // Low complexity for clean oval
+            windiness = 0.0; // Zero chaos for clean oval
+            straightLength = randomInt(100, 150); 
+        } else if (trackStyle === 'tri-oval') {
+            // Parameters for tri-oval, directly from settings
+            complexity = randomInt(25, 35); // Reduced complexity for cleaner shape
+            windiness = 0.0; // Zero chaos to preserve the triangle shape
+            straightLength = randomInt(50, 70); // From tri-oval preset
         }
 
 
@@ -735,13 +773,15 @@ class TrackGenerator {
         }));
 
         // Determine the actual track type name for the Track object
-        let actualTrackTypeName = 'Road Course';
+        let actualTrackTypeName = 'Circuit'; // Default
         if (trackStyle === 'oval') {
             actualTrackTypeName = 'Oval';
         } else if (trackStyle === 'tri-oval') {
             actualTrackTypeName = 'Tri-Oval';
         } else if (leagueName === 'Go-Kart') {
             actualTrackTypeName = 'Go-Kart Track';
+        } else if (leagueName === 'Tri-Oval') { // If the league name itself is Tri-Oval
+            actualTrackTypeName = 'Tri-Oval';
         }
 
 
@@ -751,42 +791,46 @@ class TrackGenerator {
             scaledWaypoints,
             this.calculateCharacteristics(scaledWaypoints),
             this.generateWeather(),
-            trackWidth // Pass trackWidth to the Track constructor
+            trackWidth, // Pass trackWidth to the Track constructor
+            true // isLoop = true for all procedural tracks
         );
     }
 
     /**
-     * Generates a simple drag strip track (long straight, turn, long straight)
-     * Now uses the procedural generator for consistency.
+     * Generates a simple drag strip track (straight line)
      */
     generateDragStripTrack(width = 8000, height = 6000) {
-        // For a drag strip, we want minimal complexity and windiness,
-        // and a very long straightLength.
-        const trackStyle = 'oval'; // An oval can be flattened to a drag strip
-        const complexity = 10; // Very few control points
-        const windiness = 0.05; // Almost no chaos, very straight
-        const straightLength = 200; // Very long segments
-        const trackWidth = 30;
+        const waypoints = [];
+        // Define the effective length of a 1/4 mile in game units
+        // Based on physics engine speeds, 1000-1200 units is roughly 10-12s at top speed
+        const DRAG_STRIP_LENGTH = 1200; 
 
-        const baseWaypoints = this._generateBaseProceduralTrack(
-            trackStyle,
-            complexity,
-            windiness,
-            straightLength,
+        const startX = (width - DRAG_STRIP_LENGTH) / 2;
+        const endX = startX + DRAG_STRIP_LENGTH;
+        const yCenter = height / 2;
+        
+        const numPoints = 20; // Enough points for smooth rendering/physics
+
+        // Generate points for the straight line
+        for (let i = 0; i <= numPoints; i++) {
+            const t = i / numPoints;
+            waypoints.push({
+                x: Math.round(startX + (endX - startX) * t),
+                y: Math.round(yCenter)
+            });
+        }
+        
+        const trackWidth = 20; // Narrower for a drag strip
+
+        return new Track(
+            'Drag Strip',
+            this.generateTrackName('Drag Strip'),
+            waypoints,
+            this.calculateCharacteristics(waypoints, false), // isLoop = false
+            this.generateWeather(),
             trackWidth,
-            800,
-            600
+            false // isLoop = false for drag strip
         );
-
-        // Scale waypoints to the target dimensions
-        const scaleX = width / 800;
-        const scaleY = height / 600;
-        const scaledWaypoints = baseWaypoints.map(wp => ({
-            x: Math.round(wp.x * scaleX),
-            y: Math.round(wp.y * scaleY)
-        }));
-
-        return this.smoothWaypoints(scaledWaypoints, 3); // Apply smoothing
     }
 
     /**
@@ -822,19 +866,29 @@ class TrackGenerator {
     /**
      * Calculates track characteristics from waypoints
      */
-    calculateCharacteristics(waypoints) {
+    calculateCharacteristics(waypoints, isLoop = true) {
         let totalDistance = 0;
         let straightLength = 0;
         let turnCount = 0;
         let maxStraightLength = 0;
         let currentStraightLength = 0;
 
-        const angleThreshold = 15; // degrees
+        const angleThreshold = 30; // degrees. Increased to reduce overcounting of turns in smooth tracks.
 
-        for (let i = 0; i < waypoints.length; i++) {
+        // If not looping, stop early so we don't check angle at the very end relative to start
+        // We need i, i+1, i+2. 
+        // If loop: i goes 0 to length-1. indices wrap.
+        // If not loop: i goes 0 to length-3. (i+2 must be <= length-1)
+        const limit = isLoop ? waypoints.length : waypoints.length - 2;
+
+        for (let i = 0; i < limit; i++) {
             const curr = waypoints[i];
             const next = waypoints[(i + 1) % waypoints.length];
-            const nextNext = waypoints[(i + 2) % waypoints.length];
+            // For non-loop, modulo technically doesn't matter if we limit i, but purely for correctness:
+            // If not loop, we shouldn't modulo, but we ensure i < length-2 so i+2 is valid.
+            
+            const nextNextIndex = (i + 2) % waypoints.length;
+            const nextNext = waypoints[nextNextIndex];
 
             // Calculate distance
             const dx = next.x - curr.x;
@@ -859,6 +913,30 @@ class TrackGenerator {
                 currentStraightLength += segmentLength;
             }
         }
+        
+        // For non-looping, add the last two segments distance to total (loop above missed them or calculation logic needs adjustment)
+        // Actually, the loop above calculates distance for segment (curr->next).
+        // If !isLoop, we iterate to length-2.
+        // The segment (length-2 -> length-1) is missed for distance calculation?
+        // Yes. We need to add distance for remaining segments if !isLoop.
+        if (!isLoop && waypoints.length >= 2) {
+             // Add distance for the very last segment which wasn't the "curr" in the loop
+             // The loop runs for i up to length-3.
+             // So waypoints[length-3] -> waypoints[length-2] is calculated.
+             // We need waypoints[length-2] -> waypoints[length-1].
+             const secondLast = waypoints[waypoints.length - 2];
+             const last = waypoints[waypoints.length - 1];
+             const dx = last.x - secondLast.x;
+             const dy = last.y - secondLast.y;
+             totalDistance += Math.sqrt(dx * dx + dy * dy);
+             
+             // Add to straight length as well since it's the end of a drag strip
+             straightLength += Math.sqrt(dx * dx + dy * dy);
+             currentStraightLength += Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        // Finalize straight length
+        maxStraightLength = Math.max(maxStraightLength, currentStraightLength);
 
         // Technical difficulty based on turn density and complexity
         const turnDensity = turnCount / (totalDistance / 100);
@@ -952,13 +1030,7 @@ class TrackGenerator {
         }
 
         if (trackType === "Drag Race") {
-            return new Track(
-                "Drag Strip",
-                this.generateTrackName("Drag Strip"),
-                this.generateDragStripTrack(width, height),
-                this.calculateCharacteristics(this.generateDragStripTrack(width, height)),
-                this.generateWeather()
-            );
+            return this.generateDragStripTrack(width, height);
         }
         
         const generatedTrack = this.generateTrackForLeague(leagueName, width, height);
@@ -977,19 +1049,56 @@ class TrackGenerator {
      * Generates a track name
      */
     generateTrackName(trackType) {
-        const locations = [
-            "Riverside", "Mountain View", "Silver Creek", "Thunder Valley",
-            "Sunset", "Coastal", "Pine Ridge", "Desert Mesa",
-            "Harbor", "Metro", "Lakeside", "Badlands",
-            "Crystal Lake", "Iron Mountain", "Golden Gate", "Maple Grove"
+        const namePrefixes = [
+            "Iron", "Shadow", "Silver", "Gold", "Crystal", "Thunder", "Storm", "Red", "Blue",
+            "Black", "White", "Green", "Emerald", "Ruby", "Sapphire", "Mystic", "Ancient", "Neo",
+            "Solar", "Lunar", "Crimson", "Azure", "Midnight", "Frost", "Ember", "Hollow", "Silent",
+            "Roaring", "Savage", "Wild", "Noble", "Royal", "Grand", "Lost", "Dark", "Bright",
+            "Ghost", "Spirit", "Broken", "Jagged", "High", "Low", "Deep", "Shallow",
+            "Wide", "Narrow", "Long", "Short", "Great", "Little", "North", "South", "East", "West",
+            "Upper", "Lower", "New", "Old", "Cyber", "Steam", "Steel", "Copper", "Bronze", "Platinum",
+            "Titanium", "Obsidian", "Granite", "Marble", "Limestone", "Sandstone", "Clay", "Mud",
+            "Dirt", "Dust", "Ash", "Smoke", "Mist", "Fog", "Cloud", "Rain", "Wind", "Snow", "Ice",
+            "Echo", "Whisper", "Vivid", "Rapid", "Turbo", "Nitro", "Apex", "Zenith", "Vertex",
+            "Alpha", "Omega", "Delta", "Sigma", "Prime", "Core", "Flux", "Pulse", "Wave", "Tide"
         ];
 
-        const suffixes = [
+        const locationNouns = [
+            "Valley", "Hills", "Mountain", "Ridge", "Peak", "Canyon", "Gorge", "Mesa", "Plateau",
+            "Plains", "Fields", "Meadows", "Forest", "Woods", "Grove", "Pines", "Oaks", "Creek",
+            "River", "Lake", "Shore", "Coast", "Bay", "Harbor", "City", "Town", "Village",
+            "Fortress", "Tower", "Dome", "Arena", "Pass", "Bridge", "Tunnel", "Highway", "Freeway",
+            "Springs", "Falls", "Run", "Crossing", "Point", "View", "Vista", "Heights", "Depths",
+            "Flats", "Lands", "Zone", "Sector", "Base", "Station", "Outpost", "Park", "Garden",
+            "Plaza", "Square", "Desolation", "Wilderness", "Frontier", "Horizon", "Summit", "Apex",
+            "Zenith", "Nadir", "Meridian", "Equator", "Pole", "Axis", "Vortex", "Nexus", "Matrix",
+            "Grid", "Net", "Web", "Chain", "Link", "Knot", "Loop", "Coil", "Spiral", "Helix"
+        ];
+
+        const trackSuffixes = [
             "Speedway", "Raceway", "International", "Motor Speedway",
-            "Circuit", "Park", "Arena", "Oval"
+            "Circuit", "Park", "Arena", "Ring", "Autodrome",
+            "Course", "Track", "Roads", "Motordrome", "Drive"
         ];
 
-        return `${randomChoice(locations)} ${randomChoice(suffixes)}`;
+        // Generate base name: Prefix + Noun (e.g. "Iron Valley")
+        let baseName = `${randomChoice(namePrefixes)} ${randomChoice(locationNouns)}`;
+        
+        // Combine with track suffix
+        let fullName = `${baseName} ${randomChoice(trackSuffixes)}`;
+
+        // Specific overrides for flavor based on track type
+        if (trackType === 'Oval' || trackType === 'Tri-Oval') {
+            // Ovals often have "Speedway" or "Superspeedway"
+            const ovalSuffixes = ["Speedway", "Superspeedway", "Oval", "Motor Speedway"];
+            fullName = `${baseName} ${randomChoice(ovalSuffixes)}`;
+        } else if (trackType === 'Drag Strip') {
+             fullName = `${baseName} Dragway`;
+        } else if (trackType === 'Go-Kart Track') {
+             fullName = `${baseName} Karting Circuit`;
+        }
+
+        return fullName;
     }
 
     /**

@@ -360,10 +360,10 @@
     </div>
 
     <script type="module">
-        import { generateSegmentTrack } from './segmentTrackGenerator.js';
-        import Track from './track.js';
-        import { RaceSimulator } from './racing.js';
-        import { CarStatus, RaceState } from './constants.js';
+        import { generateSegmentTrack } from './src/systems/segmentTrackGenerator.js';
+        import Track from './src/models/track.js';
+        import { RaceSimulator } from './src/systems/racing.js';
+        import { CarStatus, RaceState } from './src/core/constants.js';
 
         // Global state
         let trackData = null;

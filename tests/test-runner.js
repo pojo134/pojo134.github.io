@@ -5,8 +5,8 @@
  * and generates a detailed report.
  */
 
-import { TrackGenerator } from './generators.js';
-import Track from './track.js';
+import { TrackGenerator } from '../src/systems/generators.js';
+import Track from '../src/models/track.js';
 
 class TestRunner {
     constructor() {

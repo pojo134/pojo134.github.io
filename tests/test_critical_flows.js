@@ -6,11 +6,11 @@
 const fs = require('fs');
 
 // Load game files
-const gameCode = fs.readFileSync('./gamestate.js', 'utf8') + '\n' +
-                 fs.readFileSync('./generators.js', 'utf8') + '\n' +
-                 fs.readFileSync('./racing.js', 'utf8') + '\n' +
-                 fs.readFileSync('./screens.js', 'utf8') + '\n' +
-                 fs.readFileSync('./game.js', 'utf8');
+const gameCode = fs.readFileSync('src/core/gamestate.js', 'utf8') + '\n' +
+                 fs.readFileSync('src/systems/generators.js', 'utf8') + '\n' +
+                 fs.readFileSync('src/systems/racing.js', 'utf8') + '\n' +
+                 // fs.readFileSync('./screens.js', 'utf8') + '\n' + // screens.js not found
+                 fs.readFileSync('src/core/game.js', 'utf8');
 
 // Simple eval context
 eval(gameCode);

@@ -15,34 +15,33 @@ The project is built using **Vanilla JavaScript (ES Modules)** and renders to an
 
 ## Project Structure
 
-### Core Files
-*   `index.html`: The entry point. Initializes the canvas and loads `game.js` as a module.
-*   `game.js`: The main game loop. Handles initialization, input management, and switching between screens.
-*   `gamestate.js`: Singleton-like class (`GameState`) managing the global state (player bankroll, current season, active race data).
-*   `constants.js`: Defines Enums/Constants for `GameStates`, `RaceState`, `CarStatus`, `EventType`, etc.
+### Root Directory
+*   `index.html`: The entry point. Initializes the canvas and loads the game module.
+*   `assets/`: Contains static assets (images, CSS).
+*   `tests/`: Contains test suites and runners.
 
-### Systems
-*   `racing.js`:
-    *   `RaceSimulator`: Manages the race loop, events (crashes, overtaking), and the leaderboard.
-    *   `RacingPhysics`: Handles car movement, speed calculations based on stats/terrain, and AI behavior.
-    *   `BurnerPhoneSystem`: Logic for the cheat mechanics (Spotter, Marshal, etc.).
-*   `generators.js`: Procedural generation logic.
-    *   `DriverGenerator`: Creates drivers with stats and hidden traits.
-    *   `TrackGenerator`: Generates track layouts (waypoints) and names.
-    *   `SeasonGenerator`: Creates race calendars and contracts.
-    *   `OddsCalculator`: Determines betting odds based on driver stats vs. track characteristics.
-*   `track.js`: Defines the `Track` class, handling layout data and visualization logic.
-*   `saveload.js`: Manages serialization/deserialization of `GameState` to `localStorage`.
+### Source Code (`src/`)
+*   **Core (`src/core/`)**
+    *   `game.js`: Main game loop and initialization.
+    *   `gamestate.js`: Global state management.
+    *   `constants.js`: Enums and game constants.
+    *   `saveload.js`: Persistence logic.
+*   **Systems (`src/systems/`)**
+    *   `racing.js`: Simulation engine (Physics, AI, Burner Phone).
+    *   `generators.js`: Procedural content generation (Drivers, Seasons).
+    *   `segmentTrackGenerator.js`: Track generation logic.
+*   **Models (`src/models/`)**
+    *   `track.js`: Data structure for tracks.
+*   **Utils (`src/utils/`)**
+    *   `utils.js`: Helper functions (Math, collisions).
+    *   `enhanced_race_rendering.js`: Rendering helpers.
+*   **Screens (`src/screens/`)**
+    *   `mainMenuScreen.js`, `raceScreen.js`, etc.: UI and Logic for each game state.
 
-### UI / Screens
-Located in the `screens/` directory. Each class typically implements `update(deltaTime)` and `render(ctx)`.
-*   `mainMenuScreen.js`: Start/Load/Settings.
-*   `garageScreen.js`: Player hub between races.
-*   `bettingScreen.js`: Odds display and wager placement.
-*   `raceScreen.js`: Real-time visualization of the race.
-*   `resultsScreen.js`: Post-race summary.
-*   `dragRaceScreen.js`: Special event screen for drag races.
-*   ...and others (`gameOverScreen.js`, `tierAdvancementScreen.js`, etc.).
+### Important Notes
+*   **Imports:** All imports now use relative paths (e.g., `../core/constants.js`).
+*   **Track Export:** `src/models/track.js` uses a **default export**.
+*   **Generators Export:** `src/systems/generators.js` uses **named exports**.
 
 ## Development & Usage
 
@@ -70,7 +69,7 @@ An automated test suite is included.
 *   **Pathfinding:** Cars follow a list of `{x, y}` waypoints defined in the `Track` object.
 
 ### Important Notes
-*   **Track Export:** `track.js` uses a **default export**. When importing, use `import Track from './track.js'`.
-*   **Generators Export:** `generators.js` uses **named exports**. Use `import { DriverGenerator, ... } from './generators.js'`.
-*   **Package Type:** The `package.json` specifies `"type": "module"` to support Node.js context if needed (e.g. for CLI verification scripts), though the game is browser-native.
+*   **Track Export:** `track.js` uses a **default export**. When importing, ensure the path points to `src/models/track.js`.
+*   **Generators Export:** `generators.js` uses **named exports**.
+*   **Package Type:** The `package.json` specifies `"type": "module"`.
 *   **CI/CD:** The game has CI/CD setup with GitHub pages. Once the code is fully ready for production commit and push to the local branch. After a 60 second wait for the pipeline the site will be avaiable at https://pojo134.github.io/
