@@ -24,6 +24,7 @@
         <button onclick="generateAndRender('monaco')">Monaco Style</button>
         <button onclick="generateAndRender('simplegp')">Simple GP</button>
         <button onclick="generateAndRender('procedural')">Procedural</button>
+        <button onclick="generateAndRender('procedural_intersections')" style="background: #ff6600; color: white; font-weight: bold;">Procedural with Bridges!</button>
     </div>
 
     <div id="proceduralControls" style="display:none; margin-top: 10px;">
@@ -35,44 +36,51 @@
         <label>Max Radius: </label><input type="range" id="maxRadius" min="100" max="250" value="150">
         <label>Min Angle: </label><input type="range" id="minAngle" min="20" max="60" value="30">
         <label>Max Angle: </label><input type="range" id="maxAngle" min="60" max="120" value="90">
+        <br>
+        <label style="color: #ff6600; font-weight: bold;">Allow Intersections (Bridges/Tunnels): </label>
+        <input type="checkbox" id="allowIntersections">
     </div>
     
     <canvas id="trackCanvas" width="800" height="600"></canvas>
     
     <div id="info"></div>
 
-    <script src="segmentTrackGenerator.js"></script>
+    <script type="module">
+        import { generateSegmentTrack } from './segmentTrackGenerator.js';
 
-    <script>
         function renderTrack(trackData) {
             const canvas = document.getElementById('trackCanvas');
             const ctx = canvas.getContext('2d');
-            
+
             // Clear canvas
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
             // Calculate scale and offset to fit track in canvas
             const bounds = calculateBounds(trackData);
             const scale = calculateScale(bounds, canvas.width, canvas.height, 50); // 50px padding
             const offset = calculateOffset(bounds, canvas.width, canvas.height, scale);
-            
+
             // Draw grass background
             ctx.fillStyle = '#2d5a2d';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw track surface (polygon from borders)
-            drawTrackSurface(ctx, trackData, scale, offset);
-            
-            // Draw borders
-            drawBorder(ctx, trackData.leftBorder, scale, offset, '#ffffff', 2);
-            drawBorder(ctx, trackData.rightBorder, scale, offset, '#ffffff', 2);
-            
+
+            // Draw track surface with bridge/tunnel rendering
+            drawTrackSurfaceWithBridges(ctx, trackData, scale, offset);
+
+            // Draw borders with bridge/tunnel effects
+            drawBordersWithBridges(ctx, trackData, scale, offset);
+
             // Draw centerline (dashed)
             drawCenterline(ctx, trackData.centerline, scale, offset);
-            
+
             // Draw start/finish line
             drawStartFinish(ctx, trackData.centerline[0], trackData.leftBorder[0], trackData.rightBorder[0], scale, offset);
+
+            // Draw intersection markers (for debugging)
+            if (trackData.intersections && trackData.intersections.length > 0) {
+                drawIntersectionMarkers(ctx, trackData.intersections, scale, offset);
+            }
         }
 
         function calculateBounds(trackData) {
@@ -111,24 +119,468 @@
         }
 
         function drawTrackSurface(ctx, trackData, scale, offset) {
-            ctx.fillStyle = '#333333';
-            ctx.beginPath();
-            
-            // Draw left border forward
-            trackData.leftBorder.forEach((p, i) => {
-                const tp = transformPoint(p, scale, offset);
-                if (i === 0) ctx.moveTo(tp.x, tp.y);
-                else ctx.lineTo(tp.x, tp.y);
-            });
-            
-            // Draw right border backward to close the shape
-            for (let i = trackData.rightBorder.length - 1; i >= 0; i--) {
-                const tp = transformPoint(trackData.rightBorder[i], scale, offset);
-                ctx.lineTo(tp.x, tp.y);
+            // 1. Draw Pit Lane FIRST (so it's underneath)
+            if (trackData.pitLane) {
+                ctx.fillStyle = '#444444'; // Slightly lighter for pit lane
+                for (let i = 0; i < trackData.pitLane.leftBorder.length - 1; i++) {
+                    const p1 = trackData.pitLane.leftBorder[i];
+                    const p2 = trackData.pitLane.rightBorder[i];
+                    const p3 = trackData.pitLane.rightBorder[i+1];
+                    const p4 = trackData.pitLane.leftBorder[i+1];
+
+                    const tp1 = transformPoint(p1, scale, offset);
+                    const tp2 = transformPoint(p2, scale, offset);
+                    const tp3 = transformPoint(p3, scale, offset);
+                    const tp4 = transformPoint(p4, scale, offset);
+
+                    ctx.beginPath();
+                    ctx.moveTo(tp1.x, tp1.y);
+                    ctx.lineTo(tp2.x, tp2.y);
+                    ctx.lineTo(tp3.x, tp3.y);
+                    ctx.lineTo(tp4.x, tp4.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
             }
-            
-            ctx.closePath();
-            ctx.fill();
+
+            // 2. Draw Main Track Surface (on top)
+            ctx.fillStyle = '#333333';
+
+            // Render as triangle strip / quads to avoid fill issues with self-intersecting tracks
+            for (let i = 0; i < trackData.leftBorder.length - 1; i++) {
+                const p1 = trackData.leftBorder[i];
+                const p2 = trackData.rightBorder[i];
+                const p3 = trackData.rightBorder[i+1];
+                const p4 = trackData.leftBorder[i+1];
+
+                const tp1 = transformPoint(p1, scale, offset);
+                const tp2 = transformPoint(p2, scale, offset);
+                const tp3 = transformPoint(p3, scale, offset);
+                const tp4 = transformPoint(p4, scale, offset);
+
+                ctx.beginPath();
+                ctx.moveTo(tp1.x, tp1.y);
+                ctx.lineTo(tp2.x, tp2.y);
+                ctx.lineTo(tp3.x, tp3.y);
+                ctx.lineTo(tp4.x, tp4.y);
+                ctx.closePath();
+                ctx.fill();
+
+                // Optional: stroke to fill pixel gaps between quads
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // ============================================================
+        // PHASE 1: RETRO-STYLE BRIDGE/TUNNEL RENDERING
+        // ============================================================
+
+        function drawTrackSurfaceWithBridges(ctx, trackData, scale, offset) {
+            const intersections = trackData.intersections || [];
+            const maxSegmentIndex = trackData.leftBorder.length - 1;
+
+            // Build a set of segment indices that should be rendered as "tunnels" (under)
+            const tunnelSegments = new Set();
+            intersections.forEach(intersection => {
+                const tunnelCenter = intersection.segment2Index;
+                const rangeSize = 3; // Tunnel extends 3 segments on each side
+
+                for (let offsetVal = -rangeSize; offsetVal <= rangeSize; offsetVal++) {
+                    const segmentIndex = tunnelCenter + offsetVal;
+                    if (segmentIndex >= 0 && segmentIndex < maxSegmentIndex) {
+                        tunnelSegments.add(segmentIndex);
+                    }
+                }
+            });
+
+            // ============================================================
+            // RENDERING ORDER (bottom to top):
+            // 1. Shadows (first/bottom layer)
+            // 2. Tunnel surfaces
+            // 3. Tunnel portals
+            // 4. Bridge pillars
+            // 5. Bridge surfaces
+            // ============================================================
+
+            // STEP 1: Draw shadows under bridge intersections
+            drawBridgeShadows(ctx, intersections, scale, offset);
+
+            // STEP 2: Draw Pit Lane FIRST (if exists)
+            if (trackData.pitLane) {
+                ctx.fillStyle = '#444444';
+                for (let i = 0; i < trackData.pitLane.leftBorder.length - 1; i++) {
+                    const p1 = trackData.pitLane.leftBorder[i];
+                    const p2 = trackData.pitLane.rightBorder[i];
+                    const p3 = trackData.pitLane.rightBorder[i+1];
+                    const p4 = trackData.pitLane.leftBorder[i+1];
+
+                    const tp1 = transformPoint(p1, scale, offset);
+                    const tp2 = transformPoint(p2, scale, offset);
+                    const tp3 = transformPoint(p3, scale, offset);
+                    const tp4 = transformPoint(p4, scale, offset);
+
+                    ctx.beginPath();
+                    ctx.moveTo(tp1.x, tp1.y);
+                    ctx.lineTo(tp2.x, tp2.y);
+                    ctx.lineTo(tp3.x, tp3.y);
+                    ctx.lineTo(tp4.x, tp4.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            // STEP 3: Draw tunnel segments with thick dark borders
+            ctx.fillStyle = '#0a0a0a'; // Very dark tunnel surface
+            for (let i = 0; i < trackData.leftBorder.length - 1; i++) {
+                if (!tunnelSegments.has(i)) continue;
+
+                const p1 = trackData.leftBorder[i];
+                const p2 = trackData.rightBorder[i];
+                const p3 = trackData.rightBorder[i+1];
+                const p4 = trackData.leftBorder[i+1];
+
+                const tp1 = transformPoint(p1, scale, offset);
+                const tp2 = transformPoint(p2, scale, offset);
+                const tp3 = transformPoint(p3, scale, offset);
+                const tp4 = transformPoint(p4, scale, offset);
+
+                ctx.beginPath();
+                ctx.moveTo(tp1.x, tp1.y);
+                ctx.lineTo(tp2.x, tp2.y);
+                ctx.lineTo(tp3.x, tp3.y);
+                ctx.lineTo(tp4.x, tp4.y);
+                ctx.closePath();
+                ctx.fill();
+
+                // Thick dark tunnel walls
+                ctx.strokeStyle = '#1a1a1a';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            // STEP 4: Draw tunnel portals at entrance/exit
+            drawTunnelPortals(ctx, trackData, intersections, tunnelSegments, scale, offset);
+
+            // STEP 5: Draw bridge pillars (before bridge surface)
+            drawBridgePillars(ctx, trackData, intersections, tunnelSegments, scale, offset);
+
+            // STEP 6: Draw bridge segments (lighter color, on top)
+            ctx.fillStyle = '#4a4a4a'; // Lighter bridge surface
+            for (let i = 0; i < trackData.leftBorder.length - 1; i++) {
+                if (tunnelSegments.has(i)) continue;
+
+                const p1 = trackData.leftBorder[i];
+                const p2 = trackData.rightBorder[i];
+                const p3 = trackData.rightBorder[i+1];
+                const p4 = trackData.leftBorder[i+1];
+
+                const tp1 = transformPoint(p1, scale, offset);
+                const tp2 = transformPoint(p2, scale, offset);
+                const tp3 = transformPoint(p3, scale, offset);
+                const tp4 = transformPoint(p4, scale, offset);
+
+                ctx.beginPath();
+                ctx.moveTo(tp1.x, tp1.y);
+                ctx.lineTo(tp2.x, tp2.y);
+                ctx.lineTo(tp3.x, tp3.y);
+                ctx.lineTo(tp4.x, tp4.y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#4a4a4a';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // ============================================================
+        // HELPER: Draw radial gradient shadows under bridge intersections
+        // ============================================================
+        function drawBridgeShadows(ctx, intersections, scale, offset) {
+            intersections.forEach(intersection => {
+                const point = intersection.point;
+                const tp = transformPoint(point, scale, offset);
+
+                // Radial gradient shadow
+                const gradient = ctx.createRadialGradient(tp.x, tp.y, 0, tp.x, tp.y, 25);
+                gradient.addColorStop(0, 'rgba(0, 0, 0, 0.5)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(tp.x, tp.y, 25, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // ============================================================
+        // HELPER: Draw tunnel portals at entrance/exit points
+        // ============================================================
+        function drawTunnelPortals(ctx, trackData, intersections, tunnelSegments, scale, offset) {
+            const maxSegmentIndex = trackData.leftBorder.length - 1;
+
+            intersections.forEach(intersection => {
+                const tunnelCenter = intersection.segment2Index;
+                const rangeSize = 3;
+
+                // Find tunnel entrance (first segment of tunnel)
+                const entranceIndex = Math.max(0, tunnelCenter - rangeSize);
+                // Find tunnel exit (last segment of tunnel)
+                const exitIndex = Math.min(maxSegmentIndex - 1, tunnelCenter + rangeSize);
+
+                // Draw portal at entrance
+                if (entranceIndex >= 0 && entranceIndex < trackData.leftBorder.length - 1) {
+                    drawSingleTunnelPortal(ctx, trackData, entranceIndex, scale, offset);
+                }
+
+                // Draw portal at exit
+                if (exitIndex >= 0 && exitIndex < trackData.leftBorder.length - 1) {
+                    drawSingleTunnelPortal(ctx, trackData, exitIndex, scale, offset);
+                }
+            });
+        }
+
+        // ============================================================
+        // HELPER: Draw a single tunnel portal frame
+        // ============================================================
+        function drawSingleTunnelPortal(ctx, trackData, segmentIndex, scale, offset) {
+            const p1 = trackData.leftBorder[segmentIndex];
+            const p2 = trackData.rightBorder[segmentIndex];
+
+            const tp1 = transformPoint(p1, scale, offset);
+            const tp2 = transformPoint(p2, scale, offset);
+
+            // Calculate portal dimensions
+            const centerX = (tp1.x + tp2.x) / 2;
+            const centerY = (tp1.y + tp2.y) / 2;
+            const width = Math.sqrt((tp2.x - tp1.x) ** 2 + (tp2.y - tp1.y) ** 2);
+            const height = width * 0.8; // Portal height proportional to track width
+
+            // Calculate rotation angle
+            const angle = Math.atan2(tp2.y - tp1.y, tp2.x - tp1.x) + Math.PI / 2;
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+
+            // Outer magenta frame
+            ctx.strokeStyle = '#ff0066';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(-width / 2, -height / 2, width, height, 5);
+            ctx.stroke();
+
+            // Inner dark area with depth lines
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(-width / 2 + 3, -height / 2 + 3, width - 6, height - 6);
+
+            // Horizontal depth lines
+            ctx.strokeStyle = '#222222';
+            ctx.lineWidth = 1;
+            for (let i = -height / 2 + 5; i < height / 2; i += 5) {
+                ctx.beginPath();
+                ctx.moveTo(-width / 2 + 5, i);
+                ctx.lineTo(width / 2 - 5, i);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // ============================================================
+        // HELPER: Draw support pillars under bridges
+        // ============================================================
+        function drawBridgePillars(ctx, trackData, intersections, tunnelSegments, scale, offset) {
+            const maxSegmentIndex = trackData.leftBorder.length - 1;
+
+            intersections.forEach(intersection => {
+                const bridgeCenter = intersection.segment1Index; // Lower index = bridge (on top)
+                const rangeSize = 3;
+
+                // Draw pillars for bridge segments
+                for (let offsetVal = -rangeSize; offsetVal <= rangeSize; offsetVal += 2) {
+                    const segmentIndex = bridgeCenter + offsetVal;
+                    if (segmentIndex >= 0 && segmentIndex < maxSegmentIndex && !tunnelSegments.has(segmentIndex)) {
+                        drawPillarPair(ctx, trackData, segmentIndex, scale, offset);
+                    }
+                }
+            });
+        }
+
+        // ============================================================
+        // HELPER: Draw a pair of pillars for a bridge segment
+        // ============================================================
+        function drawPillarPair(ctx, trackData, segmentIndex, scale, offset) {
+            const p1 = trackData.leftBorder[segmentIndex];
+            const p2 = trackData.rightBorder[segmentIndex];
+            const center = trackData.centerline[segmentIndex];
+
+            const tp1 = transformPoint(p1, scale, offset);
+            const tp2 = transformPoint(p2, scale, offset);
+            const tCenter = transformPoint(center, scale, offset);
+
+            // Calculate perpendicular direction (down from track)
+            const dx = tp2.x - tp1.x;
+            const dy = tp2.y - tp1.y;
+            const perpX = -dy / Math.sqrt(dx * dx + dy * dy);
+            const perpY = dx / Math.sqrt(dx * dx + dy * dy);
+
+            // Pillar dimensions
+            const pillarWidth = 4;
+            const pillarHeight = 15 + Math.random() * 5; // Slight variation
+
+            // Draw left pillar
+            drawSinglePillar(ctx, tp1.x, tp1.y, perpX, perpY, pillarWidth, pillarHeight);
+
+            // Draw right pillar
+            drawSinglePillar(ctx, tp2.x, tp2.y, perpX, perpY, pillarWidth, pillarHeight);
+
+            // Optional: Center pillar for wider bridges
+            const trackWidth = Math.sqrt(dx * dx + dy * dy);
+            if (trackWidth > 40) {
+                drawSinglePillar(ctx, tCenter.x, tCenter.y, perpX, perpY, pillarWidth, pillarHeight);
+            }
+        }
+
+        // ============================================================
+        // HELPER: Draw a single support pillar
+        // ============================================================
+        function drawSinglePillar(ctx, x, y, perpX, perpY, width, height) {
+            const baseX = x + perpX * height;
+            const baseY = y + perpY * height;
+
+            // Main pillar body
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(baseX - width / 2, baseY, width, height);
+
+            // Highlight edge (left)
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(baseX - width / 2, baseY, 1, height);
+
+            // Shadow edge (right)
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(baseX + width / 2 - 1, baseY, 1, height);
+        }
+
+        // ============================================================
+        // BRIDGE/TUNNEL BORDER RENDERING WITH CYAN RAILINGS
+        // ============================================================
+        function drawBordersWithBridges(ctx, trackData, scale, offset) {
+            const intersections = trackData.intersections || [];
+            const maxSegmentIndex = trackData.centerline.length - 1;
+
+            // Build sets for tunnel segments and bridge segments
+            const tunnelSegments = new Set();
+            const bridgeSegments = new Set();
+
+            intersections.forEach(intersection => {
+                const tunnelCenter = intersection.segment2Index;
+                const bridgeCenter = intersection.segment1Index;
+                const rangeSize = 3;
+
+                // Mark tunnel segments
+                for (let offsetVal = -rangeSize; offsetVal <= rangeSize; offsetVal++) {
+                    const segmentIndex = tunnelCenter + offsetVal;
+                    if (segmentIndex >= 0 && segmentIndex < maxSegmentIndex) {
+                        tunnelSegments.add(segmentIndex);
+                    }
+                }
+
+                // Mark bridge segments
+                for (let offsetVal = -rangeSize; offsetVal <= rangeSize; offsetVal++) {
+                    const segmentIndex = bridgeCenter + offsetVal;
+                    if (segmentIndex >= 0 && segmentIndex < maxSegmentIndex) {
+                        bridgeSegments.add(segmentIndex);
+                    }
+                }
+            });
+
+            // Draw ground track borders (white, solid)
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]); // Solid
+
+            drawBorderPath(ctx, trackData.leftBorder, scale, offset, tunnelSegments, bridgeSegments, false);
+            drawBorderPath(ctx, trackData.rightBorder, scale, offset, tunnelSegments, bridgeSegments, false);
+
+            // Draw bridge railings (cyan, dashed)
+            ctx.strokeStyle = '#00ffff'; // Cyan
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]); // Dashed pattern
+
+            drawBorderPath(ctx, trackData.leftBorder, scale, offset, tunnelSegments, bridgeSegments, true);
+            drawBorderPath(ctx, trackData.rightBorder, scale, offset, tunnelSegments, bridgeSegments, true);
+
+            // Reset line dash
+            ctx.setLineDash([]);
+        }
+
+        // ============================================================
+        // HELPER: Draw border path with proper skipping logic
+        // ============================================================
+        function drawBorderPath(ctx, border, scale, offset, tunnelSegments, bridgeSegments, drawBridgesOnly) {
+            ctx.beginPath();
+            let pathStarted = false;
+
+            for (let i = 0; i < border.length; i++) {
+                const p = border[i];
+                const tp = transformPoint(p, scale, offset);
+
+                const isTunnel = tunnelSegments.has(i) || tunnelSegments.has(i - 1);
+                const isBridge = bridgeSegments.has(i) || bridgeSegments.has(i - 1);
+
+                // Decision logic:
+                // - Tunnels: never draw borders (gaps)
+                // - Bridges: draw cyan dashed if drawBridgesOnly, skip if not
+                // - Ground: draw white solid if !drawBridgesOnly, skip if drawBridgesOnly
+
+                let shouldDraw = false;
+                if (isTunnel) {
+                    shouldDraw = false; // Always skip tunnels
+                } else if (isBridge) {
+                    shouldDraw = drawBridgesOnly; // Draw only if we're rendering bridge railings
+                } else {
+                    shouldDraw = !drawBridgesOnly; // Draw only if we're rendering ground borders
+                }
+
+                if (!shouldDraw) {
+                    if (pathStarted) {
+                        ctx.stroke();
+                        ctx.beginPath();
+                        pathStarted = false;
+                    }
+                } else {
+                    if (!pathStarted) {
+                        ctx.moveTo(tp.x, tp.y);
+                        pathStarted = true;
+                    } else {
+                        ctx.lineTo(tp.x, tp.y);
+                    }
+                }
+            }
+
+            if (pathStarted) ctx.stroke();
+        }
+
+        function drawIntersectionMarkers(ctx, intersections, scale, offset) {
+            // Debug visualization of intersection points
+            intersections.forEach((intersection, index) => {
+                const point = intersection.point;
+                const tp = transformPoint(point, scale, offset);
+
+                // Draw intersection point
+                ctx.fillStyle = '#ff00ff';
+                ctx.beginPath();
+                ctx.arc(tp.x, tp.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw label
+                ctx.font = '10px Arial';
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.fillText(`X${index + 1}`, tp.x, tp.y - 10);
+            });
         }
 
         function drawBorder(ctx, border, scale, offset, color, lineWidth) {
@@ -177,8 +629,14 @@
             const trackWidth = parseInt(document.getElementById('trackWidth').value);
             let trackData;
 
-            if (template === 'procedural') {
+            if (template === 'procedural' || template === 'procedural_intersections') {
                 document.getElementById('proceduralControls').style.display = 'block';
+
+                // Auto-enable intersections for the special button
+                if (template === 'procedural_intersections') {
+                    document.getElementById('allowIntersections').checked = true;
+                }
+
                 const proceduralOptions = {
                     seed: parseInt(document.getElementById('seed').value),
                     numSegments: parseInt(document.getElementById('numSegments').value),
@@ -188,6 +646,7 @@
                     maxRadius: parseInt(document.getElementById('maxRadius').value),
                     minAngle: parseInt(document.getElementById('minAngle').value),
                     maxAngle: parseInt(document.getElementById('maxAngle').value),
+                    allowIntersections: document.getElementById('allowIntersections').checked
                 };
                 trackData = generateSegmentTrack({
                     template: 'procedural',
@@ -211,11 +670,15 @@
             renderTrack(trackData);
             
             // Display info
+            const intersectionCount = trackData.intersections ? trackData.intersections.length : 0;
             document.getElementById('info').innerHTML = `
                 <p><strong>Track Length:</strong> ${trackData.totalLength.toFixed(0)} units</p>
                 <p><strong>Centerline Points:</strong> ${trackData.centerline.length}</p>
+                <p><strong>Intersections (Bridges/Tunnels):</strong> ${intersectionCount}</p>
             `;
         }
+
+        window.generateAndRender = generateAndRender;
 
         // Update width display
         document.getElementById('trackWidth').addEventListener('input', function() {

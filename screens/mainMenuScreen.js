@@ -9,7 +9,11 @@ class MainMenuScreen {
             { text: 'SETTINGS', y: 490, width: 300, height: 60, action: 'settings' },
             { text: 'EXIT', y: 570, width: 300, height: 60, action: 'exit' }
         ];
-        this.buttons = []; // Will be populated in render
+        // Initialize buttons immediately with default center (e.g. 400 for 800px width) for tests
+        this.buttons = this.buttonDefs.map(def => ({
+            ...def,
+            x: 400
+        }));
         this.selectedButton = null;
     }
 

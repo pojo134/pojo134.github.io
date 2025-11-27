@@ -319,15 +319,10 @@
         <canvas id="gameCanvas" width="800" height="600"></canvas>
     </div>
 
-    <!-- Load game files -->
-    <script src="generators.js"></script>
-    <script src="racing.js"></script>
-    <script src="gamestate.js"></script>
-    <script src="saveload.js"></script>
-    <script src="screens.js"></script>
-    <script src="test-suite.js"></script>
+    <!-- Load game files as modules -->
+    <script type="module">
+        import { TestRunner, TestLogger, GameFlowTester, BetSystemTester, RaceSimulationTester, SaveLoadTester } from './test-suite.js';
 
-    <script>
         // UI Controller
         class TestUI {
             constructor() {
@@ -467,7 +462,14 @@
                     title.textContent = `${suite.name} (${suite.data.passed}/${suite.data.total})`;
                     suiteDiv.appendChild(title);
 
-                    const testResults = suite.tester.getResults();
+                    // Retrieve results from the data object, falling back to empty array if missing
+                    // Note: results.gameFlow should now contain the 'results' array because we updated runTestBatch
+                    // BUT TestUI is instantiating NEW testers here: `new GameFlowTester(...)`
+                    // The results are in `suite.data.results` (from the test run), NOT in the new tester instances.
+                    // I should use `suite.data.results` directly.
+                    
+                    const testResults = suite.data.results || [];
+                    
                     for (const test of testResults) {
                         const testDiv = document.createElement('div');
                         testDiv.className = `test-result ${test.passed ? 'pass' : 'fail'}`;

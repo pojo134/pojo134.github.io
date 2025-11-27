@@ -1607,4 +1607,4 @@ class DragRaceSimulator {
 }
 
 
-export { RaceSimulator, DragRaceSimulator };
+export { RaceSimulator, DragRaceSimulator, RacingPhysics };

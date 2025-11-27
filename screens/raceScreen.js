@@ -202,55 +202,8 @@ class RaceScreen {
      * Draw the track path using waypoints
      */
     drawTrackPath(ctx, track, x, y, width, height) {
-        const bounds = track.visualBounds;
-        const scaleX = width / bounds.width;
-        const scaleY = height / bounds.height;
-
-        // Draw track outline
-        ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 8;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        ctx.beginPath();
-        const firstWP = track.waypoints[0];
-        ctx.moveTo(x + (firstWP.x - bounds.minX) * scaleX, y + (firstWP.y - bounds.minY) * scaleY);
-
-        for (let i = 1; i < track.waypoints.length; i++) {
-            const wp = track.waypoints[i];
-            ctx.lineTo(x + (wp.x - bounds.minX) * scaleX, y + (wp.y - bounds.minY) * scaleY);
-        }
-
-        ctx.closePath();
-        ctx.stroke();
-
-        // Draw start/finish line (at first waypoint)
-        if (track.waypoints.length > 0) {
-            const startWP = track.waypoints[0];
-            const nextWP = track.waypoints[1];
-            const startX = x + (startWP.x - bounds.minX) * scaleX;
-            const startY = y + (startWP.y - bounds.minY) * scaleY;
-
-            // Draw perpendicular line
-            const dx = nextWP.x - startWP.x;
-            const dy = nextWP.y - startWP.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const perpX = (-dy / len) * 15;
-            const perpY = (dx / len) * 15;
-
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(startX - perpX, startY - perpY);
-            ctx.lineTo(startX + perpX, startY + perpY);
-            ctx.stroke();
-
-            // Label
-            ctx.font = 'bold 9px "Courier New", monospace';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText('S/F', startX, startY - 12);
-        }
+        // Use the new full track rendering method
+        track.renderFullTrack(ctx, x, y, width, height, 30);
     }
 
     /**

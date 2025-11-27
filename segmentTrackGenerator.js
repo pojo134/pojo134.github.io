@@ -64,7 +64,8 @@ function generateStraight(start, length, pointSpacing = 5) {
         direction: start.direction // Direction is unchanged
     };
 
-    return { points, end, segmentLength: length };
+    // Remove the starting point to avoid duplication with previous segment's end point
+    return { points: points.slice(1), end, segmentLength: length };
 }
 
 /**
@@ -170,6 +171,7 @@ function assembleTrack(segments, startPosition) {
 
 /**
  * Generate left and right track borders from centerline
+ * Uses vertex normals (average of incoming/outgoing vectors) for smooth joins.
  * @param {Array} centerline - Array of {x, y} points
  * @param {number} trackWidth - Total track width
  * @returns {Object} {leftBorder: [{x,y}], rightBorder: [{x,y}]}
@@ -178,32 +180,100 @@ function generateBorders(centerline, trackWidth) {
     const halfWidth = trackWidth / 2;
     const leftBorder = [];
     const rightBorder = [];
+    const points = centerline;
+    const len = points.length;
 
-    // Helper to calculate direction from point i to point i+1
-    const getDirection = (p1, p2) => Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    // Check if track is looped (start matches end)
+    // Use a small epsilon for float comparison (increased from 0.1 to 2.0 for tolerance)
+    const isLooped = len > 1 &&
+        Math.abs(points[0].x - points[len - 1].x) < 2.0 &&
+        Math.abs(points[0].y - points[len - 1].y) < 2.0;
 
-    for (let i = 0; i < centerline.length; i++) {
-        const p1 = centerline[i];
-        const p2 = centerline[i + 1] || p1; // Use p1 if it's the last point
+    for (let i = 0; i < len; i++) {
+        // Determine indices for previous and next points
+        let prevIdx, nextIdx;
 
-        // Use the direction of the segment *leading into* the point, 
-        // or the *next* segment's direction if available.
-        // For the last point, use the second to last segment's direction.
-        const direction = (i < centerline.length - 1) ? getDirection(p1, p2) : getDirection(centerline[i - 1], p1);
-        
-        // Perpendicular directions
-        // Left (dir + 90 deg) and Right (dir - 90 deg)
-        const leftPerp = direction + Math.PI / 2;
-        const rightPerp = direction - Math.PI / 2;
+        if (i === 0) {
+            // If looped, use the second-to-last point (since last point == first point)
+            // If not looped, just project the first segment backward (use i)
+            prevIdx = isLooped ? len - 2 : 0;
+            nextIdx = i + 1;
+        } else if (i === len - 1) {
+            prevIdx = i - 1;
+            // If looped, use the second point
+            nextIdx = isLooped ? 1 : len - 1;
+        } else {
+            prevIdx = i - 1;
+            nextIdx = i + 1;
+        }
 
-        // Calculate border points
-        const leftX = p1.x + halfWidth * Math.cos(leftPerp);
-        const leftY = p1.y + halfWidth * Math.sin(leftPerp);
-        leftBorder.push({ x: leftX, y: leftY });
+        // Get points
+        const p = points[i];
+        const prevP = points[prevIdx];
+        const nextP = points[nextIdx];
 
-        const rightX = p1.x + halfWidth * Math.cos(rightPerp);
-        const rightY = p1.y + halfWidth * Math.sin(rightPerp);
-        rightBorder.push({ x: rightX, y: rightY });
+        // Calculate vectors
+        // If at ends and not looped, duplicate the neighbor to project straight
+        const v1x = (i === 0 && !isLooped) ? (points[1].x - p.x) : (p.x - prevP.x);
+        const v1y = (i === 0 && !isLooped) ? (points[1].y - p.y) : (p.y - prevP.y);
+
+        const v2x = (i === len - 1 && !isLooped) ? (p.x - points[len - 2].x) : (nextP.x - p.x);
+        const v2y = (i === len - 1 && !isLooped) ? (p.y - points[len - 2].y) : (nextP.y - p.y);
+
+        // Normalize vectors
+        const len1 = Math.sqrt(v1x * v1x + v1y * v1y) || 1; // Avoid div/0
+        const len2 = Math.sqrt(v2x * v2x + v2y * v2y) || 1;
+
+        const n1x = v1x / len1;
+        const n1y = v1y / len1;
+
+        const n2x = v2x / len2;
+        const n2y = v2y / len2;
+
+        // Average vector (Tangent)
+        let tx = n1x + n2x;
+        let ty = n1y + n2y;
+
+        // Normalize tangent
+        const tLen = Math.sqrt(tx * tx + ty * ty);
+        if (tLen < 0.001) {
+            // Vectors cancel out (180 deg turn), fallback to one
+            tx = n1x;
+            ty = n1y;
+        } else {
+            tx /= tLen;
+            ty /= tLen;
+        }
+
+        // Normal vector (Rotate tangent -90 degrees: x,y -> y,-x)
+        // Check coordinate system: Canvas Y is Down.
+        // Right turn (Clockwise): Tangent rotates right. Normal points "Left" (Outside).
+        // If moving East (1,0), Normal should be North (0,-1)?
+        // If Tangent=(1,0). Rotate -90 -> (0, -1)? No, that's -90.
+        // Let's verify with simple straight.
+        // Tangent (1,0). Normal (-0, 1) = (0,1) -> Down.
+        // Left Border is "Left" of curve.
+        // If I walk East, Left is North (Up, Y-).
+        // So Normal should be (0, -1).
+        // So x -> y, y -> -x gives (0, -1). Correct.
+        const nx = ty;
+        const ny = -tx;
+
+        // Miter adjustment (optional, keeps width constant on corners)
+        // const dot = n1x * nx + n1y * ny;
+        // const miterLen = halfWidth / (dot || 1);
+        // For now, simple constant width is safer for "small gaps"
+        const miterLen = halfWidth;
+
+        leftBorder.push({
+            x: p.x + nx * miterLen,
+            y: p.y + ny * miterLen
+        });
+
+        rightBorder.push({
+            x: p.x - nx * miterLen,
+            y: p.y - ny * miterLen
+        });
     }
 
     return { leftBorder, rightBorder };
@@ -302,8 +372,94 @@ function seededRandom(seed) {
 }
 
 /**
- * Procedurally generate a track from random segments
- * @param {Object} options - {seed, numSegments, minStraight, maxStraight, minRadius, maxRadius, minAngle, maxAngle}
+ * Checks if two line segments intersect.
+ * @param {Object} p1 - Start of line 1 {x, y}
+ * @param {Object} p2 - End of line 1 {x, y}
+ * @param {Object} p3 - Start of line 2 {x, y}
+ * @param {Object} p4 - End of line 2 {x, y}
+ * @returns {boolean} True if intersecting
+ */
+function doLinesIntersect(p1, p2, p3, p4) {
+    const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (det === 0) return false; // Parallel lines
+
+    const lambda = ((p4.y - p3.y) * (p4.x - p1.x) + (p3.x - p4.x) * (p4.y - p1.y)) / det;
+    const gamma = ((p1.y - p2.y) * (p4.x - p1.x) + (p2.x - p1.x) * (p4.y - p1.y)) / det;
+
+    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+}
+
+/**
+ * Finds the intersection point of two line segments if they intersect.
+ * @param {Object} p1 - Start of line 1 {x, y}
+ * @param {Object} p2 - End of line 1 {x, y}
+ * @param {Object} p3 - Start of line 2 {x, y}
+ * @param {Object} p4 - End of line 2 {x, y}
+ * @returns {Object|null} {x, y, t1, t2} where t1/t2 are parametric positions (0-1) along each segment, or null if no intersection
+ */
+function getLineIntersectionPoint(p1, p2, p3, p4) {
+    const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (Math.abs(det) < 0.0001) return null; // Parallel lines
+
+    const t1 = ((p4.y - p3.y) * (p4.x - p1.x) + (p3.x - p4.x) * (p4.y - p1.y)) / det;
+    const t2 = ((p1.y - p2.y) * (p4.x - p1.x) + (p2.x - p1.x) * (p4.y - p1.y)) / det;
+
+    // Check if intersection is within both segments (with small epsilon for endpoints)
+    const epsilon = 0.01;
+    if (t1 > epsilon && t1 < (1 - epsilon) && t2 > epsilon && t2 < (1 - epsilon)) {
+        return {
+            x: p1.x + t1 * (p2.x - p1.x),
+            y: p1.y + t1 * (p2.y - p1.y),
+            t1: t1,
+            t2: t2
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Detect all self-intersections in a track centerline.
+ * Used for rendering bridges/tunnels at crossing points.
+ * @param {Array} centerline - Array of {x, y} points
+ * @returns {Array} Array of intersection objects: [{point: {x,y}, segment1Index, segment2Index, t1, t2}]
+ */
+function detectTrackIntersections(centerline) {
+    const intersections = [];
+
+    if (!centerline || centerline.length < 4) return intersections;
+
+    // Check all pairs of segments for intersections
+    for (let i = 0; i < centerline.length - 1; i++) {
+        const p1 = centerline[i];
+        const p2 = centerline[i + 1];
+
+        // FIXED: Start checking from segments far enough away (changed from i+2 to i+3)
+        // This avoids checking segments that are too close (within 3 segments)
+        for (let j = i + 3; j < centerline.length - 1; j++) {
+            const p3 = centerline[j];
+            const p4 = centerline[j + 1];
+
+            const intersection = getLineIntersectionPoint(p1, p2, p3, p4);
+
+            if (intersection) {
+                intersections.push({
+                    point: { x: intersection.x, y: intersection.y },
+                    segment1Index: i,
+                    segment2Index: j,
+                    t1: intersection.t1,
+                    t2: intersection.t2
+                });
+            }
+        }
+    }
+
+    return intersections;
+}
+
+/**
+ * Procedurally generate a track from random segments, avoiding self-intersection.
+ * @param {Object} options - {seed, numSegments, minStraight, maxStraight, minRadius, maxRadius, minAngle, maxAngle, allowIntersections}
  * @returns {Array} Array of segment definitions
  */
 function generateProceduralSegments(options) {
@@ -315,49 +471,242 @@ function generateProceduralSegments(options) {
         minRadius = 50,
         maxRadius = 150,
         minAngle = 30,
-        maxAngle = 90
+        maxAngle = 90,
+        allowIntersections = false // Set to true to allow bridges/tunnels
     } = options;
 
     const random = seededRandom(seed);
     const segments = [];
-    let totalAngle = 0;
+    const history = []; // To store state for backtracking: { segment, endPos }
+    
+    let currentPos = { x: 0, y: 0, direction: 0 };
+    let generatedCount = 0;
+    const maxAttempts = 1000; // Total safety break
+    let attempts = 0;
 
-    for (let i = 0; i < numSegments; i++) {
+    // Add initial straight
+    const startSeg = { type: SEGMENT_STRAIGHT, length: 150 };
+    segments.push(startSeg);
+    const startRes = generateStraight(currentPos, 150);
+    history.push({ segment: startSeg, points: startRes.points, end: startRes.end });
+    currentPos = startRes.end;
+
+    while (generatedCount < numSegments && attempts < maxAttempts) {
+        attempts++;
+        
+        // Try to generate a segment
         const segmentType = random() > 0.5 ? 'straight' : 'turn';
+        let candidateSeg;
+        let candidateRes;
 
         if (segmentType === 'straight') {
             const length = minStraight + random() * (maxStraight - minStraight);
-            segments.push({ type: SEGMENT_STRAIGHT, length });
+            candidateSeg = { type: SEGMENT_STRAIGHT, length };
+            candidateRes = generateStraight(currentPos, length);
         } else { // Turn
             const radius = minRadius + random() * (maxRadius - minRadius);
             const angle = minAngle + random() * (maxAngle - minAngle);
             const direction = random() > 0.5 ? SEGMENT_TURN_LEFT : SEGMENT_TURN_RIGHT;
+            candidateSeg = { type: direction, radius, angle };
             
-            segments.push({ type: direction, radius, angle });
+            // Adjust angle for turn direction in generation call
+            let genAngle = angle;
+            if (direction === SEGMENT_TURN_RIGHT) genAngle *= -1;
+            candidateRes = generateTurn(currentPos, radius, genAngle);
+        }
 
-            if (direction === SEGMENT_TURN_LEFT) {
-                totalAngle += angle;
-            } else {
-                totalAngle -= angle;
+        // Check Intersection (skip if allowIntersections is true)
+        // We check the new candidate segment against all previous segments
+        const pStart = currentPos;
+        const pEnd = candidateRes.end;
+        let intersects = false;
+
+        // Only check for intersections if they're not allowed
+        if (!allowIntersections) {
+            // Iterate through all previous segments in history (excluding the very last one, which is currentPos's origin)
+            // Check against all history except the immediately preceding segment (connected by definition)
+            for (let i = 0; i < history.length - 1; i++) {
+                const hSegPoints = history[i].points; // Detailed points of historical segment
+
+                // Iterate through sub-segments of the candidate's path
+                for (let j = 0; j < candidateRes.points.length - 1; j++) {
+                    const cp1 = candidateRes.points[j];
+                    const cp2 = candidateRes.points[j+1];
+
+                    // Iterate through sub-segments of the historical path
+                    for (let k = 0; k < hSegPoints.length - 1; k++) {
+                        const hp1 = hSegPoints[k];
+                        const hp2 = hSegPoints[k+1];
+
+                        // Exclude intersections at shared endpoints to allow connection
+                        // Use epsilon for floating-point comparison
+                        const epsilon = 0.001;
+                        const arePointsEqual = (p1, p2) => {
+                            return Math.abs(p1.x - p2.x) < epsilon && Math.abs(p1.y - p2.y) < epsilon;
+                        };
+
+                        if (arePointsEqual(cp1, hp1) || arePointsEqual(cp1, hp2) ||
+                            arePointsEqual(cp2, hp1) || arePointsEqual(cp2, hp2)) {
+                            continue;
+                        }
+
+                        if (doLinesIntersect(cp1, cp2, hp1, hp2)) {
+                            intersects = true;
+                            console.log(`Intersection detected: Rejecting segment (attempt ${attempts})`);
+                            break;
+                        }
+                    }
+                    if (intersects) break;
+                }
+                if (intersects) break;
+            }
+        }
+
+        if (!intersects || allowIntersections) {
+            // Accept (either no intersection, or intersections are allowed)
+            segments.push(candidateSeg);
+            history.push({ segment: candidateSeg, points: candidateRes.points, end: candidateRes.end });
+            currentPos = candidateRes.end;
+            generatedCount++;
+
+            if (!allowIntersections && intersects) {
+                console.warn('WARNING: Segment accepted despite intersection (this should not happen!)');
+            }
+        } else {
+            // Reject due to intersection
+            // If we fail too many times, backtrack.
+            if (attempts % 10 === 0 && segments.length > 1) {
+                console.log(`Backtracking: removing segment (attempts: ${attempts}, segments: ${segments.length})`);
+                segments.pop();
+                history.pop();
+                currentPos = history[history.length - 1].end;
+                generatedCount--;
             }
         }
     }
 
-    // Add a final straight to help align
+    // Add a final straight to help align (with intersection checking if needed)
+    if (!allowIntersections) {
+        console.log(`Generated ${generatedCount} segments out of ${numSegments} requested in ${attempts} attempts`);
+    }
+
     segments.push({ type: SEGMENT_STRAIGHT, length: 150 });
 
-    // Add closing turn
-    const closingAngle = 360 - (totalAngle % 360);
-    const closingRadius = maxRadius * 1.2; // Ensure a larger radius to avoid overlap
-    
-    if (closingAngle > 0 && closingAngle < 360) {
-         segments.push({ type: SEGMENT_TURN_RIGHT, radius: closingRadius, angle: closingAngle });
-    } else if (closingAngle < 0) {
-        segments.push({ type: SEGMENT_TURN_LEFT, radius: closingRadius, angle: -closingAngle });
-    }
-    // if closingAngle is 0 or 360, we are already closed.
-
     return segments;
+}
+
+/**
+ * Iteratively adjusts segment parameters (angles) to ensure the track loop closes mathematically.
+ * Uses a Coordinate Descent approach with Shape Preservation Constraints.
+ * @param {Array} segments - Original segment definitions
+ * @param {Object} startPosition - {x, y, direction}
+ * @returns {Array} Adjusted segment definitions (cloned)
+ */
+function relaxSegments(segments, startPosition) {
+    const adjustedSegments = JSON.parse(JSON.stringify(segments));
+    const targetX = startPosition.x;
+    const targetY = startPosition.y;
+    const targetDir = startPosition.direction;
+
+    const iterations = 5000; // Increased iterations
+    let currentCost = Infinity;
+
+    // Cache original values for shape preservation cost
+    const originals = segments.map(s => ({
+        length: s.length || 0,
+        angle: s.angle || 0
+    }));
+
+    // Coordinate Descent
+    for (let k = 0; k < iterations; k++) {
+        // Multi-stage Weights
+        let wPos = 10.0;   // Increased from 1.0 (emphasize positional closure)
+        let wAngle = 500.0; // Increased from 100.0
+        let wShape = 0.5;   // Increased from 0.1 (prioritize shape more)
+        
+        if (k > iterations * 0.7) {
+            // Phase 2: Refine Angle and Shape
+            wAngle = 5000.0; // Increased from 500.0 (very strong angle alignment)
+            wShape = 2.0;   // Increased from 1.0 (even stronger shape preservation)
+        }
+
+        // Calculate Cost with current weights
+        const getCost = (segs) => {
+            const result = assembleTrack(segs, startPosition);
+            const endPoint = result.centerline[result.centerline.length - 1];
+            const endDir = result.centerline.length > 1 
+                ? Math.atan2(endPoint.y - result.centerline[result.centerline.length-2].y, endPoint.x - result.centerline[result.centerline.length-2].x)
+                : startPosition.direction;
+
+            const dx = endPoint.x - targetX;
+            const dy = endPoint.y - targetY;
+            const posError = Math.hypot(dx, dy);
+
+            let angleError = endDir - targetDir;
+            while (angleError <= -Math.PI) angleError += 2*Math.PI;
+            while (angleError > Math.PI) angleError -= 2*Math.PI;
+            angleError = Math.abs(angleError);
+
+            let shapeError = 0;
+            for (let i = 0; i < segs.length; i++) {
+                if (segs[i].type === SEGMENT_STRAIGHT) {
+                    shapeError += Math.pow(segs[i].length - originals[i].length, 2);
+                } else {
+                    shapeError += Math.pow(segs[i].angle - originals[i].angle, 2);
+                }
+            }
+            
+            return wPos * posError + wAngle * angleError + wShape * Math.sqrt(shapeError);
+        };
+
+        // Lazy update of current cost to match weights (optimization: only do this when weights change? No, just do it)
+        currentCost = getCost(adjustedSegments);
+
+        // Stop if strictly converged
+        if (currentCost < 0.5) break; // Lowered convergence threshold
+
+
+        for (let i = 0; i < adjustedSegments.length; i++) {
+            const seg = adjustedSegments[i];
+            
+            let param = 'length';
+            let baseStep = 5.0;
+            let minVal = 10; // Lowered min length to allow more detail
+            
+            if (seg.type.includes('turn')) {
+                param = 'angle';
+                baseStep = 1.0; 
+                minVal = 2; // Lowered min angle to allow sharper/smaller turns
+            }
+
+            // Adaptive Step
+            const step = baseStep * (1 + currentCost / 1000);
+
+            const originalValue = seg[param];
+
+            const testValue = (val) => {
+                if (val < minVal) return Infinity; 
+                const prevVal = seg[param];
+                seg[param] = val;
+                const cost = getCost(adjustedSegments);
+                seg[param] = prevVal; 
+                return cost;
+            };
+
+            const costPlus = testValue(originalValue + step);
+            const costMinus = testValue(originalValue - step);
+
+            if (costPlus < currentCost && costPlus < costMinus) {
+                seg[param] = originalValue + step;
+                currentCost = costPlus;
+            } else if (costMinus < currentCost && costMinus < costPlus) {
+                seg[param] = originalValue - step;
+                currentCost = costMinus;
+            }
+        }
+    }
+    
+    return adjustedSegments;
 }
 
 // --- Main Generation Function ---
@@ -377,8 +726,12 @@ function generateSegmentTrack(options) {
     } = options;
 
     let segments;
+    let allowIntersections = false;
+
     if (template === 'procedural') {
         segments = generateProceduralSegments(options.proceduralOptions || {});
+        // Store the allowIntersections setting from procedural options
+        allowIntersections = options.proceduralOptions?.allowIntersections || false;
     } else {
         const templateName = template;
         if (templateName === 'oval') {
@@ -404,32 +757,270 @@ function generateSegmentTrack(options) {
         direction: degToRad(startDirectionDegrees)
     };
 
-    // 1. Assemble Centerline
-    const { centerline, totalLength } = assembleTrack(segments, startPosition);
+    // 1. Relax Segments to Close Loop (if needed)
+    // For procedural tracks without intersections allowed, skip relaxation to preserve non-intersecting property
+    const isLoopTemplate = ['oval', 'circuit_1', 'monza', 'monaco', 'simplegp', 'procedural'].includes(template);
+    const shouldRelax = isLoopTemplate && (template !== 'procedural' || allowIntersections);
 
-    // 2. Generate Borders
+    if (shouldRelax) {
+        console.log('Relaxing segments to close loop...');
+        segments = relaxSegments(segments, startPosition);
+    } else if (template === 'procedural' && !allowIntersections) {
+        console.log('Skipping relaxation for procedural track (preserving non-intersecting property)');
+    }
+
+    // 2. Assemble Centerline
+    let { centerline, totalLength } = assembleTrack(segments, startPosition);
+
+    // 3. Force closure with both position AND direction matching
+    // Skip for procedural tracks without intersections to preserve non-intersecting property
+    const shouldForceClosure = isLoopTemplate && (template !== 'procedural' || allowIntersections);
+
+    if (shouldForceClosure && centerline.length > 10) {
+        const firstPoint = centerline[0];
+        const lastPoint = centerline[centerline.length - 1];
+        const gapX = lastPoint.x - firstPoint.x;
+        const gapY = lastPoint.y - firstPoint.y;
+        const gapDistance = Math.sqrt(gapX * gapX + gapY * gapY);
+
+        // Calculate direction at start (angle from point 0 to point 1)
+        const startDir = Math.atan2(
+            centerline[1].y - centerline[0].y,
+            centerline[1].x - centerline[0].x
+        );
+
+        // Calculate direction at end (angle from second-to-last to last point)
+        const endDir = Math.atan2(
+            centerline[centerline.length - 1].y - centerline[centerline.length - 2].y,
+            centerline[centerline.length - 1].x - centerline[centerline.length - 2].x
+        );
+
+        // Normalize angle difference to [-PI, PI]
+        let directionError = endDir - startDir;
+        while (directionError > Math.PI) directionError -= 2 * Math.PI;
+        while (directionError < -Math.PI) directionError += 2 * Math.PI;
+        const directionErrorDegrees = (directionError * 180) / Math.PI;
+
+        console.log(`Track closure gap: ${gapDistance.toFixed(2)} units`);
+        console.log(`Direction mismatch: ${directionErrorDegrees.toFixed(2)} degrees`);
+
+        const POSITION_THRESHOLD = 1.0;
+        const DIRECTION_THRESHOLD_DEG = 5.0;
+
+        if (gapDistance > POSITION_THRESHOLD || Math.abs(directionErrorDegrees) > DIRECTION_THRESHOLD_DEG) {
+            console.log(`Enforcing smooth closure (adjusting last 6 points)...`);
+
+            // Smooth the last N points to create a seamless closure
+            // We'll use a Hermite spline approach to blend the track smoothly
+            const numPointsToAdjust = Math.min(6, Math.floor(centerline.length * 0.05));
+            const startIdx = centerline.length - numPointsToAdjust;
+
+            // The target is to reach firstPoint with direction matching startDir
+            const targetX = firstPoint.x;
+            const targetY = firstPoint.y;
+            const targetDir = startDir;
+
+            // Get the "anchor" point (the last point we won't modify)
+            const anchorPoint = centerline[startIdx - 1];
+            const anchorDir = Math.atan2(
+                centerline[startIdx].y - anchorPoint.y,
+                centerline[startIdx].x - anchorPoint.x
+            );
+
+            // Use a cubic Hermite spline to smoothly blend from anchor to target
+            // This ensures smooth position AND direction
+            for (let i = 0; i < numPointsToAdjust; i++) {
+                const t = (i + 1) / numPointsToAdjust; // 0 to 1
+                const tSq = t * t;
+                const tCube = tSq * t;
+
+                // Hermite basis functions
+                const h00 = 2 * tCube - 3 * tSq + 1;  // Position at start
+                const h10 = tCube - 2 * tSq + t;       // Tangent at start
+                const h01 = -2 * tCube + 3 * tSq;      // Position at end
+                const h11 = tCube - tSq;               // Tangent at end
+
+                // Tangent magnitude (controls how "tight" the curve is)
+                const tangentScale = 30.0;
+
+                // Start tangent (from anchor point)
+                const m0x = Math.cos(anchorDir) * tangentScale;
+                const m0y = Math.sin(anchorDir) * tangentScale;
+
+                // End tangent (into target point)
+                const m1x = Math.cos(targetDir) * tangentScale;
+                const m1y = Math.sin(targetDir) * tangentScale;
+
+                // Hermite interpolation
+                const newX = h00 * anchorPoint.x + h10 * m0x + h01 * targetX + h11 * m1x;
+                const newY = h00 * anchorPoint.y + h10 * m0y + h01 * targetY + h11 * m1y;
+
+                centerline[startIdx + i] = { x: newX, y: newY };
+            }
+
+            // Verify closure
+            const newGapX = centerline[centerline.length - 1].x - firstPoint.x;
+            const newGapY = centerline[centerline.length - 1].y - firstPoint.y;
+            const newGap = Math.sqrt(newGapX * newGapX + newGapY * newGapY);
+
+            const newEndDir = Math.atan2(
+                centerline[centerline.length - 1].y - centerline[centerline.length - 2].y,
+                centerline[centerline.length - 1].x - centerline[centerline.length - 2].x
+            );
+            let newDirError = newEndDir - startDir;
+            while (newDirError > Math.PI) newDirError -= 2 * Math.PI;
+            while (newDirError < -Math.PI) newDirError += 2 * Math.PI;
+            const newDirErrorDeg = (newDirError * 180) / Math.PI;
+
+            console.log(`After smooth closure:`);
+            console.log(`  Position gap: ${newGap.toFixed(2)} units`);
+            console.log(`  Direction error: ${newDirErrorDeg.toFixed(2)} degrees`);
+        } else {
+            console.log(`Closure within tolerance (position < ${POSITION_THRESHOLD}, direction < ${DIRECTION_THRESHOLD_DEG}°)`);
+        }
+    }
+
+    // 3. Generate Borders
     const { leftBorder, rightBorder } = generateBorders(centerline, trackWidth);
+
+    // 4. Detect track intersections for bridge/tunnel rendering
+    const intersections = detectTrackIntersections(centerline);
+    if (intersections.length > 0) {
+        console.log(`Track has ${intersections.length} self-intersection(s) - will render as bridges/tunnels`);
+    }
+
+    // 5. Generate Pit Lane
+    let pitLane = null;
+    if (template === 'oval') {
+        // Oval Pit Lane Configuration
+        // On first straight (Indices 0-60 roughly)
+        const pitLaneStartMainIdx = 5; 
+        const pitLaneEndMainIdx = 55;
+        const pitLaneOffsetDistance = 15;
+        const pitLaneWidth = trackWidth * 0.75;
+
+        if (centerline.length > pitLaneEndMainIdx) {
+            pitLane = generateOvalPitLane(
+                centerline,
+                trackWidth,
+                pitLaneStartMainIdx,
+                pitLaneEndMainIdx,
+                pitLaneOffsetDistance,
+                pitLaneWidth
+            );
+        }
+    }
 
     return {
         centerline,
         leftBorder,
         rightBorder,
-        totalLength
+        totalLength,
+        pitLane,
+        intersections
     };
 }
 
-// Export functions for use in other files if needed
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        SEGMENT_STRAIGHT,
-        SEGMENT_TURN_LEFT,
-        SEGMENT_TURN_RIGHT,
-        generateStraight,
-        generateTurn,
-        assembleTrack,
-        generateBorders,
-        generateSegmentTrack,
-        degToRad,
-        radToDeg
+/**
+ * Generates a pit lane for an oval track with smooth entry/exit merges.
+ * Creates a parallel path to the main track.
+ */
+function generateOvalPitLane(mainCenterline, mainTrackWidth, pitLaneStartMainIdx, pitLaneEndMainIdx, pitLaneOffsetDistance, pitLaneWidth) {
+    const taperLengthPoints = 10; 
+    const parallelStartIdx = pitLaneStartMainIdx + taperLengthPoints;
+    const parallelEndIdx = pitLaneEndMainIdx - taperLengthPoints;
+
+    if (parallelStartIdx >= parallelEndIdx) {
+        console.warn("Pit lane too short for tapered entry/exit");
+        return null;
+    }
+
+    const pitCenterline = [];
+    // Calculate total offset from main CENTER line
+    // mainTrackWidth/2 is edge of track. + pitLaneOffsetDistance is gap. + pitLaneWidth/2 is center of pit lane.
+    // This assumes we offset to the "left" (inside for CCW).
+    const totalOffset = (mainTrackWidth / 2) + pitLaneOffsetDistance + (pitLaneWidth / 2);
+
+    // --- Helper to Calculate Normal ---
+    const getNormal = (p1, p2) => {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        // Rotate -90 degrees (x, y) -> (y, -x)
+        return { x: dy / dist, y: -dx / dist };
+    };
+
+    // --- 1. Entry Taper (Main Track -> Parallel) ---
+    for (let i = 0; i <= taperLengthPoints; i++) {
+        const mainIdx = pitLaneStartMainIdx + i;
+        const p = mainCenterline[mainIdx];
+        const nextP = mainCenterline[mainIdx + 1] || p;
+        
+        const progress = i / taperLengthPoints;
+        // Use SmoothStep for nicer curve? t * t * (3 - 2 * t)
+        const t = progress;
+        const smoothT = t * t * (3 - 2 * t);
+        const currentOffset = totalOffset * smoothT;
+
+        const normal = getNormal(p, nextP);
+        pitCenterline.push({
+            x: p.x + normal.x * currentOffset,
+            y: p.y + normal.y * currentOffset
+        });
+    }
+
+    // --- 2. Parallel Section ---
+    for (let i = parallelStartIdx + 1; i < parallelEndIdx; i++) {
+        const p = mainCenterline[i];
+        const nextP = mainCenterline[i+1] || p;
+        const normal = getNormal(p, nextP);
+        
+        pitCenterline.push({
+            x: p.x + normal.x * totalOffset,
+            y: p.y + normal.y * totalOffset
+        });
+    }
+
+    // --- 3. Exit Taper (Parallel -> Main Track) ---
+    for (let i = 0; i <= taperLengthPoints; i++) {
+        const mainIdx = parallelEndIdx + i;
+        const p = mainCenterline[mainIdx];
+        const nextP = mainCenterline[mainIdx + 1] || p;
+
+        const progress = i / taperLengthPoints;
+        const t = 1 - progress; // Go from 1 to 0
+        const smoothT = t * t * (3 - 2 * t);
+        const currentOffset = totalOffset * smoothT;
+
+        const normal = getNormal(p, nextP);
+        pitCenterline.push({
+            x: p.x + normal.x * currentOffset,
+            y: p.y + normal.y * currentOffset
+        });
+    }
+
+    const { leftBorder, rightBorder } = generateBorders(pitCenterline, pitLaneWidth);
+
+    return {
+        centerline: pitCenterline,
+        leftBorder,
+        rightBorder,
+        entryMainTrackPoints: [mainCenterline[pitLaneStartMainIdx]],
+        exitMainTrackPoints: [mainCenterline[pitLaneEndMainIdx + taperLengthPoints]] // End of exit taper
     };
 }
+
+export {
+    SEGMENT_STRAIGHT,
+    SEGMENT_TURN_LEFT,
+    SEGMENT_TURN_RIGHT,
+    generateStraight,
+    generateTurn,
+    assembleTrack,
+    generateBorders,
+    generateSegmentTrack,
+    generateOvalPitLane,
+    detectTrackIntersections,
+    degToRad,
+    radToDeg
+};

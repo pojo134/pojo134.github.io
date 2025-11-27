@@ -6,17 +6,18 @@
  */
 
 class Track {
-    constructor(type, name, waypoints, characteristics = {}, weather = {}) {
+    constructor(type, name, waypoints, characteristics = {}, weather = {}, trackWidth = 30) {
         this.type = type;
         this.name = name;
         this.waypoints = waypoints || [];
         this.characteristics = characteristics;
         this.weather = weather;
-        
+        this.trackWidth = trackWidth; // Store track width as a property
+
         // Calculate derived properties
         this.totalDistance = this.calculateTotalDistance();
         this.lapDistance = this.totalDistance;
-        
+
         // Track visualization properties
         this.visualBounds = this.calculateVisualizationBounds();
     }
@@ -176,16 +177,123 @@ class Track {
     }
 
     /**
-     * Clone this track (for persistence between screens)
+     * Render simple wire outline for betting desk / track selection
+     * Just draws the centerline in white for a clean, simple preview
      */
-    clone() {
-        return new Track(
-            this.type,
-            this.name,
-            JSON.parse(JSON.stringify(this.waypoints)),
-            JSON.parse(JSON.stringify(this.characteristics)),
-            JSON.parse(JSON.stringify(this.weather))
-        );
+    renderWireOutline(ctx, displayX, displayY, displayWidth, displayHeight) {
+        if (!this.waypoints || this.waypoints.length < 2) return;
+
+        const bounds = this.visualBounds;
+
+        // Set line style
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+
+        // Draw centerline
+        ctx.beginPath();
+        this.waypoints.forEach((wp, i) => {
+            const screenPos = this.trackToScreen(wp.x, wp.y, displayX, displayY, displayWidth, displayHeight);
+            if (i === 0) {
+                ctx.moveTo(screenPos.screenX, screenPos.screenY);
+            } else {
+                ctx.lineTo(screenPos.screenX, screenPos.screenY);
+            }
+        });
+        ctx.closePath();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+    }
+
+    /**
+     * Render full track with all details for race screen
+     * Includes gravel, kerbs, tarmac, centerline, and start/finish line
+     */
+    renderFullTrack(ctx, displayX, displayY, displayWidth, displayHeight) {
+        if (!this.waypoints || this.waypoints.length < 2) return;
+
+        const bounds = this.visualBounds;
+
+        // Set line style
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+
+        // Helper function to draw a path
+        const drawPath = () => {
+            ctx.beginPath();
+            this.waypoints.forEach((wp, i) => {
+                const screenPos = this.trackToScreen(wp.x, wp.y, displayX, displayY, displayWidth, displayHeight);
+                if (i === 0) {
+                    ctx.moveTo(screenPos.screenX, screenPos.screenY);
+                } else {
+                    ctx.lineTo(screenPos.screenX, screenPos.screenY);
+                }
+            });
+            ctx.closePath();
+        };
+
+        // Scale trackWidth to screen coordinates
+        const scaleX = displayWidth / bounds.width;
+        const scaleY = displayHeight / bounds.height;
+        const scale = Math.min(scaleX, scaleY);
+        const scaledTrackWidth = this.trackWidth * scale;
+
+        // 1. Gravel (outer buffer)
+        drawPath();
+        ctx.lineWidth = scaledTrackWidth + 12 * scale;
+        ctx.strokeStyle = "#5a3a2a";
+        ctx.stroke();
+
+        // 2. Kerbs (red/white stripes)
+        drawPath();
+        ctx.lineWidth = scaledTrackWidth + 4 * scale;
+        ctx.setLineDash([15 * scale, 15 * scale]);
+        ctx.strokeStyle = "#cc0000";
+        ctx.stroke();
+        ctx.lineDashOffset = 15 * scale;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+
+        // 3. Tarmac (track surface)
+        drawPath();
+        ctx.lineWidth = scaledTrackWidth;
+        ctx.strokeStyle = "#333";
+        ctx.stroke();
+
+        // 4. Centerline
+        drawPath();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.stroke();
+
+        // 5. Start/Finish line
+        if (this.waypoints.length > 1) {
+            const w0 = this.waypoints[0];
+            const w1 = this.waypoints[1];
+
+            // Get screen positions
+            const screen0 = this.trackToScreen(w0.x, w0.y, displayX, displayY, displayWidth, displayHeight);
+            const screen1 = this.trackToScreen(w1.x, w1.y, displayX, displayY, displayWidth, displayHeight);
+
+            // Calculate track direction vector
+            const dx = screen1.screenX - screen0.screenX;
+            const dy = screen1.screenY - screen0.screenY;
+            const len = Math.sqrt(dx * dx + dy * dy);
+
+            // Perpendicular vector (rotate 90 degrees)
+            const perpX = (-dy / len) * (scaledTrackWidth / 2);
+            const perpY = (dx / len) * (scaledTrackWidth / 2);
+
+            // Draw start/finish line perpendicular to track
+            ctx.beginPath();
+            ctx.moveTo(screen0.screenX - perpX, screen0.screenY - perpY);
+            ctx.lineTo(screen0.screenX + perpX, screen0.screenY + perpY);
+            ctx.lineWidth = 4 * scale;
+            ctx.strokeStyle = "white";
+            ctx.stroke();
+        }
     }
 }
 

@@ -1,0 +1,400 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Race Track Generator</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #111; color: white; font-family: 'Segoe UI', sans-serif; }
+        canvas { box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 4px; }
+        .control-group { margin-bottom: 12px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #aaa; margin-bottom: 4px; }
+        .preset-btn { transition: all 0.2s; }
+        .preset-btn.active { border-color: #60a5fa; background-color: #1e3a8a; color: white; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Vector Math Helpers ---
+        class Vec2 {
+            constructor(x, y) { this.x = x; this.y = y; }
+            add(v) { return new Vec2(this.x + v.x, this.y + v.y); }
+            sub(v) { return new Vec2(this.x - v.x, this.y - v.y); }
+            mul(s) { return new Vec2(this.x * s, this.y * s); }
+            len() { return Math.sqrt(this.x**2 + this.y**2); }
+            norm() { let l = this.len(); return l === 0 ? new Vec2(0,0) : new Vec2(this.x/l, this.y/l); }
+            perp() { return new Vec2(-this.y, this.x); } 
+            dist(v) { return Math.sqrt((this.x-v.x)**2 + (this.y-v.y)**2); }
+            dot(v) { return this.x * v.x + this.y * v.y; }
+        }
+
+        // --- Geometric Algorithms ---
+        
+        function getSplinePoint(p0, p1, p2, p3, t) {
+            const t2 = t * t;
+            const t3 = t2 * t;
+            const b0 = 0.5 * (-t3 + 2*t2 - t);
+            const b1 = 0.5 * (3*t3 - 5*t2 + 2);
+            const b2 = 0.5 * (-3*t3 + 4*t2 + t);
+            const b3 = 0.5 * (t3 - t2);
+            return new Vec2(
+                p0.x*b0 + p1.x*b1 + p2.x*b2 + p3.x*b3,
+                p0.y*b0 + p1.y*b1 + p2.y*b2 + p3.y*b3
+            );
+        }
+
+        // Distance from point p to line segment ab
+        function pointToSegmentDistance(p, a, b) {
+            const l2 = (b.x - a.x)**2 + (b.y - a.y)**2;
+            if (l2 === 0) return p.dist(a);
+            let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const proj = new Vec2(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y));
+            return p.dist(proj);
+        }
+
+        // Standard line intersection
+        function intersect(a, b, c, d) {
+            const ccw = (p1, p2, p3) => (p3.y - p1.y) * (p2.x - p1.x) > (p2.y - p1.y) * (p3.x - p1.x);
+            return (ccw(a, c, d) !== ccw(b, c, d)) && (ccw(a, b, c) !== ccw(a, b, d));
+        }
+
+        // Robust Collision Check: Checks intersection AND proximity buffer
+        function checkCollision(points, trackWidth) {
+            const n = points.length;
+            if(n < 4) return false;
+            
+            // Buffer: Track width + extra space for kerbs/gravel
+            const buffer = trackWidth * 1.8; 
+
+            for (let i = 0; i < n; i++) {
+                let a = points[i];
+                let b = points[(i + 1) % n];
+                
+                // 1. Check strict intersection with non-adjacent segments
+                for (let j = i + 2; j < n; j++) {
+                    if ((i === 0 && j === n - 1)) continue;
+                    let c = points[j];
+                    let d = points[(j + 1) % n];
+                    if (intersect(a, b, c, d)) return true;
+                }
+
+                // 2. Check proximity (Buffer Zone)
+                // We check if any point is too close to any non-adjacent segment
+                for (let j = 0; j < n; j++) {
+                    // Skip self, next, and previous segments
+                    if (i === j || (i + 1)%n === j || (i - 1 + n)%n === j) continue;
+
+                    let c = points[j];
+                    let d = points[(j + 1) % n];
+
+                    // Check if point 'a' invades segment 'cd' buffer
+                    if (pointToSegmentDistance(a, c, d) < buffer) return true;
+                }
+            }
+            return false;
+        }
+
+        const App = () => {
+            const canvasRef = useRef(null);
+            const [points, setPoints] = useState([]);
+            const [complexity, setComplexity] = useState(30);     
+            const [chaos, setChaos] = useState(1.1);              
+            const [minSegmentLen, setMinSegmentLen] = useState(60); 
+            const [trackWidth] = useState(30); 
+            const [trackStyle, setTrackStyle] = useState('circuit'); 
+            const [seed, setSeed] = useState(Date.now());
+
+            const generateTrack = () => {
+                const width = 800;
+                const height = 600;
+                const center = new Vec2(width/2, height/2);
+                let pts = [];
+                
+                // --- 1. Initial Geometry ---
+                if (trackStyle === 'circuit') {
+                    const initialPoints = 15;
+                    const radius = Math.min(width, height) * 0.35;
+                    for(let i=0; i<initialPoints; i++) {
+                        const angle = (i / initialPoints) * Math.PI * 2;
+                        pts.push(new Vec2(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius));
+                    }
+                } else if (trackStyle === 'oval') {
+                    const rx = width * 0.35; const ry = height * 0.22;
+                    // Right Arc
+                    for(let i=0; i<4; i++) {
+                        const angle = -Math.PI/2 + (i/4)*Math.PI;
+                        pts.push(new Vec2(center.x + rx + Math.cos(angle)*ry, center.y + Math.sin(angle)*ry));
+                    }
+                    // Bottom
+                    pts.push(new Vec2(center.x + rx, center.y + ry));
+                    pts.push(new Vec2(center.x, center.y + ry));
+                    pts.push(new Vec2(center.x - rx, center.y + ry));
+                    // Left Arc
+                    for(let i=0; i<4; i++) {
+                        const angle = Math.PI/2 + (i/4)*Math.PI;
+                        pts.push(new Vec2(center.x - rx + Math.cos(angle)*ry, center.y + Math.sin(angle)*ry));
+                    }
+                    // Top
+                    pts.push(new Vec2(center.x - rx, center.y - ry));
+                    pts.push(new Vec2(center.x, center.y - ry));
+                    pts.push(new Vec2(center.x + rx, center.y - ry));
+                } else if (trackStyle === 'tri-oval') {
+                    const radius = Math.min(width, height) * 0.35;
+                    for(let i=0; i<3; i++) {
+                        const angle = (i / 3) * Math.PI * 2 - (Math.PI/2); 
+                        pts.push(new Vec2(center.x + Math.cos(angle) * radius * 1.2, center.y + Math.sin(angle) * radius));
+                        const nextAngle = ((i+1) / 3) * Math.PI * 2 - (Math.PI/2);
+                        const midAngle = (angle + nextAngle)/2;
+                        pts.push(new Vec2(center.x + Math.cos(midAngle) * radius * 0.8, center.y + Math.sin(midAngle) * radius * 0.8));
+                    }
+                }
+
+                // --- 2. Iterative Subdivision ---
+                const targetPoints = complexity;
+                let iterations = 0;
+                const maxIterations = 500;
+
+                while (pts.length < targetPoints && iterations < maxIterations) {
+                    iterations++;
+                    
+                    let candidates = [];
+                    for(let i=0; i<pts.length; i++) {
+                        const p1 = pts[i];
+                        const p2 = pts[(i+1)%pts.length];
+                        if(p1.dist(p2) > minSegmentLen) candidates.push(i);
+                    }
+
+                    if(candidates.length === 0) break;
+
+                    const idx = candidates[Math.floor(Math.random() * candidates.length)];
+                    const p1 = pts[idx];
+                    const p2 = pts[(idx+1)%pts.length];
+                    
+                    const mid = p1.add(p2).mul(0.5);
+                    const vec = p2.sub(p1);
+                    const normal = vec.perp().norm();
+                    
+                    const displacementRange = vec.len() * chaos; 
+                    const offset = (Math.random() - 0.5) * 2 * displacementRange;
+                    
+                    const newPoint = mid.add(normal.mul(offset));
+
+                    // Margin Check
+                    if(newPoint.x < 60 || newPoint.x > width-60 || newPoint.y < 60 || newPoint.y > height-60) continue;
+
+                    const newPts = [...pts];
+                    newPts.splice(idx + 1, 0, newPoint);
+
+                    // Updated Check: Includes buffer width
+                    if(!checkCollision(newPts, trackWidth)) {
+                        pts = newPts;
+                    }
+                }
+
+                // --- 3. Relaxation Pass (Physics) ---
+                const relaxPasses = trackStyle === 'circuit' ? 12 : 5; 
+                
+                for(let r=0; r<relaxPasses; r++) {
+                    const newPts = [...pts];
+                    for(let i=0; i<pts.length; i++) {
+                        const prev = pts[(i - 1 + pts.length) % pts.length];
+                        const curr = pts[i];
+                        const next = pts[(i + 1) % pts.length];
+
+                        // Elasticity (Smoothing)
+                        const center = prev.add(next).mul(0.5);
+                        const vecToCenter = center.sub(curr);
+                        const smoothFactor = trackStyle === 'circuit' ? 0.25 : 0.1;
+                        newPts[i] = curr.add(vecToCenter.mul(smoothFactor)); 
+                        
+                        // Repulsion Field (Anti-Overlap)
+                        for(let j=0; j<pts.length; j++) {
+                            // Don't repel from self or immediate neighbors
+                            if (i === j || (i+1)%pts.length === j || (i-1+pts.length)%pts.length === j) continue;
+
+                            let c = pts[j];
+                            let d = pts[(j + 1) % pts.length];
+
+                            // Check distance to other segments
+                            const dist = pointToSegmentDistance(newPts[i], c, d);
+                            const repelThreshold = trackWidth * 2.0; // Strong buffer
+
+                            if (dist < repelThreshold) {
+                                // Push away perpendicular to the offending segment
+                                // Find closest point on segment to push away from
+                                const l2 = (d.x - c.x)**2 + (d.y - c.y)**2;
+                                let t = ((newPts[i].x - c.x) * (d.x - c.x) + (newPts[i].y - c.y) * (d.y - c.y)) / l2;
+                                t = Math.max(0, Math.min(1, t));
+                                const closest = new Vec2(c.x + t * (d.x - c.x), c.y + t * (d.y - c.y));
+
+                                const pushDir = newPts[i].sub(closest).norm();
+                                // Stronger push if closer
+                                const force = (repelThreshold - dist) * 0.8; 
+                                newPts[i] = newPts[i].add(pushDir.mul(force));
+                            }
+                        }
+                    }
+                    pts = newPts;
+                }
+
+                setPoints(pts);
+            };
+
+            const setPreset = (type) => {
+                setTrackStyle(type);
+                if (type === 'circuit') {
+                    setComplexity(45); setChaos(1.1); setMinSegmentLen(60);
+                } else if (type === 'oval') {
+                    setComplexity(14); setChaos(0.0); setMinSegmentLen(100); 
+                } else if (type === 'tri-oval') {
+                    setComplexity(55); setChaos(0.8); setMinSegmentLen(50);
+                }
+                setSeed(Date.now());
+            };
+
+            const randomizeAll = () => {
+                const styles = ['circuit', 'circuit', 'oval', 'tri-oval'];
+                const s = styles[Math.floor(Math.random() * styles.length)];
+                setTrackStyle(s);
+
+                if (s === 'circuit') {
+                    setComplexity(Math.floor(Math.random() * (80 - 25) + 25));
+                    setChaos(parseFloat((Math.random() * (1.8 - 0.9) + 0.9).toFixed(2)));
+                    setMinSegmentLen(Math.floor(Math.random() * (80 - 40) + 40));
+                } else if (s === 'tri-oval') {
+                     setComplexity(Math.floor(Math.random() * (80 - 40) + 40));
+                     setChaos(parseFloat((Math.random() * (1.2 - 0.5) + 0.5).toFixed(2)));
+                     setMinSegmentLen(Math.floor(Math.random() * (70 - 30) + 30));
+                } else {
+                    setComplexity(Math.floor(Math.random() * (20 - 8) + 8));
+                    const newChaos = parseFloat((Math.random() * (0.2 - 0.0) + 0.0).toFixed(2));
+                    setChaos(newChaos < 0.02 ? 0.0 : newChaos); 
+                    setMinSegmentLen(Math.floor(Math.random() * (150 - 80) + 80));
+                }
+                setSeed(Date.now());
+            };
+
+            useEffect(() => { generateTrack(); }, [seed, complexity, chaos, minSegmentLen, trackStyle]);
+
+            useEffect(() => {
+                if(!canvasRef.current || points.length < 3) return;
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#222';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                let waypoints = [];
+                for(let i=0; i<points.length; i++) {
+                    const p0 = points[(i - 1 + points.length) % points.length];
+                    const p1 = points[i];
+                    const p2 = points[(i + 1) % points.length];
+                    const p3 = points[(i + 2) % points.length];
+                    const steps = 20;
+                    for(let t=0; t<steps; t++) waypoints.push(getSplinePoint(p0, p1, p2, p3, t/steps));
+                }
+
+                // Render styles
+                ctx.lineJoin = "round"; ctx.lineCap = "round";
+                
+                // Gravel
+                ctx.beginPath();
+                waypoints.forEach((p, i) => i===0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+                ctx.lineWidth = trackWidth + 12;
+                ctx.strokeStyle = "#5a3a2a";
+                ctx.stroke();
+
+                // Kerbs
+                ctx.beginPath();
+                waypoints.forEach((p, i) => i===0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+                ctx.lineWidth = trackWidth + 4;
+                ctx.setLineDash([15, 15]);
+                ctx.strokeStyle = "#cc0000"; ctx.stroke();
+                ctx.lineDashOffset = 15;
+                ctx.strokeStyle = "#ffffff"; ctx.stroke();
+                ctx.setLineDash([]); ctx.lineDashOffset = 0;
+
+                // Tarmac
+                ctx.beginPath();
+                waypoints.forEach((p, i) => i===0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+                ctx.lineWidth = trackWidth;
+                ctx.strokeStyle = "#333";
+                ctx.stroke();
+
+                // Centerline
+                ctx.beginPath();
+                waypoints.forEach((p, i) => i===0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                ctx.stroke();
+
+                // Control Points
+                ctx.fillStyle = "#00ff00";
+                points.forEach(p => {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                });
+
+                // Start Line
+                if(waypoints.length > 0) {
+                    const w0 = waypoints[0]; const w1 = waypoints[1];
+                    const dir = w1.sub(w0).norm().perp();
+                    ctx.beginPath();
+                    ctx.moveTo(w0.x - dir.x * (trackWidth/2), w0.y - dir.y * (trackWidth/2));
+                    ctx.lineTo(w0.x + dir.x * (trackWidth/2), w0.y + dir.y * (trackWidth/2));
+                    ctx.lineWidth = 4; ctx.strokeStyle = "white"; ctx.stroke();
+                }
+            }, [points, trackWidth]);
+
+            return (
+                <div className="flex h-screen w-full bg-gray-900 p-8 gap-8">
+                    <div className="flex-1 flex justify-center items-center bg-black rounded-lg border border-gray-800">
+                        <canvas ref={canvasRef} width={800} height={600} className="max-w-full" />
+                    </div>
+                    <div className="w-80 flex flex-col gap-6 p-6 bg-gray-800 rounded-lg h-fit border border-gray-700 shadow-xl">
+                        <h1 className="text-2xl font-bold text-white mb-2 border-b border-gray-600 pb-4">Track Architect</h1>
+                        
+                        <div className="mb-4">
+                            <label className="text-xs text-gray-400 mb-2 block uppercase tracking-wider">Presets</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button onClick={() => setPreset('circuit')} className={`preset-btn py-2 text-xs font-bold rounded border border-gray-600 hover:border-blue-400 ${trackStyle==='circuit'?'active bg-blue-900 border-blue-500':'bg-gray-700'}`}>GO-KART</button>
+                                <button onClick={() => setPreset('tri-oval')} className={`preset-btn py-2 text-xs font-bold rounded border border-gray-600 hover:border-blue-400 ${trackStyle==='tri-oval'?'active bg-blue-900 border-blue-500':'bg-gray-700'}`}>F1</button>
+                                <button onClick={() => setPreset('oval')} className={`preset-btn py-2 text-xs font-bold rounded border border-gray-600 hover:border-blue-400 ${trackStyle==='oval'?'active bg-blue-900 border-blue-500':'bg-gray-700'}`}>OVAL</button>
+                            </div>
+                        </div>
+                        <div className="control-group">
+                            <div className="slider-label"><span>Complexity</span> <span>{complexity}</span></div>
+                            <input type="range" min="6" max="80" value={complexity} onChange={e=>setComplexity(parseInt(e.target.value))} className="w-full accent-blue-500"/>
+                        </div>
+                        <div className="control-group">
+                            <div className="slider-label"><span>Windiness</span> <span>{chaos.toFixed(2)}</span></div>
+                            <input type="range" min="0" max="2.0" step="0.05" value={chaos} onChange={e=>setChaos(parseFloat(e.target.value))} className="w-full accent-purple-500"/>
+                        </div>
+                        <div className="control-group">
+                            <div className="slider-label"><span>Straight Length</span> <span>{minSegmentLen}</span></div>
+                            <input type="range" min="20" max="150" value={minSegmentLen} onChange={e=>setMinSegmentLen(parseInt(e.target.value))} className="w-full accent-green-500"/>
+                        </div>
+                        <div className="flex flex-col gap-3 mt-4">
+                             <button onClick={randomizeAll} className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded shadow-lg transition-all">RANDOMIZE ALL</button>
+                            <button onClick={() => setSeed(Date.now())} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded shadow-lg transition-all">REGENERATE</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

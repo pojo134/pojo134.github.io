@@ -162,6 +162,10 @@ class GameState {
      * Places a bet
      */
     placeBet(driverName, amount, betType) {
+        if (amount <= 0) {
+            return false;
+        }
+
         if (this.player.bankroll < amount) {
             return false;
         }

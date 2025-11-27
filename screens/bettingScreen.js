@@ -134,41 +134,8 @@ class BettingScreen {
             const displayWidth = width - 30;
             const displayHeight = height - 90;
 
-            const bounds = track.visualBounds;
-            const scaleX = displayWidth / bounds.width;
-            const scaleY = displayHeight / bounds.height;
-
-            // Draw track
-            ctx.strokeStyle = '#666666';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-
-            const firstWP = track.waypoints[0];
-            ctx.moveTo(displayX + (firstWP.x - bounds.minX) * scaleX, displayY + (firstWP.y - bounds.minY) * scaleY);
-
-            for (let i = 1; i < track.waypoints.length; i++) {
-                const wp = track.waypoints[i];
-                ctx.lineTo(displayX + (wp.x - bounds.minX) * scaleX, displayY + (wp.y - bounds.minY) * scaleY);
-            }
-
-            ctx.closePath();
-            ctx.stroke();
-
-            // Start/Finish line
-            const startX = displayX + (firstWP.x - bounds.minX) * scaleX;
-            const startY = displayY + (firstWP.y - bounds.minY) * scaleY;
-
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(startX - 5, startY - 8);
-            ctx.lineTo(startX - 5, startY + 8);
-            ctx.stroke();
-
-            ctx.font = '9px "Courier New", monospace';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText('S/F', startX, startY - 12);
+            // Use the new wire outline rendering method
+            track.renderWireOutline(ctx, displayX, displayY, displayWidth, displayHeight);
         } else {
             // Fallback to simple track
             ctx.strokeStyle = '#666666';

@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Integration Test - Redline Roulette</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #ff6b35;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .test-controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: inline-block;
+            width: 200px;
+            color: #ccc;
+        }
+
+        select, input, button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #333;
+            color: #fff;
+            margin-right: 10px;
+        }
+
+        button {
+            background: #ff6b35;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #ff8555;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .canvas-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        canvas {
+            border: 2px solid #444;
+            border-radius: 4px;
+            background: #1a1a1a;
+            display: block;
+            width: 100%;
+        }
+
+        .info-panel {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .info-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .info-card h3 {
+            margin: 0 0 10px 0;
+            color: #ff6b35;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .leaderboard {
+            background: #333;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .leaderboard h3 {
+            margin: 0 0 15px 0;
+            color: #ff6b35;
+        }
+
+        .leaderboard-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #444;
+        }
+
+        .leaderboard-entry:last-child {
+            border-bottom: none;
+        }
+
+        .position {
+            font-weight: bold;
+            color: #ff6b35;
+            width: 30px;
+        }
+
+        .driver-name {
+            flex: 1;
+        }
+
+        .lap-info {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status.racing {
+            background: #28a745;
+            color: #fff;
+        }
+
+        .status.finished {
+            background: #007bff;
+            color: #fff;
+        }
+
+        .status.dnf {
+            background: #dc3545;
+            color: #fff;
+        }
+
+        .status.pit {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .test-results {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .test-results h2 {
+            color: #ff6b35;
+            margin-bottom: 15px;
+        }
+
+        .test-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            background: #333;
+        }
+
+        .test-item.pass {
+            border-left: 4px solid #28a745;
+        }
+
+        .test-item.fail {
+            border-left: 4px solid #dc3545;
+        }
+
+        .test-item.warn {
+            border-left: 4px solid #ffc107;
+        }
+
+        .log-output {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+
+        .log-entry.error {
+            color: #dc3545;
+        }
+
+        .log-entry.warn {
+            color: #ffc107;
+        }
+
+        .log-entry.info {
+            color: #17a2b8;
+        }
+
+        .log-entry.success {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏁 Race Integration Test</h1>
+        <p class="subtitle">Verifying new procedural track generation with racing physics</p>
+
+        <div class="test-controls">
+            <div class="control-group">
+                <label>Track Template:</label>
+                <select id="trackTemplate">
+                    <option value="oval">Oval (Simple)</option>
+                    <option value="simplegp">Simple GP Circuit</option>
+                    <option value="monaco">Monaco-style (Complex)</option>
+                    <option value="monza">Monza-style (High Speed)</option>
+                    <option value="procedural" selected>Procedural (Random)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Number of Cars:</label>
+                <input type="number" id="numCars" value="3" min="1" max="12">
+            </div>
+
+            <div class="control-group">
+                <label>Total Laps:</label>
+                <input type="number" id="totalLaps" value="2" min="1" max="10">
+            </div>
+
+            <div class="control-group">
+                <label>Simulation Speed:</label>
+                <input type="range" id="simSpeed" min="1" max="10" value="3" step="1">
+                <span id="speedValue">3x</span>
+            </div>
+
+            <div class="control-group">
+                <button id="startTest" onclick="startRaceTest()">▶ Start Test</button>
+                <button id="pauseTest" onclick="pauseRace()" disabled>⏸ Pause</button>
+                <button id="resetTest" onclick="resetTest()">🔄 Reset</button>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <div class="canvas-wrapper">
+                <h3>Track Visualization</h3>
+                <canvas id="trackCanvas" width="600" height="600"></canvas>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-grid">
+                <div class="info-card">
+                    <h3>Track Info</h3>
+                    <div class="info-value" id="trackLength">-</div>
+                    <div class="info-label">Total Distance</div>
+                    <div class="info-value" id="waypointCount">-</div>
+                    <div class="info-label">Waypoint Count</div>
+                </div>
+
+                <div class="info-card">
+                    <h3>Race Progress</h3>
+                    <div class="info-value" id="currentLap">0</div>
+                    <div class="info-label">Current Lap</div>
+                    <div class="info-value" id="raceTime">0:00</div>
+                    <div class="info-label">Race Time</div>
+                </div>
+
+                <div class="info-card">
+                    <h3>Car Status</h3>
+                    <div class="info-value" id="carsRacing">-</div>
+                    <div class="info-label">Racing</div>
+                    <div class="info-value" id="carsFinished">-</div>
+                    <div class="info-label">Finished</div>
+                </div>
+
+                <div class="info-card">
+                    <h3>Performance</h3>
+                    <div class="info-value" id="avgLapTime">-</div>
+                    <div class="info-label">Avg Lap Time</div>
+                    <div class="info-value" id="updateRate">-</div>
+                    <div class="info-label">Updates/sec</div>
+                </div>
+            </div>
+
+            <div class="leaderboard">
+                <h3>Live Leaderboard</h3>
+                <div id="leaderboardContent">
+                    <p style="color: #888;">Race not started</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-results">
+            <h2>Integration Test Results</h2>
+            <div id="testResults">
+                <p style="color: #888;">Run a test to see results</p>
+            </div>
+
+            <div class="log-output" id="logOutput">
+                <div class="log-entry info">System ready. Click "Start Test" to begin.</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { generateSegmentTrack } from './segmentTrackGenerator.js';
+        import Track from './track.js';
+        import { RaceSimulator } from './racing.js';
+        import { CarStatus, RaceState } from './constants.js';
+
+        // Global state
+        let trackData = null;
+        let track = null;
+        let raceSimulator = null;
+        let animationFrameId = null;
+        let isPaused = false;
+        let testResults = [];
+        let lapTimes = [];
+        let updateCounter = 0;
+        let lastUpdateTime = Date.now();
+
+        // Canvas
+        const canvas = document.getElementById('trackCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Logging
+        function log(message, level = 'info') {
+            const logDiv = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${level}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+
+            if (level === 'error') {
+                console.error(message);
+            } else if (level === 'warn') {
+                console.warn(message);
+            } else {
+                console.log(message);
+            }
+        }
+
+        // Test result tracking
+        function addTestResult(name, passed, message) {
+            testResults.push({ name, passed, message });
+            updateTestResultsDisplay();
+        }
+
+        function updateTestResultsDisplay() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '';
+
+            testResults.forEach(result => {
+                const div = document.createElement('div');
+                div.className = `test-item ${result.passed ? 'pass' : 'fail'}`;
+                div.innerHTML = `
+                    <strong>${result.passed ? '✓' : '✗'} ${result.name}</strong><br>
+                    <span style="color: #888;">${result.message}</span>
+                `;
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        // Generate test drivers
+        function generateTestDrivers(count) {
+            const drivers = [];
+            const names = [
+                'Max Velocity', 'Sarah Speedster', 'Thunder Johnson',
+                'Lightning Lee', 'Turbo Turner', 'Nitro Nash',
+                'Blaze Bennett', 'Storm Sullivan', 'Rocket Riley',
+                'Flash Freeman', 'Dash Davis', 'Bolt Bradley'
+            ];
+
+            const teamColors = [
+                '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
+                '#FF00FF', '#00FFFF', '#FF8800', '#8800FF',
+                '#00FF88', '#FF0088', '#88FF00', '#0088FF'
+            ];
+
+            for (let i = 0; i < count; i++) {
+                drivers.push({
+                    id: i,
+                    name: names[i % names.length],
+                    teamName: `Team ${i + 1}`,
+                    teamColor: teamColors[i % teamColors.length],
+                    startingPosition: i + 1,
+                    stats: {
+                        topSpeed: 70 + Math.random() * 30,
+                        cornering: 60 + Math.random() * 40,
+                        reliability: 70 + Math.random() * 30,
+                        aggression: 50 + Math.random() * 50,
+                        stamina: 60 + Math.random() * 40
+                    },
+                    traits: []
+                });
+            }
+
+            return drivers;
+        }
+
+        // Generate track
+        function generateTrack(templateName) {
+            log(`Generating ${templateName} track...`, 'info');
+
+            try {
+                if (templateName === 'procedural') {
+                    trackData = generateSegmentTrack({
+                        template: 'procedural',
+                        proceduralOptions: {
+                            seed: Date.now(),
+                            numSegments: 12,
+                            minStraight: 80,
+                            maxStraight: 200,
+                            minRadius: 40,
+                            maxRadius: 120,
+                            minAngle: 30,
+                            maxAngle: 90,
+                            allowIntersections: false
+                        },
+                        trackWidth: 20,
+                        startX: 100,
+                        startY: 300,
+                        startDirectionDegrees: 0
+                    });
+                } else {
+                    trackData = generateSegmentTrack({
+                        template: templateName,
+                        trackWidth: 20,
+                        startX: 100,
+                        startY: 300,
+                        startDirectionDegrees: 0
+                    });
+                }
+
+                // Convert centerline to waypoints
+                const waypoints = trackData.centerline.map(point => ({ x: point.x, y: point.y }));
+
+                // Create Track object
+                track = new Track(
+                    'road_course',
+                    `Test ${templateName} Track`,
+                    waypoints,
+                    { corners: 'medium', straights: 'medium' },
+                    { type: 'Clear', gripModifier: 1.0 },
+                    trackData
+                );
+
+                log(`✓ Track generated: ${waypoints.length} waypoints, ${trackData.totalLength.toFixed(0)} units`, 'success');
+
+                // Update UI
+                document.getElementById('trackLength').textContent = `${trackData.totalLength.toFixed(0)} units`;
+                document.getElementById('waypointCount').textContent = waypoints.length;
+
+                // Test track methods
+                testTrackMethods();
+
+                return true;
+            } catch (error) {
+                log(`✗ Failed to generate track: ${error.message}`, 'error');
+                addTestResult('Track Generation', false, error.message);
+                return false;
+            }
+        }
+
+        // Test Track class methods
+        function testTrackMethods() {
+            log('Testing Track class methods...', 'info');
+
+            try {
+                // Test 1: getPositionAtProgress
+                const pos0 = track.getPositionAtProgress(0);
+                const pos50 = track.getPositionAtProgress(0.5);
+                const pos100 = track.getPositionAtProgress(1.0);
+
+                if (pos0 && pos0.x !== undefined && pos0.y !== undefined) {
+                    addTestResult('getPositionAtProgress(0)', true, `Position: (${pos0.x.toFixed(1)}, ${pos0.y.toFixed(1)})`);
+                } else {
+                    addTestResult('getPositionAtProgress(0)', false, 'Invalid position returned');
+                }
+
+                // Test 2: getDirectionAtProgress
+                const dir0 = track.getDirectionAtProgress(0);
+                const dir50 = track.getDirectionAtProgress(0.5);
+
+                if (!isNaN(dir0) && !isNaN(dir50)) {
+                    addTestResult('getDirectionAtProgress', true, `Dir at 0%: ${(dir0 * 180 / Math.PI).toFixed(1)}°`);
+                } else {
+                    addTestResult('getDirectionAtProgress', false, 'Invalid direction returned');
+                }
+
+                // Test 3: calculateTotalDistance
+                const distance = track.calculateTotalDistance();
+                if (distance > 0) {
+                    addTestResult('calculateTotalDistance', true, `Total: ${distance.toFixed(0)} units`);
+                } else {
+                    addTestResult('calculateTotalDistance', false, 'Distance calculation failed');
+                }
+
+                // Test 4: Verify loop closure
+                const startPos = track.getPositionAtProgress(0);
+                const endPos = track.getPositionAtProgress(0.999);
+                const gapDistance = Math.sqrt(
+                    Math.pow(endPos.x - startPos.x, 2) +
+                    Math.pow(endPos.y - startPos.y, 2)
+                );
+
+                if (gapDistance < 50) {
+                    addTestResult('Track Loop Closure', true, `Gap: ${gapDistance.toFixed(1)} units`);
+                } else {
+                    addTestResult('Track Loop Closure', false, `Gap too large: ${gapDistance.toFixed(1)} units`);
+                }
+
+            } catch (error) {
+                log(`✗ Track method test failed: ${error.message}`, 'error');
+                addTestResult('Track Methods', false, error.message);
+            }
+        }
+
+        // Start race simulation
+        window.startRaceTest = function() {
+            const templateName = document.getElementById('trackTemplate').value;
+            const numCars = parseInt(document.getElementById('numCars').value);
+            const totalLaps = parseInt(document.getElementById('totalLaps').value);
+
+            // Reset
+            testResults = [];
+            lapTimes = [];
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('logOutput').innerHTML = '';
+
+            log('=== STARTING RACE INTEGRATION TEST ===', 'info');
+
+            // Generate track
+            if (!generateTrack(templateName)) {
+                return;
+            }
+
+            // Generate drivers
+            const drivers = generateTestDrivers(numCars);
+            log(`Generated ${numCars} test drivers`, 'info');
+
+            // Create race simulator
+            try {
+                raceSimulator = new RaceSimulator(drivers, track, totalLaps);
+                raceSimulator.start();
+                log('✓ Race simulator initialized', 'success');
+                addTestResult('Race Simulator Creation', true, `${numCars} cars, ${totalLaps} laps`);
+            } catch (error) {
+                log(`✗ Failed to create race simulator: ${error.message}`, 'error');
+                addTestResult('Race Simulator Creation', false, error.message);
+                return;
+            }
+
+            // Update UI
+            document.getElementById('startTest').disabled = true;
+            document.getElementById('pauseTest').disabled = false;
+            isPaused = false;
+
+            // Start animation loop
+            updateCounter = 0;
+            lastUpdateTime = Date.now();
+            animate();
+        };
+
+        // Animation loop
+        function animate() {
+            if (!isPaused && raceSimulator) {
+                const simSpeed = parseInt(document.getElementById('simSpeed').value);
+                const deltaTime = (1 / 60) * simSpeed;
+
+                // Update race
+                try {
+                    raceSimulator.update(deltaTime);
+                    updateCounter++;
+
+                    // Update performance counter
+                    const now = Date.now();
+                    if (now - lastUpdateTime >= 1000) {
+                        document.getElementById('updateRate').textContent = `${updateCounter} ups`;
+                        updateCounter = 0;
+                        lastUpdateTime = now;
+                    }
+
+                } catch (error) {
+                    log(`✗ Race update error: ${error.message}`, 'error');
+                    addTestResult('Race Update', false, error.message);
+                    pauseRace();
+                    return;
+                }
+
+                // Render
+                renderRace();
+
+                // Update info
+                updateRaceInfo();
+
+                // Check for completion
+                if (raceSimulator.state === RaceState.FINISHED) {
+                    onRaceComplete();
+                    return;
+                }
+            }
+
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // Render race
+        function renderRace() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!track || !trackData) return;
+
+            // Calculate bounds for centering
+            const bounds = track.visualBounds;
+            const padding = 20;
+            const scaleX = (canvas.width - padding * 2) / bounds.width;
+            const scaleY = (canvas.height - padding * 2) / bounds.height;
+            const scale = Math.min(scaleX, scaleY);
+
+            const offsetX = padding + (canvas.width - padding * 2 - bounds.width * scale) / 2;
+            const offsetY = padding + (canvas.height - padding * 2 - bounds.height * scale) / 2;
+
+            // Helper to transform coordinates
+            const transform = (x, y) => ({
+                x: offsetX + (x - bounds.minX) * scale,
+                y: offsetY + (y - bounds.minY) * scale
+            });
+
+            // Draw track borders
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            trackData.leftBorder.forEach((point, i) => {
+                const p = transform(point.x, point.y);
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+
+            ctx.beginPath();
+            trackData.rightBorder.forEach((point, i) => {
+                const p = transform(point.x, point.y);
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+
+            // Draw centerline
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            trackData.centerline.forEach((point, i) => {
+                const p = transform(point.x, point.y);
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw start/finish line
+            const startPoint = track.waypoints[0];
+            const sp = transform(startPoint.x, startPoint.y);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(sp.x - 10, sp.y);
+            ctx.lineTo(sp.x + 10, sp.y);
+            ctx.stroke();
+
+            // Draw cars
+            if (raceSimulator) {
+                const cars = raceSimulator.getCarsForRender();
+
+                cars.forEach(car => {
+                    const cp = transform(car.x, car.y);
+
+                    // Car body
+                    ctx.save();
+                    ctx.translate(cp.x, cp.y);
+                    ctx.rotate(car.heading);
+
+                    // Color based on status
+                    let carColor = car.teamColor;
+                    if (car.status === CarStatus.FINISHED) {
+                        carColor = '#0088ff';
+                    } else if (car.status === CarStatus.DNF_CRASH || car.status === CarStatus.DNF_MECHANICAL) {
+                        carColor = '#ff0000';
+                    } else if (car.status === CarStatus.PIT_STOP) {
+                        carColor = '#ffaa00';
+                    }
+
+                    ctx.fillStyle = carColor;
+                    ctx.fillRect(-6, -4, 12, 8);
+
+                    // Position number
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 8px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(car.position, 0, 2);
+
+                    ctx.restore();
+                });
+            }
+        }
+
+        // Update race info
+        function updateRaceInfo() {
+            if (!raceSimulator) return;
+
+            const state = raceSimulator.getRaceState();
+
+            // Race progress
+            document.getElementById('currentLap').textContent = `${state.currentLap} / ${state.totalLaps}`;
+
+            const minutes = Math.floor(state.raceTime / 60);
+            const seconds = Math.floor(state.raceTime % 60);
+            document.getElementById('raceTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // Car status
+            document.getElementById('carsRacing').textContent = state.carsRacing;
+            document.getElementById('carsFinished').textContent = state.carsFinished;
+
+            // Calculate average lap time
+            if (lapTimes.length > 0) {
+                const avg = lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length;
+                const avgMin = Math.floor(avg / 60);
+                const avgSec = (avg % 60).toFixed(1);
+                document.getElementById('avgLapTime').textContent = `${avgMin}:${avgSec.toString().padStart(4, '0')}`;
+            }
+
+            // Leaderboard
+            const leaderboard = document.getElementById('leaderboardContent');
+            leaderboard.innerHTML = '';
+
+            state.leaderboard.forEach((car, index) => {
+                const entry = document.createElement('div');
+                entry.className = 'leaderboard-entry';
+
+                let statusClass = 'racing';
+                let statusText = 'Racing';
+                if (car.status === CarStatus.FINISHED) {
+                    statusClass = 'finished';
+                    statusText = 'Finished';
+                } else if (car.status === CarStatus.DNF_CRASH) {
+                    statusClass = 'dnf';
+                    statusText = 'DNF (Crash)';
+                } else if (car.status === CarStatus.DNF_MECHANICAL) {
+                    statusClass = 'dnf';
+                    statusText = 'DNF (Mech)';
+                } else if (car.status === CarStatus.PIT_STOP) {
+                    statusClass = 'pit';
+                    statusText = 'Pitting';
+                }
+
+                entry.innerHTML = `
+                    <span class="position">P${car.position}</span>
+                    <span class="driver-name">${car.driver.name}</span>
+                    <span class="lap-info">Lap ${car.currentLap}</span>
+                    <span class="status ${statusClass}">${statusText}</span>
+                `;
+
+                leaderboard.appendChild(entry);
+            });
+        }
+
+        // Race completion
+        function onRaceComplete() {
+            log('=== RACE COMPLETE ===', 'success');
+
+            const results = raceSimulator.getResults();
+
+            // Check for stuck cars (cars that never finished but didn't DNF)
+            const activeCars = raceSimulator.cars.filter(c =>
+                c.status === CarStatus.RACING && c.currentLap < raceSimulator.totalLaps
+            );
+
+            if (activeCars.length > 0) {
+                log(`⚠ Warning: ${activeCars.length} car(s) still racing but race ended`, 'warn');
+                addTestResult('Car Completion', false, `${activeCars.length} cars stuck/lost`);
+            } else {
+                addTestResult('Car Completion', true, 'All cars finished or DNF\'d');
+            }
+
+            // Verify lap counting
+            const finishedCars = raceSimulator.cars.filter(c => c.status === CarStatus.FINISHED);
+            const correctLaps = finishedCars.every(c => c.currentLap === raceSimulator.totalLaps);
+
+            if (correctLaps) {
+                addTestResult('Lap Counting', true, `All finished cars completed ${raceSimulator.totalLaps} laps`);
+            } else {
+                addTestResult('Lap Counting', false, 'Some cars have incorrect lap counts');
+            }
+
+            // Check average lap time is reasonable
+            if (lapTimes.length > 0) {
+                const avgLapTime = lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length;
+                const isReasonable = avgLapTime > 10 && avgLapTime < 300; // 10s - 5min
+
+                if (isReasonable) {
+                    addTestResult('Lap Times', true, `Average: ${avgLapTime.toFixed(1)}s`);
+                } else {
+                    addTestResult('Lap Times', false, `Unreasonable avg: ${avgLapTime.toFixed(1)}s`);
+                }
+            }
+
+            log(`Winner: ${results.winner.driver.name}`, 'success');
+            log(`Total race time: ${results.totalTime.toFixed(1)}s`, 'info');
+            log(`DNFs: ${results.dnfCount}`, 'info');
+
+            // Disable buttons
+            document.getElementById('startTest').disabled = false;
+            document.getElementById('pauseTest').disabled = true;
+
+            // Final summary
+            const passed = testResults.filter(t => t.passed).length;
+            const total = testResults.length;
+            log(`=== TEST SUMMARY: ${passed}/${total} PASSED ===`, passed === total ? 'success' : 'warn');
+        }
+
+        // Pause/resume
+        window.pauseRace = function() {
+            isPaused = !isPaused;
+            document.getElementById('pauseTest').textContent = isPaused ? '▶ Resume' : '⏸ Pause';
+            log(isPaused ? 'Race paused' : 'Race resumed', 'info');
+        };
+
+        // Reset
+        window.resetTest = function() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+
+            raceSimulator = null;
+            track = null;
+            trackData = null;
+            isPaused = false;
+            testResults = [];
+            lapTimes = [];
+
+            document.getElementById('startTest').disabled = false;
+            document.getElementById('pauseTest').disabled = true;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            document.getElementById('testResults').innerHTML = '<p style="color: #888;">Run a test to see results</p>';
+            document.getElementById('leaderboardContent').innerHTML = '<p style="color: #888;">Race not started</p>';
+            document.getElementById('logOutput').innerHTML = '<div class="log-entry info">System ready. Click "Start Test" to begin.</div>';
+
+            // Reset info cards
+            document.getElementById('trackLength').textContent = '-';
+            document.getElementById('waypointCount').textContent = '-';
+            document.getElementById('currentLap').textContent = '0';
+            document.getElementById('raceTime').textContent = '0:00';
+            document.getElementById('carsRacing').textContent = '-';
+            document.getElementById('carsFinished').textContent = '-';
+            document.getElementById('avgLapTime').textContent = '-';
+            document.getElementById('updateRate').textContent = '-';
+
+            log('Test reset', 'info');
+        };
+
+        // Speed slider
+        document.getElementById('simSpeed').addEventListener('input', function() {
+            document.getElementById('speedValue').textContent = `${this.value}x`;
+        });
+
+        // Track lap completions for timing
+        if (window.raceSimulator) {
+            const originalAddEvent = raceSimulator._addEvent;
+            raceSimulator._addEvent = function(type, data) {
+                originalAddEvent.call(this, type, data);
+
+                if (type === 'LAP_COMPLETE' && data.lap > 0) {
+                    // Calculate lap time (this is approximate)
+                    const lapTime = data.time - (lapTimes.length * 60); // Rough estimate
+                    if (lapTime > 0) {
+                        lapTimes.push(lapTime);
+                    }
+                }
+            };
+        }
+
+        log('System initialized and ready', 'success');
+    </script>
+</body>
+</html>
