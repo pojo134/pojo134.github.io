@@ -192,7 +192,7 @@ class RaceScreen {
         }
 
         // Draw cars on track
-        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: this.generateDummyStandings() };
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: [] };
         const standings = raceState.leaderboard;
         this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
 
@@ -226,7 +226,19 @@ class RaceScreen {
             const segmentProgress = (currentWaypoint + waypointProgress) / track.waypoints.length;
 
             // Get position on track
-            const pos = track.getPositionAtProgress(segmentProgress);
+            let pos;
+            
+            // Check if car is in the pits
+            // Note: CarStatus.PIT_STOP is 'PIT_STOP' (usually), checking string to be safe or we could import
+            if ((entry.status === 'PIT_STOP' || entry.status === 'PIT_ENTRY' || entry.status === 'PIT_EXIT') && track.pitLane && track.pitLane.stalls) {
+                // Use assigned pit stall
+                // startingPosition is 1-based
+                const stallIndex = Math.max(0, (entry.startingPosition || 1) - 1);
+                const safeIndex = stallIndex % track.pitLane.stalls.length;
+                pos = track.pitLane.stalls[safeIndex];
+            } else {
+                pos = track.getPositionAtProgress(segmentProgress);
+            }
 
             // Convert to screen coordinates
             const screenX = x + (pos.x - bounds.minX) * scaleX;
@@ -255,6 +267,19 @@ class RaceScreen {
                 ctx.stroke();
             }
         });
+    }
+
+    getEventColor(message) {
+        if (message.includes('crash') || message.includes('incident') || message.includes('out of race')) {
+            return '#ff3333'; // Red for crashes/incidents
+        } else if (message.includes('finish') || message.includes('FINISHED')) {
+            return '#33ff33'; // Green for race finishes
+        } else if (message.includes('pit') || message.includes('pits')) {
+            return '#ffff33'; // Yellow for pit stops
+        } else if (message.includes('overtake') || message.includes('overtakes')) {
+            return '#33ffff'; // Cyan for overtakes
+        }
+        return '#ffffff'; // White for general events
     }
 
     /**
@@ -316,7 +341,7 @@ class RaceScreen {
         }
 
         // Driver standings
-        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: this.generateDummyStandings() };
+        const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: [] };
         const drivers = raceState.leaderboard;
         
         // Handle empty standings (all cars crashed/DNF'd)
@@ -338,10 +363,12 @@ class RaceScreen {
         drivers.slice(0, maxRows).forEach((driver, index) => {
             const rowY = startY + index * rowHeight;
             
-            // Handle both car state objects and dummy standings
             const driverName = driver.driver?.name || driver.name || 'UNKNOWN';
-            const gap = driver.gap !== undefined ? driver.gap : (index === 0 ? 'LEADER' : `+${(index * 1.5).toFixed(1)}s`);
             
+            // Ensure gap and gapToAhead are always strings, even if simulation isn't fully ready
+            const gapToLeader = driver.gap !== undefined ? driver.gap : (index === 0 ? 'LEADER' : 'N/A');
+            const gapToAhead = driver.gapToAhead !== undefined ? driver.gapToAhead : (index === 0 ? 'LEADER' : 'N/A');
+
             const isHovered = this.hoveredDriver === driverName;
             const isTargetable = this.selectedContact !== null;
 
@@ -362,11 +389,17 @@ class RaceScreen {
             ctx.fillStyle = isHovered && isTargetable ? '#ff0066' : '#aaaaaa';
             ctx.fillText(driverName.substring(0, 6), x + 35, rowY);
 
-            // Gap (right aligned)
+            // Gap to Ahead (right aligned)
+            ctx.font = '9px "Courier New", monospace';
+            ctx.fillStyle = '#999999'; // Slightly different color for distinction
+            ctx.textAlign = 'right';
+            ctx.fillText(gapToAhead, x + width - 70, rowY); // Adjusted position
+
+            // Gap to Leader (right aligned)
             ctx.font = '9px "Courier New", monospace';
             ctx.fillStyle = '#666666';
             ctx.textAlign = 'right';
-            ctx.fillText(typeof gap === 'string' ? gap : gap.toFixed(2), x + width - 5, rowY);
+            ctx.fillText(gapToLeader, x + width - 5, rowY);
         });
     }
 
@@ -385,12 +418,12 @@ class RaceScreen {
         ctx.fillText('LIVE EVENTS', x + 10, y + 15);
 
         // Event log
-        const events = this.eventLog.slice(0, this.maxLogEntries);
+        const events = this.eventLog.slice(0, this.maxLogEntries); // Keep only maxLogEntries events
         ctx.font = '11px "Courier New", monospace';
 
         events.forEach((event, index) => {
             const eventY = y + 35 + index * 14;
-            ctx.fillStyle = index === 0 ? '#00ff00' : '#888888';
+            ctx.fillStyle = this.getEventColor(event.toLowerCase()); // Apply color-coding
             ctx.fillText(`> ${event}`, x + 10, eventY);
         });
     }
@@ -562,18 +595,17 @@ class RaceScreen {
             });
         }
 
-        // Check if clicking on leaderboard to select driver (when contact is selected)
-        if (this.selectedContact) {
-            const leaderboardX = RIGHT_PANEL_X;
-            const leaderboardY = INFO_BAR_HEIGHT;
-            const leaderboardWidth = SIDE_PANEL_WIDTH;
-            const leaderboardHeight = LEADERBOARD_HEIGHT;
-
-            if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
-                y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
-
-                const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
-                const rowHeight = 28;
+                    // Check if clicking on leaderboard to select driver (when contact is selected)
+                    if (this.selectedContact) {
+                        const leaderboardX = RIGHT_PANEL_X;
+                        const leaderboardY = INFO_BAR_HEIGHT;
+                        const leaderboardWidth = SIDE_PANEL_WIDTH;
+                        const leaderboardHeight = LEADERBOARD_HEIGHT;
+        
+                        if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
+                            y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
+        
+                            const drivers = gameState?.race?.raceStandings || [];                const rowHeight = 28;
                 const startY = leaderboardY + 32;
 
                 drivers.forEach((driver, index) => {
@@ -639,7 +671,7 @@ class RaceScreen {
             if (x >= leaderboardX && x <= leaderboardX + leaderboardWidth &&
                 y >= leaderboardY && y <= leaderboardY + leaderboardHeight) {
 
-                const drivers = gameState?.race?.raceStandings || this.generateDummyStandings();
+                const drivers = gameState?.race?.raceStandings || [];
                 const rowHeight = 28;
                 const startY = leaderboardY + 32;
 
@@ -686,13 +718,6 @@ class RaceScreen {
         }));
     }
 
-    generateDummyStandings() {
-        const names = ['HAMILTON', 'VERSTAPPEN', 'LECLERC', 'SAINZ', 'NORRIS', 'PIASTRI', 'RUSSELL', 'ALONSO'];
-        return names.map((name, i) => ({
-            name,
-            gap: i === 0 ? 'LEADER' : `+${(i * 1.5).toFixed(1)}s`
-        }));
-    }
 }
 
 export default RaceScreen;
