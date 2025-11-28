@@ -2,7 +2,7 @@ class RaceScreen {
     constructor() {
         this.raceTime = 0;
         this.eventLog = [];
-        this.maxLogEntries = 5;
+        this.maxLogEntries = 10;
         this.tickerScrollX = 0;
         this.lastEventDisplayTime = 0; // Throttle for event ticker
 
@@ -39,7 +39,21 @@ class RaceScreen {
                 if (timeSinceLastEvent > 500) { // 500ms between event displays
                     // Add new events to log
                     raceState.events.forEach(event => {
-                        if (!this.eventLog.includes(event.message)) {
+                        // Filter out LAP_COMPLETE events UNLESS it's for the race leader
+                        const isLapCompleteEvent = event.message.includes('completes Lap');
+                        let shouldAddEvent = true;
+
+                        if (isLapCompleteEvent) {
+                            const raceLeader = raceState.leaderboard && raceState.leaderboard.length > 0 ? raceState.leaderboard[0] : null;
+                            const eventDriverName = event.driver ? event.driver.name : null;
+                            
+                            // Only add LAP_COMPLETE if the driver is the current race leader
+                            if (raceLeader && eventDriverName && raceLeader.driver.name !== eventDriverName) {
+                                shouldAddEvent = false;
+                            }
+                        }
+
+                        if (shouldAddEvent && !this.eventLog.includes(event.message)) {
                             this.eventLog.unshift(event.message);
                             this.lastEventDisplayTime = Date.now();
                         }
@@ -278,6 +292,9 @@ class RaceScreen {
             return '#ffff33'; // Yellow for pit stops
         } else if (message.includes('overtake') || message.includes('overtakes')) {
             return '#33ffff'; // Cyan for overtakes
+        }
+        } else if (message.includes('caution') || message.includes('safety car') || message.includes('yellow flag')) {
+            return '#ff9933'; // Orange for caution/safety car/yellow flag
         }
         return '#ffffff'; // White for general events
     }
