@@ -14,6 +14,7 @@ class RaceScreen {
         this.hoveredDriver = null;
         this.contactNotification = null;
         this.notificationTimer = 0;
+        this.hoveredElement = null; // New property to track hovered UI elements
     }
 
     update(deltaTime, gameState) {
@@ -85,10 +86,14 @@ class RaceScreen {
         // Render main race info (Track name, Lap counter)
         this.renderRaceInfo(ctx, gameState, 0, 0, CANVAS_WIDTH, INFO_BAR_HEIGHT);
 
+        // Render Skip Race Button
+        this.renderSkipRaceButton(ctx, gameState, CANVAS_WIDTH - 120, INFO_BAR_HEIGHT + 5, 100, 25);
+
         // Leaderboard / Standings
         const LEADERBOARD_HEIGHT = 280;
         const LEADERBOARD_Y = INFO_BAR_HEIGHT;
         this.renderLeaderboard(ctx, gameState, RIGHT_PANEL_X, LEADERBOARD_Y, SIDE_PANEL_WIDTH, LEADERBOARD_HEIGHT);
+
 
         // Burner Phone
         const BURNER_PHONE_Y = LEADERBOARD_Y + LEADERBOARD_HEIGHT + PADDING;
@@ -107,6 +112,28 @@ class RaceScreen {
         const TRACK_VIEW_WIDTH = RIGHT_PANEL_X - PADDING; // Fills space up to PADDING away from the right panels
         const TRACK_VIEW_HEIGHT = EVENT_TICKER_Y - INFO_BAR_HEIGHT - PADDING;
         this.renderTrackView(ctx, gameState, TRACK_VIEW_X, TRACK_VIEW_Y, TRACK_VIEW_WIDTH, TRACK_VIEW_HEIGHT);
+    }
+
+    renderSkipRaceButton(ctx, gameState, x, y, width, height) {
+        // Only render if race is still ongoing
+        if (gameState?.race?.isRaceOver) {
+            return;
+        }
+
+        const isHovered = this.hoveredElement === 'skipRaceButton';
+
+        ctx.fillStyle = isHovered ? '#ff0066' : '#cc0055';
+        ctx.fillRect(x, y, width, height);
+
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('SKIP RACE', x + width / 2, y + height / 2);
     }
 
     renderContactNotification(ctx, x, y) {
@@ -193,6 +220,13 @@ class RaceScreen {
         ctx.font = '10px "Courier New", monospace';
         ctx.fillStyle = '#00ffff';
         ctx.fillText(track.name, x + 8, y + 26);
+
+        // Add track details
+        const trackInfo = track.getInfo();
+        ctx.font = '9px "Courier New", monospace';
+        ctx.fillStyle = '#aaaaaa';
+        ctx.fillText(`Length: ${trackInfo.totalDistance}m`, x + 8, y + 38);
+        ctx.fillText(`Waypoints: ${trackInfo.waypointCount}`, x + 8, y + 49); // Using waypoint count as a proxy for turns
 
         // Track drawing area (maximize space - only 8px padding each side, 8px top for title, 6px bottom for lap)
         const trackDisplayX = x + 8;
@@ -292,7 +326,6 @@ class RaceScreen {
             return '#ffff33'; // Yellow for pit stops
         } else if (message.includes('overtake') || message.includes('overtakes')) {
             return '#33ffff'; // Cyan for overtakes
-        }
         } else if (message.includes('caution') || message.includes('safety car') || message.includes('yellow flag')) {
             return '#ff9933'; // Orange for caution/safety car/yellow flag
         }
@@ -576,10 +609,9 @@ class RaceScreen {
     handleClick(x, y, gameState) {
         // Check if Rolodex is unlocked
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
-        if (!hasRolodex) return null;
 
-        // --- START NEW LAYOUT CONSTANTS ---
-        const CANVAS_WIDTH = 1024;
+        // --- COMMON LAYOUT CONSTANTS ---
+        const CANVAS_WIDTH = 1024; // Assuming 1024 for calculation purposes
         const INFO_BAR_HEIGHT = 40;
         const SIDE_PANEL_WIDTH = 240;
         const PADDING = 10;
@@ -587,7 +619,22 @@ class RaceScreen {
         const LEADERBOARD_HEIGHT = 280;
         const BURNER_PHONE_Y = INFO_BAR_HEIGHT + LEADERBOARD_HEIGHT + PADDING;
         const BURNER_PHONE_HEIGHT = 180;
-        // --- END NEW LAYOUT CONSTANTS ---
+
+        const SKIP_BUTTON_WIDTH = 100;
+        const SKIP_BUTTON_HEIGHT = 25;
+        const SKIP_BUTTON_X = CANVAS_WIDTH - SKIP_BUTTON_WIDTH - PADDING; // 10px padding from right
+        const SKIP_BUTTON_Y = INFO_BAR_HEIGHT + 5;
+        // --- END COMMON LAYOUT CONSTANTS ---
+
+        // Check for Skip Race button click
+        if (!gameState?.race?.isRaceOver &&
+            x >= SKIP_BUTTON_X && x <= SKIP_BUTTON_X + SKIP_BUTTON_WIDTH &&
+            y >= SKIP_BUTTON_Y && y <= SKIP_BUTTON_Y + SKIP_BUTTON_HEIGHT) {
+            this.handleSkipRace(gameState);
+            return { action: 'skipRace' }; // Indicate that race was skipped
+        }
+
+        if (!hasRolodex) return null;
 
         // Burner phone bounds (new layout)
         const phoneX = RIGHT_PANEL_X;
@@ -643,13 +690,13 @@ class RaceScreen {
         // Reset hover states
         this.hoveredContact = null;
         this.hoveredDriver = null;
+        this.hoveredElement = null; // Reset hovered element at the start of each move event
 
         // Check if Rolodex is unlocked
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
-        if (!hasRolodex) return;
 
-        // --- START NEW LAYOUT CONSTANTS ---
-        const CANVAS_WIDTH = 1024;
+        // --- COMMON LAYOUT CONSTANTS ---
+        const CANVAS_WIDTH = 1024; // Assuming 1024 for calculation purposes, will use ctx.canvas.width for rendering
         const INFO_BAR_HEIGHT = 40;
         const SIDE_PANEL_WIDTH = 240;
         const PADDING = 10;
@@ -657,7 +704,22 @@ class RaceScreen {
         const LEADERBOARD_HEIGHT = 280;
         const BURNER_PHONE_Y = INFO_BAR_HEIGHT + LEADERBOARD_HEIGHT + PADDING;
         const BURNER_PHONE_HEIGHT = 180;
-        // --- END NEW LAYOUT CONSTANTS ---
+
+        const SKIP_BUTTON_WIDTH = 100;
+        const SKIP_BUTTON_HEIGHT = 25;
+        const SKIP_BUTTON_X = CANVAS_WIDTH - SKIP_BUTTON_WIDTH - PADDING; // 10px padding from right
+        const SKIP_BUTTON_Y = INFO_BAR_HEIGHT + 5;
+        // --- END COMMON LAYOUT CONSTANTS ---
+
+        // Check hover on Skip Race button
+        if (!gameState?.race?.isRaceOver &&
+            x >= SKIP_BUTTON_X && x <= SKIP_BUTTON_X + SKIP_BUTTON_WIDTH &&
+            y >= SKIP_BUTTON_Y && y <= SKIP_BUTTON_Y + SKIP_BUTTON_HEIGHT) {
+            this.hoveredElement = 'skipRaceButton';
+            return; // No need to check other elements if button is hovered
+        }
+        
+        if (!hasRolodex) return;
 
         // Burner phone bounds (new layout)
         const phoneX = RIGHT_PANEL_X;
@@ -729,12 +791,38 @@ class RaceScreen {
         return null;
     }
 
-    generateDummyPositions(count) {
-        return Array.from({ length: count }, (_, i) => ({
-            angle: (i / count) * Math.PI * 2 + Math.random() * 0.3
-        }));
+        generateDummyPositions(count) {
+
+            return Array.from({ length: count }, (_, i) => ({
+
+                angle: (i / count) * Math.PI * 2 + Math.random() * 0.3
+
+            }));
+
+        }
+
+    
+
+        handleSkipRace(gameState) {
+
+            if (gameState?.race?.simulation) {
+
+                gameState.race.simulation.forceFinishRace();
+
+                // Assuming race simulation will update its state to finished,
+
+                // which in turn will be picked up by the main game loop to switch screens.
+
+                // If not, we might need a direct call here.
+
+                gameState.ui.currentScreen = 'resultsScreen';
+
+            }
+
+        }
+
     }
 
-}
+    
 
-export default RaceScreen;
+    export default RaceScreen;

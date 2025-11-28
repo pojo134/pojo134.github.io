@@ -100,7 +100,8 @@ class BettingScreen {
         // Driver list
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
-        this.renderDriverList(ctx, gameState, DRIVER_LIST_START_X, this.driverListY, DRIVER_LIST_WIDTH, 250);
+        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+        this.renderDriverList(ctx, gameState, DRIVER_LIST_START_X, this.driverListY, DRIVER_LIST_WIDTH, DRIVER_LIST_HEIGHT);
 
         // Betting slip
         this.renderBettingSlip(ctx, gameState, canvas.width - 300, 300, 280, 280);
@@ -126,6 +127,15 @@ class BettingScreen {
         ctx.font = '14px "Courier New", monospace';
         ctx.fillStyle = '#00ffff';
         ctx.fillText(trackName, x + 10, y + 45);
+
+        // Add track details
+        if (track) {
+            const trackInfo = track.getInfo();
+            ctx.font = '12px "Courier New", monospace';
+            ctx.fillStyle = '#cccccc';
+            ctx.fillText(`Length: ${trackInfo.totalDistance}m`, x + 10, y + 60);
+            ctx.fillText(`Laps: ${trackInfo.totalLaps || 1}`, x + 10, y + 75); // Assuming 1 lap if not defined
+        }
 
         // Draw actual track if available
         if (track && track.waypoints && track.waypoints.length > 1) {
@@ -342,53 +352,60 @@ class BettingScreen {
             // Bet amount controls
             ctx.fillStyle = '#ffffff';
             ctx.fillText('BET AMOUNT:', x + 20, y + 140);
-
-            // Decrease button
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(x + 20, y + 150, 40, 30);
-            ctx.strokeStyle = '#666666';
-            ctx.strokeRect(x + 20, y + 150, 40, 30);
-            ctx.font = 'bold 20px "Courier New", monospace';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText('-', x + 40, y + 173);
-
+            
             // Amount display
             ctx.font = 'bold 18px "Courier New", monospace';
             ctx.fillStyle = '#ffff00';
+            ctx.textAlign = 'center';
             ctx.fillText(`$${this.betAmount}`, x + width / 2, y + 173);
 
-            // Increase button
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(x + width - 60, y + 150, 40, 30);
-            ctx.strokeStyle = '#666666';
-            ctx.strokeRect(x + width - 60, y + 150, 40, 30);
-            ctx.font = 'bold 20px "Courier New", monospace';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText('+', x + width - 40, y + 173);
+            // Increment/Decrement buttons
+            let buttonY = y + 185;
+            const buttonHeight = 25;
+            const smallButtonWidth = (width - 40 - 20) / 5; // 5 buttons in a row, with 5px spacing between them
+            let currentButtonX = x + 20;
+
+            const betIncrements = [-1000, -100, -10, 10, 100, 1000];
+            
+            // Render fixed increment buttons
+            betIncrements.forEach(inc => {
+                const buttonLabel = inc > 0 ? `+${inc}` : String(inc);
+                this.drawButton(ctx, currentButtonX, buttonY, smallButtonWidth, buttonHeight, buttonLabel, false);
+                currentButtonX += smallButtonWidth + 5;
+            });
+            
+            buttonY += buttonHeight + 5; // Move to next row
+            currentButtonX = x + 20; // Reset X for percentage buttons
+            const percentageButtonWidth = (width - 40 - 15) / 4; // 4 buttons in a row
+            const percentageIncrements = ['10%', '25%', '50%', 'MAX'];
+
+            percentageIncrements.forEach(label => {
+                this.drawButton(ctx, currentButtonX, buttonY, percentageButtonWidth, buttonHeight, label, false);
+                currentButtonX += percentageButtonWidth + 5;
+            });
 
             // Potential payout
             const potentialPayout = this.calculatePayout(this.betAmount, driverOdds);
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'left';
-            ctx.fillText('POTENTIAL PAYOUT:', x + 20, y + 210);
+            ctx.fillText('POTENTIAL PAYOUT:', x + 20, y + 250); // Adjusted Y
             ctx.font = 'bold 20px "Courier New", monospace';
             ctx.fillStyle = '#00ff00';
             ctx.textAlign = 'center';
-            ctx.fillText(`$${potentialPayout}`, x + width / 2, y + 235);
+            ctx.fillText(`$${potentialPayout}`, x + width / 2, y + 275); // Adjusted Y
 
             // Place bet button
             const canBet = gameState?.player?.bankroll >= this.betAmount;
             ctx.fillStyle = canBet ? '#ff0066' : '#333333';
-            ctx.fillRect(x + 20, y + height - 60, width - 40, 40);
+            ctx.fillRect(x + 20, y + height - 30, width - 40, 40); // Adjusted Y
             ctx.strokeStyle = canBet ? '#ffffff' : '#666666';
             ctx.lineWidth = 3;
-            ctx.strokeRect(x + 20, y + height - 60, width - 40, 40);
+            ctx.strokeRect(x + 20, y + height - 30, width - 40, 40); // Adjusted Y
 
             ctx.font = 'bold 18px "Courier New", monospace';
             ctx.fillStyle = canBet ? '#ffffff' : '#666666';
-            ctx.fillText('PLACE BET', x + width / 2, y + height - 33);
+            ctx.fillText('PLACE BET', x + width / 2, y + height - 3); // Adjusted Y
         } else {
             ctx.font = '16px "Courier New", monospace';
             ctx.fillStyle = '#666666';
@@ -400,6 +417,10 @@ class BettingScreen {
 
     handleClick(x, y, gameState) {
         const canvas = { width: 1280, height: 720 }; // Canvas dimensions
+        const DRIVER_LIST_START_X = 20;
+        const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
+        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+
 
         // Check bet type selector
         const betTypes = [
@@ -423,7 +444,9 @@ class BettingScreen {
 
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
-            if (x >= 20 && x <= 960 && y >= rowY - 20 && y <= rowY + 15) { // Adjusted right boundary for new driver list width
+            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH &&
+                y >= listY && y <= listY + DRIVER_LIST_HEIGHT && // Ensure click is within the overall list bounds
+                y >= rowY - 20 && y <= rowY + 15) {
                 this.selectedDriver = driver;
             }
         });
@@ -431,20 +454,41 @@ class BettingScreen {
         // Check betting slip controls
         const slipX = canvas.width - 300;
         const slipY = 300;
+        const width = 280; // Betting slip width, explicitly defined
 
-        // Decrease bet
-        if (x >= slipX + 20 && x <= slipX + 60 && y >= slipY + 150 && y <= slipY + 180) {
-            this.betAmount = Math.max(10, this.betAmount - 10);
-        }
+        // Define button dimensions and positions (should match renderBettingSlip)
+        const buttonHeight = 25;
+        let buttonY = slipY + 185;
+        const smallButtonWidth = (width - 40 - 20) / 5;
+        const percentageButtonWidth = (width - 40 - 15) / 4;
 
-        // Increase bet
-        if (x >= slipX + 240 && x <= slipX + 280 && y >= slipY + 150 && y <= slipY + 180) {
-            this.betAmount = Math.min(10000, this.betAmount + 10);
-        }
+        const betIncrements = [-1000, -100, -10, 10, 100, 1000];
+        const percentageIncrements = ['10%', '25%', '50%', 'MAX'];
+
+        // Check fixed increment buttons
+        let currentButtonX = slipX + 20;
+        betIncrements.forEach(inc => {
+            if (x >= currentButtonX && x <= currentButtonX + smallButtonWidth &&
+                y >= buttonY && y <= buttonY + buttonHeight) {
+                this.betAmount = Math.max(10, Math.min(gameState.player.bankroll, this.betAmount + inc));
+            }
+            currentButtonX += smallButtonWidth + 5;
+        });
+
+        // Check percentage increment buttons
+        buttonY += buttonHeight + 5; // Move to next row
+        currentButtonX = slipX + 20;
+        percentageIncrements.forEach(label => {
+            if (x >= currentButtonX && x <= currentButtonX + percentageButtonWidth &&
+                y >= buttonY && y <= buttonY + buttonHeight) {
+                this.betAmount = Math.max(10, Math.min(gameState.player.bankroll, this.calculateBetPercentage(label, gameState.player.bankroll)));
+            }
+            currentButtonX += percentageButtonWidth + 5;
+        });
 
         // Place bet button
         if (this.selectedDriver && x >= slipX + 20 && x <= slipX + 260 &&
-            y >= slipY + 220 && y <= slipY + 260 && gameState?.player?.bankroll >= this.betAmount) {
+            y >= slipY + height - 30 && y <= slipY + height + 10 && gameState?.player?.bankroll >= this.betAmount) {
             return {
                 action: 'placeBet',
                 driver: this.selectedDriver,
@@ -457,6 +501,11 @@ class BettingScreen {
     }
 
     handleMouseMove(x, y) {
+        const canvas = { width: 1280, height: 720 }; // Canvas dimensions
+        const DRIVER_LIST_START_X = 20;
+        const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20;
+        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+
         // Track hovered driver in list
         const listY = this.driverListY;
         const drivers = this.generateDummyDrivers();
@@ -466,7 +515,9 @@ class BettingScreen {
         this.hoveredDriver = null;
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
-            if (x >= 20 && x <= 960 && y >= rowY - 20 && y <= rowY + 15) { // Adjusted right boundary for new driver list width
+            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH &&
+                y >= listY && y <= listY + DRIVER_LIST_HEIGHT && // Ensure mouse is within the overall list bounds
+                y >= rowY - 20 && y <= rowY + 15) {
                 this.hoveredDriver = driver;
             }
         });
@@ -485,12 +536,33 @@ class BettingScreen {
         return '#888888';
     }
 
+    drawButton(ctx, x, y, width, height, text, isSelected) {
+        ctx.fillStyle = isSelected ? '#ff0066' : '#333333';
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = isSelected ? '#ffffff' : '#666666';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.fillStyle = isSelected ? '#ffffff' : '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, x + width / 2, y + height / 2 + 5);
+    }
+
     calculatePayout(bet, odds) {
         if (!odds) return 0;
         // Handle both string format ("2.5x") and numeric format (2.5)
         const oddsStr = typeof odds === 'string' ? odds : String(odds);
         const multiplier = parseFloat(oddsStr.replace('x', ''));
         return isNaN(multiplier) ? 0 : Math.floor(bet * multiplier);
+    }
+
+    calculateBetPercentage(percentage, bankroll) {
+        if (percentage === 'MAX') {
+            return bankroll;
+        }
+        const value = parseInt(percentage.replace('%', ''));
+        return Math.floor(bankroll * (value / 100));
     }
 
     generateDummyDrivers() {
