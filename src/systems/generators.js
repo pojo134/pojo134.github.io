@@ -394,6 +394,7 @@ class DriverGenerator {
 }
 
 import { Vec2, getSplinePoint, pointToSegmentDistance, intersect, checkCollision } from '../utils/utils.js';
+import { generateOvalPitLane } from '../systems/segmentTrackGenerator.js';
 
 // ============================================================================
 // TRACK GENERATOR CLASS
@@ -793,14 +794,58 @@ class TrackGenerator {
         const characteristics = this.calculateCharacteristics(scaledWaypoints);
         const finalWeather = weatherOverride || this.generateWeather(); // Use override if provided
 
+        let pitLaneData = null;
+        if (actualTrackTypeName === 'Oval') {
+            // For Ovals, place the pit lane on one of the main straights.
+            // Assuming the oval often starts and ends on a straight, 
+            // a section around 5% to 25% of the track length is a good candidate.
+            const pitLaneStartMainIdx = Math.floor(scaledWaypoints.length * 0.05);
+            const pitLaneEndMainIdx = Math.floor(scaledWaypoints.length * 0.25);
+            const pitLaneOffsetDistance = 15 * scaleX; // Scaled offset
+            const pitLaneWidth = trackWidth * 0.75;
+
+            if (scaledWaypoints.length > pitLaneEndMainIdx) {
+                pitLaneData = generateOvalPitLane(
+                    scaledWaypoints,
+                    trackWidth,
+                    pitLaneStartMainIdx,
+                    pitLaneEndMainIdx,
+                    pitLaneOffsetDistance,
+                    pitLaneWidth
+                );
+            }
+        } else if (actualTrackTypeName === 'Tri-Oval') {
+            // For Tri-Ovals, place the pit lane on the longest front straight.
+            // This usually means a section covering the start/finish line.
+            // The indices need to be carefully chosen to match the tri-oval geometry.
+            // Assuming scaledWaypoints are ordered, a section from ~75% to 95% might work
+            // for a pit lane that spans the start/finish line.
+            const pitLaneStartMainIdx = Math.floor(scaledWaypoints.length * 0.75);
+            const pitLaneEndMainIdx = Math.floor(scaledWaypoints.length * 0.95);
+            const pitLaneOffsetDistance = 15 * scaleX; // Scaled offset
+            const pitLaneWidth = trackWidth * 0.75;
+
+            if (scaledWaypoints.length > pitLaneEndMainIdx) {
+                pitLaneData = generateOvalPitLane(
+                    scaledWaypoints,
+                    trackWidth,
+                    pitLaneStartMainIdx,
+                    pitLaneEndMainIdx,
+                    pitLaneOffsetDistance,
+                    pitLaneWidth
+                );
+            }
+        }
+        
         return new Track(
             actualTrackTypeName, // type
             trackName, // name
             scaledWaypoints, // waypoints
             characteristics, // characteristics
             finalWeather, // weather
-            trackWidth, // trackWidth
-            true // isLoop
+            trackWidth, // trackWidth // Corrected position
+            true, // isLoop // Corrected position
+            pitLaneData // Pass pitLaneData here
         );
     }
 
