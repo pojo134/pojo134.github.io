@@ -4,6 +4,8 @@
  * segment-based track generator.
  */
 
+import Track from '../models/track.js';
+
 // --- Constants and Math Helpers ---
 
 const SEGMENT_STRAIGHT = 'straight';
@@ -757,6 +759,12 @@ function generateSegmentTrack(options) {
         direction: degToRad(startDirectionDegrees)
     };
 
+    const startLineForTrack = {
+        x: startX,
+        y: startY,
+        directionDegrees: startDirectionDegrees
+    };
+
     // 1. Relax Segments to Close Loop (if needed)
     // For procedural tracks without intersections allowed, skip relaxation to preserve non-intersecting property
     const isLoopTemplate = ['oval', 'circuit_1', 'monza', 'monaco', 'simplegp', 'procedural'].includes(template);
@@ -911,14 +919,27 @@ function generateSegmentTrack(options) {
         }
     }
 
-    return {
-        centerline,
-        leftBorder,
-        rightBorder,
-        totalLength,
-        pitLane,
-        intersections
-    };
+    const trackInstance = new Track(
+        options.type || 'Circuit', // type - assuming a default if not provided
+        options.name || template, // name
+        centerline, // waypoints
+        options.characteristics || {}, // characteristics
+        options.weather || {}, // weather
+        trackWidth, // trackWidth
+        shouldForceClosure, // isLoop
+        pitLane // pitLaneData
+    );
+
+    // Assign other internal properties that are not part of the constructor
+    trackInstance.segmentTemplates = segments;
+    trackInstance.startLine = startLineForTrack;
+    trackInstance.leftBorder = leftBorder;
+    trackInstance.rightBorder = rightBorder;
+    trackInstance.intersections = intersections;
+    
+    // No need to call trackInstance.generateTrack() as all data is provided at construction
+    
+    return trackInstance;
 }
 
 /**

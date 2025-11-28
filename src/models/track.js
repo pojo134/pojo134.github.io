@@ -1,3 +1,5 @@
+import { assembleTrack, generateBorders, degToRad } from '../systems/segmentTrackGenerator.js';
+
 /**
  * REDLINE ROULETTE - TRACK SYSTEM
  *
@@ -6,21 +8,155 @@
  */
 
 class Track {
-    constructor(type, name, waypoints, characteristics = {}, weather = {}, trackWidth = 30, isLoop = true) {
-        this.type = type;
+    constructor(type, name, waypoints, characteristics, weather, trackWidth, isLoop, pitLaneData = null) {
+        this.type = type; // e.g., 'Circuit', 'Oval', 'Drag Strip'
         this.name = name;
         this.waypoints = waypoints || [];
-        this.characteristics = characteristics;
-        this.weather = weather;
-        this.trackWidth = trackWidth; // Store track width as a property
-        this.isLoop = isLoop; // New: indicates if the track is a closed loop (e.g., for drag strips)
+        this.characteristics = characteristics || {};
+        this.weather = weather || {};
+        this.trackWidth = trackWidth || 30;
+        this.isLoop = isLoop;
+        this.pitLane = pitLaneData;
 
-        // Calculate derived properties
+        // These properties are not used by the simple procedural track generation
+        // but might be by the segmentTrackGenerator. We'll keep them as null/default for now.
+        this.segmentTemplates = null;
+        this.startLine = null;
+        this.leftBorder = [];
+        this.rightBorder = [];
+        this.intersections = [];
+        
+        // Calculate totalDistance and visualBounds based on the provided waypoints
         this.totalDistance = this.calculateTotalDistance();
         this.lapDistance = this.totalDistance;
-
-        // Track visualization properties
         this.visualBounds = this.calculateVisualizationBounds();
+    }
+
+
+    generateTrack() {
+        if (this.waypoints && this.waypoints.length > 0) {
+            // Waypoints were provided in constructor, no need to re-generate centerline and borders
+            // However, we should still ensure totalDistance and visualBounds are correct
+            this.totalDistance = this.calculateTotalDistance();
+            this.lapDistance = this.totalDistance;
+            this.visualBounds = this.calculateVisualizationBounds();
+            return;
+        }
+
+        if (!this.segmentTemplates || this.segmentTemplates.length === 0) {
+            console.warn("No segment templates provided to generate track.");
+            return;
+        }
+
+        const startPosition = {
+            x: this.startLine.x,
+            y: this.startLine.y,
+            direction: degToRad(this.startLine.directionDegrees || 0)
+        };
+
+        const { centerline, totalLength } = assembleTrack(this.segmentTemplates, startPosition);
+        this.waypoints = centerline;
+        this.totalDistance = totalLength;
+        this.lapDistance = totalLength; // Assuming one lap is the total length for now
+        this.visualBounds = this.calculateVisualizationBounds(); // Re-calculate bounds after waypoints are set
+        
+        // Generate borders now that waypoints are set, if not already provided
+        if (this.leftBorder.length === 0 && this.rightBorder.length === 0) {
+            const { leftBorder, rightBorder } = generateBorders(this.waypoints, this.trackWidth);
+            this.leftBorder = leftBorder;
+            this.rightBorder = rightBorder;
+        }
+    }
+
+    /**
+     * Generate pit lane coordinates and stalls
+     */
+    /*
+    generatePitLane() {
+        // This method is deprecated as pitLane data is now passed in the constructor.
+        // The actual pit lane generation logic is expected to be handled externally
+        // (e.g., in segmentTrackGenerator.js) before the Track object is created.
+        return null; 
+    }
+    */
+
+    /**
+     * Add a segment to the track. This will require regenerating the track.
+     * @param {object} segment - The segment object to add.
+     */
+    addSegment(segment) {
+        this.segmentTemplates.push(segment);
+        this.generateTrack(); // Regenerate track with new segment
+    }
+
+    /**
+     * Returns the total length of the track.
+     * @returns {number} The total track length.
+     */
+    getTrackLength() {
+        return this.totalDistance;
+    }
+
+    /**
+     * Returns the starting line coordinates.
+     * @returns {object} The starting line {x, y, directionDegrees}.
+     */
+    getStartLine() {
+        return this.startLine;
+    }
+
+    /**
+     * Returns a specific waypoint by index.
+     * @param {number} index - The index of the waypoint.
+     * @returns {object} The waypoint {x, y}.
+     */
+    getWaypoint(index) {
+        if (this.waypoints && index >= 0 && index < this.waypoints.length) {
+            return this.waypoints[index];
+        }
+        return null;
+    }
+
+    /**
+     * Returns the direction at a specific waypoint by index.
+     * @param {number} index - The index of the waypoint.
+     * @returns {number} The direction in radians.
+     */
+    getWaypointDirection(index) {
+        if (this.waypoints && this.waypoints.length >= 2) {
+            const current = this.waypoints[index % this.waypoints.length];
+            const next = this.waypoints[(index + 1) % this.waypoints.length];
+            return Math.atan2(next.y - current.y, next.x - current.x);
+        }
+        return 0; // Default direction if not enough waypoints
+    }
+
+    /**
+     * Returns the length of a specific segment between two waypoints.
+     * @param {number} index - The starting index of the segment.
+     * @returns {number} The length of the segment.
+     */
+    getSegmentLength(index) {
+        if (this.waypoints && this.waypoints.length >= 2) {
+            const current = this.waypoints[index % this.waypoints.length];
+            const next = this.waypoints[(index + 1) % this.waypoints.length];
+            const dx = next.x - current.x;
+            const dy = next.y - current.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        return 0;
+    }
+
+    /**
+     * Render the track on a canvas. This will call renderFullTrack.
+     * @param {CanvasRenderingContext2D} ctx - The 2D rendering context.
+     * @param {number} displayX - X position of the display area.
+     * @param {number} displayY - Y position of the display area.
+     * @param {number} displayWidth - Width of the display area.
+     * @param {number} displayHeight - Height of the display area.
+     */
+    render(ctx, displayX, displayY, displayWidth, displayHeight) {
+        this.renderFullTrack(ctx, displayX, displayY, displayWidth, displayHeight);
     }
 
     /**
@@ -178,15 +314,23 @@ class Track {
     }
 
     clone() {
-        return new Track(
+        const clonedTrack = new Track(
             this.type,
             this.name,
             JSON.parse(JSON.stringify(this.waypoints)),
             JSON.parse(JSON.stringify(this.characteristics)),
             JSON.parse(JSON.stringify(this.weather)),
             this.trackWidth,
-            this.isLoop // Include isLoop in clone
+            this.isLoop,
+            JSON.parse(JSON.stringify(this.pitLane))
         );
+        clonedTrack.segmentTemplates = JSON.parse(JSON.stringify(this.segmentTemplates));
+        clonedTrack.startLine = JSON.parse(JSON.stringify(this.startLine));
+        clonedTrack.leftBorder = JSON.parse(JSON.stringify(this.leftBorder));
+        clonedTrack.rightBorder = JSON.parse(JSON.stringify(this.rightBorder));
+        clonedTrack.intersections = JSON.parse(JSON.stringify(this.intersections));
+
+        return clonedTrack;
     }
 
     /**
@@ -212,10 +356,14 @@ class Track {
                 ctx.lineTo(screenPos.screenX, screenPos.screenY);
             }
         });
-        ctx.closePath();
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#ffffff';
         ctx.stroke();
+
+        // If it's a loop track, close the path to connect the end to the beginning
+        if (this.isLoop) {
+            ctx.closePath();
+        }
     }
 
     /**
@@ -251,11 +399,28 @@ class Track {
         const scale = Math.min(scaleX, scaleY);
         const scaledTrackWidth = this.trackWidth * scale;
 
-        // 1. Gravel (outer buffer)
+        // 1. Gravel (outer buffer) - Draw FIRST so it doesn't cover pit lane (if pit lane is on top)
+        // OR draw it first so pit lane covers it.
         drawPath();
         ctx.lineWidth = scaledTrackWidth + 12 * scale;
         ctx.strokeStyle = "#5a3a2a";
         ctx.stroke();
+
+        // 0. Pit Lane (Draw AFTER gravel, BEFORE track tarmac)
+        if (this.pitLane) {
+            const pl = this.pitLane;
+            const s1 = this.trackToScreen(pl.p1.x, pl.p1.y, displayX, displayY, displayWidth, displayHeight);
+            const s2 = this.trackToScreen(pl.p2.x, pl.p2.y, displayX, displayY, displayWidth, displayHeight);
+            
+            // Draw Pit Area Background (Simple Grey Box)
+            ctx.lineWidth = pl.width * scale;
+            ctx.strokeStyle = "#666666"; // Slightly lighter grey
+            ctx.lineCap = "butt";
+            ctx.beginPath();
+            ctx.moveTo(s1.screenX, s1.screenY);
+            ctx.lineTo(s2.screenX, s2.screenY);
+            ctx.stroke();
+        }
 
         // 2. Kerbs (red/white stripes)
         drawPath();
