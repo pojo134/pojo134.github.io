@@ -401,6 +401,7 @@ class CarController {
         this.status = CarStatus.RACING;
         this.position = startingPosition;
         this.finishTime = null;
+        this.dnfTime = null; // New: Time car DNF'd
         this.hasPitted = false;       // for pit stop logic
         this.pitTimeRemaining = 0;    // for pit stop timer
         this.raceInfo = {};           // Set by RaceSimulator at start
@@ -496,8 +497,23 @@ class CarController {
         // Move along track
         this._moveAlongTrack(deltaTime, physics);
         
+        if (this.status === CarStatus.PIT_STOP) {
+            this._updatePitStop(deltaTime, physics);
+            return;
+        }
+        
         // Spontaneous event checks (DNF and potential Pit Stop)
+        // Moved here to ensure DNF is processed before movement calculations
         this._spontaneousEventCheck(physics);
+        // If DNF was triggered in this frame, stop further processing
+        if (this.status === CarStatus.DNF_CRASH || this.status === CarStatus.DNF_MECHANICAL) {
+            this.speed = 0; // Ensure speed is immediately 0.
+            // Also, record the DNF time here if it's not set already (for tests and leaderboards)
+            if (this.dnfTime === null) { 
+                this.dnfTime = this.raceSimulator.raceTime;
+            }
+            return;
+        }
     }
 
     /**
@@ -878,6 +894,7 @@ class CarController {
             const isCrash = Math.random() < (this.driver.stats.aggression / 100);
             this.status = isCrash ? CarStatus.DNF_CRASH : CarStatus.DNF_MECHANICAL;
             this.speed = 0;
+            this.dnfTime = this.raceSimulator.raceTime; // Record DNF time
         }
     }
 
@@ -918,7 +935,8 @@ class CarController {
             teamColor: this.teamColor,
             stamina: this.currentStamina,
             finishTime: this.finishTime,
-            pitTimeRemaining: this.pitTimeRemaining
+            pitTimeRemaining: this.pitTimeRemaining,
+            totalDistance: this.totalDistance // Add totalDistance for gap calculation
         };
     }
 }
@@ -1086,6 +1104,7 @@ class RaceSimulator {
         // Leaderboard
         this.leaderboard = [];
         this.finishedCars = [];
+        this.simulationSpeedMultiplier = 1.0;
 
         // Performance tracking
         this.lastOvertakes = new Map(); // Prevent spam of overtake events
@@ -1110,13 +1129,61 @@ class RaceSimulator {
     }
 
     /**
+     * Force the race to finish immediately.
+     */
+    forceFinishRace() {
+        if (this.state === RaceState.FINISHED || this.state === RaceState.PRE_RACE) {
+            return; // Only force finish if currently racing
+        }
+
+        // Fast-forward all cars to their natural conclusion
+        for (const car of this.cars) {
+            if (car.status === CarStatus.RACING || car.status === CarStatus.PIT_STOP) {
+                // If a car is still racing, mark it as finished at current time
+                car.status = CarStatus.FINISHED;
+                car.finishTime = this.raceTime;
+                // Add to finishedCars immediately if not already there
+                if (!this.finishedCars.includes(car)) {
+                    this.finishedCars.push(car);
+                }
+            }
+        }
+        
+        // Ensure all remaining events are processed and positions are final
+        this._updatePositions();
+        this._checkRaceCompletion(); // This will formally set state to FINISHED
+
+        this._addEvent(EventType.RACE_FINISH, {
+            message: 'Race skipped and results finalized.',
+            time: this.raceTime
+        });
+    }
+
+    /**
      * Update race simulation (call this every frame)
      */
     update(scaledDeltaTime) {
         if (this.state !== RaceState.RACING) return;
 
+        // Calculate simulation speed multiplier based on finished cars
+        const finishedCarCount = this.finishedCars.length;
+        let speedMultiplier = 1.0;
+        if (finishedCarCount >= 5) {
+            speedMultiplier = 5.0;
+        } else if (finishedCarCount === 4) {
+            speedMultiplier = 3.0;
+        } else if (finishedCarCount === 3) {
+            speedMultiplier = 2.0;
+        } else if (finishedCarCount === 2) {
+            speedMultiplier = 1.5;
+        } else if (finishedCarCount === 1) {
+            speedMultiplier = 1.2;
+        }
+        this.simulationSpeedMultiplier = speedMultiplier;
+
         // Fixed timestep for deterministic physics
-        this.accumulatedTime += scaledDeltaTime;
+        this.accumulatedTime += scaledDeltaTime * this.simulationSpeedMultiplier;
+
 
         while (this.accumulatedTime >= this.updateRate) {
             this._physicsUpdate(this.updateRate);
@@ -1195,58 +1262,164 @@ class RaceSimulator {
      * @private
      */
     _updatePositions() {
-        // Sort cars by lap and track progress
-        const sortedCars = [...this.cars]
-            .filter(car => car.status === CarStatus.RACING || car.status === CarStatus.FINISHED || car.status === CarStatus.PIT_STOP)
-            .sort((a, b) => {
-                // Pitting cars are last among active cars but ahead of DNFs
-                if (a.status === CarStatus.PIT_STOP && b.status === CarStatus.RACING) return 1;
-                if (a.status === CarStatus.RACING && b.status === CarStatus.PIT_STOP) return -1;
+        // Step 1: Sort all cars based on their status and progress.
+        // This sorting logic prioritizes FINISHED > DNF > RACING/PIT_STOP.
+        const sortedCars = [...this.cars].sort((a, b) => {
+            const isAFinished = a.status === CarStatus.FINISHED;
+            const isBFinished = b.status === CarStatus.FINISHED;
+            const isADNF = a.status === CarStatus.DNF_CRASH || a.status === CarStatus.DNF_MECHANICAL;
+            const isBDNF = b.status === CarStatus.DNF_CRASH || b.status === CarStatus.DNF_MECHANICAL;
 
-                // First by lap
-                if (a.currentLap !== b.currentLap) {
-                    return b.currentLap - a.currentLap;
-                }
+            // FINISHED cars come first, sorted by finishTime
+            if (isAFinished && !isBFinished) return -1;
+            if (!isAFinished && isBFinished) return 1;
+            if (isAFinished && isBFinished) {
+                return a.finishTime - b.finishTime;
+            }
 
-                // Then by waypoint
-                if (a.currentWaypoint !== b.currentWaypoint) {
-                    return b.currentWaypoint - a.currentWaypoint;
-                }
+            // DNF cars come after FINISHED cars, but before RACING/PIT_STOP cars
+            if (isADNF && !isBDNF) return -1;
+            if (!isADNF && isBDNF) return 1;
+            if (isADNF && isBDNF) {
+                // Both are DNF, sort by dnfTime (earlier DNF means lower position among DNFs)
+                if (a.dnfTime !== b.dnfTime) return a.dnfTime - b.dnfTime;
+                // If dnfTime is the same, car that traveled further gets higher position
+                return b.totalDistance - a.totalDistance;
+            }
 
-                // Then by progress to next waypoint
-                return b.waypointProgress - a.waypointProgress;
-            });
+            // RACING cars come before PIT_STOP cars (if same progress)
+            if (a.status === CarStatus.PIT_STOP && b.status === CarStatus.RACING) return 1;
+            if (a.status === CarStatus.RACING && b.status === CarStatus.PIT_STOP) return -1;
+            
+            // For RACING or PIT_STOP cars, sort by lap, then waypoint, then progress
+            if (a.currentLap !== b.currentLap) {
+                return b.currentLap - a.currentLap;
+            }
+            if (a.currentWaypoint !== b.currentWaypoint) {
+                return b.currentWaypoint - a.currentWaypoint;
+            }
+            return b.waypointProgress - a.waypointProgress;
+        });
 
-        // Detect overtakes
+        // Step 2: Assign positions and detect overtakes for active cars.
+        // For FINISHED and DNF cars, their position is set once and remains immutable.
         for (let i = 0; i < sortedCars.length; i++) {
             const car = sortedCars[i];
             const oldPosition = car.position;
             const newPosition = i + 1;
 
-            if (oldPosition !== newPosition && car.status === CarStatus.RACING) {
-                // Prevent overtake spam (only log if significant time has passed)
-                const lastOvertakeTime = this.lastOvertakes.get(car.id) || 0;
-
-                if (this.raceTime - lastOvertakeTime > 1.0 && !this.isCaution) { // 1 second cooldown and only under green flag
-                    if (newPosition < oldPosition) {
-                        this._addEvent(EventType.OVERTAKE, {
-                            message: `${car.driver.name} moves up to P${newPosition}!`,
-                            driver: car.driver.name,
-                            oldPosition,
-                            newPosition,
-                            time: this.raceTime
-                        });
+            if (car.status === CarStatus.RACING || car.status === CarStatus.PIT_STOP) {
+                // Only update position and check for overtakes for active cars
+                if (oldPosition !== newPosition) {
+                    const lastOvertakeTime = this.lastOvertakes.get(car.id) || 0;
+                    if (this.raceTime - lastOvertakeTime > 1.0 && !this.isCaution) {
+                        if (newPosition < oldPosition) {
+                            this._addEvent(EventType.OVERTAKE, {
+                                message: `${car.driver.name} moves up to P${newPosition}!`,
+                                driver: car.driver.name,
+                                oldPosition,
+                                newPosition,
+                                time: this.raceTime
+                            });
+                        }
+                        this.lastOvertakes.set(car.id, this.raceTime);
                     }
-
-                    this.lastOvertakes.set(car.id, this.raceTime);
                 }
+                car.position = newPosition; // Update position for active cars
+            } else if ((car.status === CarStatus.DNF_CRASH || car.status === CarStatus.DNF_MECHANICAL) && car.position === oldPosition) {
+                // For DNF cars, set their final position if it hasn't been locked yet.
+                // This ensures DNF cars get a stable final position on the leaderboard.
+                car.position = newPosition;
             }
-
-            car.position = newPosition;
+            // For CarStatus.FINISHED cars, their position is set in _checkRaceCompletion and should be stable.
+            // We explicitly do not overwrite it here.
         }
 
-        // Update leaderboard
-        this.leaderboard = sortedCars.map(car => car.getState());
+        // Step 3: Build the leaderboard with gap information based on the final sorted order.
+        const carStatesWithGaps = [];
+        let leaderCarState = null;
+
+        for (let i = 0; i < sortedCars.length; i++) {
+            const car = sortedCars[i];
+            const carState = car.getState();
+            carState.gap = '';
+            carState.gapToAhead = '';
+
+            if (i === 0) {
+                carState.gap = 'LEADER';
+                carState.gapToAhead = 'LEADER';
+                leaderCarState = carState;
+            } else {
+                // Calculate gap to leader
+                let gapToLeaderSeconds = 0;
+                if (leaderCarState.status === CarStatus.FINISHED) {
+                    if (carState.status === CarStatus.FINISHED) {
+                        gapToLeaderSeconds = carState.finishTime - leaderCarState.finishTime;
+                    } else if (carState.status === CarStatus.DNF_CRASH || carState.status === CarStatus.DNF_MECHANICAL) {
+                        // DNF car behind a finished leader - large, indeterminate gap.
+                        gapToLeaderSeconds = 9999; 
+                    } else { // carState is RACING or PIT_STOP
+                        const distanceRemainingForCar = leaderCarState.totalDistance - carState.totalDistance;
+                        const effectiveSpeedCar = Math.max(carState.speed, 0.1);
+                        gapToLeaderSeconds = leaderCarState.finishTime - this.raceTime + (distanceRemainingForCar / effectiveSpeedCar);
+                    }
+                } else { // Leader is not finished (RACING or PIT_STOP or DNF but somehow still first)
+                    if (leaderCarState.status === CarStatus.DNF_CRASH || leaderCarState.status === CarStatus.DNF_MECHANICAL) {
+                         // Leader is DNF, gap calculations are less meaningful for active cars
+                         gapToLeaderSeconds = 9999;
+                    } else { // Leader is RACING or PIT_STOP
+                        const distanceGap = leaderCarState.totalDistance - carState.totalDistance;
+                        const effectiveSpeedCar = Math.max(carState.speed, 0.1);
+                        gapToLeaderSeconds = distanceGap / effectiveSpeedCar;
+                    }
+                }
+
+                if (gapToLeaderSeconds > 0) {
+                    carState.gap = `+${gapToLeaderSeconds.toFixed(1)}s`;
+                } else if (gapToLeaderSeconds < 0) {
+                    carState.gap = `-${Math.abs(gapToLeaderSeconds).toFixed(1)}s`;
+                } else {
+                    carState.gap = '0.0s';
+                }
+
+                // Calculate gap to car immediately ahead
+                const carAhead = sortedCars[i - 1];
+                let gapToCarAheadSeconds = 0;
+
+                if (car.status === CarStatus.FINISHED && carAhead.status === CarStatus.FINISHED) {
+                    gapToCarAheadSeconds = car.finishTime - carAhead.finishTime;
+                } else if (carAhead.status === CarStatus.FINISHED) {
+                    if (car.status === CarStatus.DNF_CRASH || car.status === CarStatus.DNF_MECHANICAL) {
+                        gapToCarAheadSeconds = 9999; // DNF car behind finished car
+                    } else { // car is RACING or PIT_STOP
+                        const distanceToCover = carAhead.totalDistance - car.totalDistance;
+                        const effectiveSpeedCar = Math.max(car.speed, 0.1);
+                        gapToCarAheadSeconds = (this.raceTime - carAhead.finishTime) + (distanceToCover / effectiveSpeedCar);
+                    }
+                } else if (car.status === CarStatus.DNF_CRASH || car.status === CarStatus.DNF_MECHANICAL) {
+                    if (carAhead.status === CarStatus.DNF_CRASH || carAhead.status === CarStatus.DNF_MECHANICAL) {
+                        gapToCarAheadSeconds = car.dnfTime - carAhead.dnfTime;
+                    } else { // carAhead is RACING or PIT_STOP
+                        gapToCarAheadSeconds = 9999; // DNF car behind active car
+                    }
+                }
+                else { // Both car and carAhead are RACING or PIT_STOP
+                    const distanceDiff = carAhead.totalDistance - car.totalDistance;
+                    const effectiveSpeedCar = Math.max(car.speed, 0.1);
+                    gapToCarAheadSeconds = distanceDiff / effectiveSpeedCar;
+                }
+
+                if (gapToCarAheadSeconds > 0) {
+                    carState.gapToAhead = `+${gapToCarAheadSeconds.toFixed(1)}s`;
+                } else if (gapToCarAheadSeconds < 0) {
+                    carState.gapToAhead = `-${Math.abs(gapToCarAheadSeconds).toFixed(1)}s`;
+                } else {
+                    carState.gapToAhead = '0.0s';
+                }
+            }
+            carStatesWithGaps.push(carState);
+        }
+        this.leaderboard = carStatesWithGaps;
     }
 
     /**
@@ -1304,29 +1477,66 @@ class RaceSimulator {
      * @private
      */
     _checkRaceCompletion() {
+        const finishingCarsThisFrame = [];
+
         for (const car of this.cars) {
             if (car.status === CarStatus.RACING && car.currentLap >= this.totalLaps) {
-                car.finish(this.raceTime);
-                this.finishedCars.push(car);
+                // Set status and provisional finish time immediately
+                car.status = CarStatus.FINISHED;
+                car.finishTime = this.raceTime; // Current race time
 
-                const position = this.finishedCars.length;
+                // Store car with its state at the moment of finishing for precise time calculation
+                finishingCarsThisFrame.push({
+                    car: car,
+                    raceTimeAtFinish: this.raceTime,
+                    waypointProgressAtFinish: car.waypointProgress,
+                    speedAtFinish: car.speed
+                });
+            }
+        }
+
+        // If there are cars that finished this frame, process them
+        if (finishingCarsThisFrame.length > 0) {
+            // Calculate precise finish time for each car
+            for (const item of finishingCarsThisFrame) {
+                const { car, raceTimeAtFinish, waypointProgressAtFinish, speedAtFinish } = item;
+                
+                // Ensure speed is not zero or too small to avoid division errors
+                const effectiveSpeed = Math.max(speedAtFinish, 0.01); 
+                
+                // Calculate precise finish time as per instruction: raceTime - ((1 - waypointProgress) / speed)
+                // This formula aims to backtrack the finish time based on how far past the line the car is.
+                item.preciseFinishTime = raceTimeAtFinish - ((1 - waypointProgressAtFinish) / effectiveSpeed);
+            }
+
+            // Sort by precise finish time in ascending order (lower time means finished earlier)
+            finishingCarsThisFrame.sort((a, b) => a.preciseFinishTime - b.preciseFinishTime);
+
+            // Assign positions and add to finishedCars in the sorted order
+            for (const item of finishingCarsThisFrame) {
+                const car = item.car;
+                const position = this.finishedCars.length + 1; // Global race position
+
+                this.finishedCars.push(car);
+                car.position = position; // Update car's final position
+                car.finishTime = item.preciseFinishTime; // Update car's finishTime with the precise value
 
                 this._addEvent(EventType.RACE_FINISH, {
                     message: `${car.driver.name} finishes in P${position}!`,
                     driver: car.driver.name,
                     position: position,
-                    time: this.raceTime
+                    time: item.preciseFinishTime // Use the precise finishTime for event log
                 });
-
-                // Check if race is over (all cars finished or DNF'd)
-                const activeCars = this.cars.filter(c =>
-                    c.status === CarStatus.RACING || c.status === CarStatus.PIT_STOP
-                ).length;
-
-                if (activeCars === 0) {
-                    this.state = RaceState.FINISHED;
-                }
             }
+        }
+
+        // Check if race is over (all cars finished or DNF'd)
+        const activeCars = this.cars.filter(c =>
+            c.status === CarStatus.RACING || c.status === CarStatus.PIT_STOP
+        ).length;
+
+        if (activeCars === 0) {
+            this.state = RaceState.FINISHED;
         }
     }
 

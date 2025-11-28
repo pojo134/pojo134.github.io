@@ -46,10 +46,13 @@ class RaceScreen {
 
                         if (isLapCompleteEvent) {
                             const raceLeader = raceState.leaderboard && raceState.leaderboard.length > 0 ? raceState.leaderboard[0] : null;
-                            const eventDriverName = event.driver ? event.driver.name : null;
+                            
+                            // Extract driver name from the LAP_COMPLETE event message
+                            const match = event.message.match(/(.+) completes Lap/);
+                            const eventDriverName = match ? match[1].trim() : null;
                             
                             // Only add LAP_COMPLETE if the driver is the current race leader
-                            if (raceLeader && eventDriverName && raceLeader.driver.name !== eventDriverName) {
+                            if (raceLeader && raceLeader.driver && eventDriverName && raceLeader.driver.name !== eventDriverName) {
                                 shouldAddEvent = false;
                             }
                         }

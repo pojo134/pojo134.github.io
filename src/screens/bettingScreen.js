@@ -455,6 +455,7 @@ class BettingScreen {
         const slipX = canvas.width - 300;
         const slipY = 300;
         const width = 280; // Betting slip width, explicitly defined
+        const height = 280; // Betting slip height, explicitly defined as in render method
 
         // Define button dimensions and positions (should match renderBettingSlip)
         const buttonHeight = 25;

@@ -1,3 +1,5 @@
+import { DriverGenerator } from '../systems/generators.js';
+
 /**
  * Linear interpolation (moved from screens.js)
  */
@@ -14,6 +16,7 @@ class ResultsScreen {
         this.animationDuration = 1.0; // seconds for the money animation
         this.bankrollAnimationStarted = false; // Flag to ensure animation plays once
         this.animationStartTime = 0; // To track when the animation started
+        this.driverGenerator = new DriverGenerator();
     }
 
     update(deltaTime, gameState) {
@@ -78,10 +81,18 @@ class ResultsScreen {
     }
 
     renderPodium(ctx, gameState, x, y, width, height) {
-        // Handle both real results (with finalStandings) and dummy results (array)
-        let standings = this.generateDummyResults();
+        let standings;
         if (gameState?.race?.raceResults?.finalStandings) {
             standings = gameState.race.raceResults.finalStandings;
+        } else {
+            // Generate dummy drivers if no actual results are available
+            standings = [];
+            // To ensure unique names for dummy drivers on the podium
+            this.driverGenerator.reset();
+            for (let i = 0; i < 3; i++) {
+                const dummyDriver = this.driverGenerator.generateDriver("balanced");
+                standings.push({ name: dummyDriver.name, time: `0:00:0${i+1}.000` }); // Dummy times
+            }
         }
 
         // Podium positions (2nd, 1st, 3rd)
@@ -195,14 +206,6 @@ class ResultsScreen {
         }
 
         return null;
-    }
-
-    generateDummyResults() {
-        return [
-            { name: 'VERSTAPPEN', time: '1:32:45.123' },
-            { name: 'HAMILTON', time: '1:32:47.456' },
-            { name: 'LECLERC', time: '1:32:49.789' }
-        ];
     }
 
     reset() {

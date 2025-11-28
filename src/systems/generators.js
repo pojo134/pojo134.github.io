@@ -703,21 +703,26 @@ class TrackGenerator {
      * @param {number} height - Final track height (default 6000)
      * @returns {Track} Track object with waypoints scaled to final dimensions
      */
-    generateTrackForLeague(leagueName, width = 8000, height = 6000) {
+    generateTrackForLeague(leagueName, width = 8000, height = 6000, weatherOverride = null) {
         const settings = this.leagueSettings[leagueName];
         if (!settings) {
             console.warn(`Unknown league: ${leagueName}. Using default circuit.`);
             // Fallback to a default circuit if settings are not found
+            const defaultBaseWaypoints = this._generateBaseProceduralTrack('circuit', 30, 1.0, 70, 30, 800, 600);
+            const defaultScaledWaypoints = defaultBaseWaypoints
+                .map(wp => ({ x: Math.round(wp.x * (width / 800)), y: Math.round(wp.y * (height / 600)) }));
+            const defaultCharacteristics = this.calculateCharacteristics(defaultScaledWaypoints);
+            const defaultTrackName = this.generateTrackName('Circuit');
+            const finalWeather = weatherOverride || this.generateWeather(); // Use override if provided
+
             return new Track(
-                'Circuit', // Changed from Road Course for clarity
-                this.generateTrackName('Circuit'),
-                this._generateBaseProceduralTrack('circuit', 30, 1.0, 70, 30, 800, 600)
-                    .map(wp => ({ x: Math.round(wp.x * (width / 800)), y: Math.round(wp.y * (height / 600)) })),
-                this.calculateCharacteristics(this._generateBaseProceduralTrack('circuit', 30, 1.0, 70, 30, 800, 600)
-                    .map(wp => ({ x: Math.round(wp.x * (width / 800)), y: Math.round(wp.y * (height / 600)) }))),
-                this.generateWeather(),
-                30, // Default track width
-                true // isLoop = true for all default fallback tracks
+                'Circuit', // type
+                defaultTrackName, // name
+                defaultScaledWaypoints, // waypoints
+                defaultCharacteristics, // characteristics
+                finalWeather, // weather
+                trackWidth, // trackWidth
+                true // isLoop
             );
         }
 
@@ -784,22 +789,25 @@ class TrackGenerator {
             actualTrackTypeName = 'Tri-Oval';
         }
 
+        const trackName = this.generateTrackName(actualTrackTypeName);
+        const characteristics = this.calculateCharacteristics(scaledWaypoints);
+        const finalWeather = weatherOverride || this.generateWeather(); // Use override if provided
 
         return new Track(
-            actualTrackTypeName,
-            this.generateTrackName(actualTrackTypeName),
-            scaledWaypoints,
-            this.calculateCharacteristics(scaledWaypoints),
-            this.generateWeather(),
-            trackWidth, // Pass trackWidth to the Track constructor
-            true // isLoop = true for all procedural tracks
+            actualTrackTypeName, // type
+            trackName, // name
+            scaledWaypoints, // waypoints
+            characteristics, // characteristics
+            finalWeather, // weather
+            trackWidth, // trackWidth
+            true // isLoop
         );
     }
 
     /**
      * Generates a simple drag strip track (straight line)
      */
-    generateDragStripTrack(width = 8000, height = 6000) {
+    generateDragStripTrack(width = 8000, height = 6000, weatherOverride = null) {
         const waypoints = [];
         // Define the effective length of a 1/4 mile in game units
         // Based on physics engine speeds, 1000-1200 units is roughly 10-12s at top speed
@@ -822,14 +830,19 @@ class TrackGenerator {
         
         const trackWidth = 20; // Narrower for a drag strip
 
+        const trackName = this.generateTrackName('Drag Strip');
+        const characteristics = this.calculateCharacteristics(waypoints, false);
+        const finalWeather = weatherOverride || this.generateWeather(); // Use override if provided
+        const trackType = 'Drag Strip';
+
         return new Track(
-            'Drag Strip',
-            this.generateTrackName('Drag Strip'),
-            waypoints,
-            this.calculateCharacteristics(waypoints, false), // isLoop = false
-            this.generateWeather(),
-            trackWidth,
-            false // isLoop = false for drag strip
+            trackType, // type
+            trackName, // name
+            waypoints, // waypoints
+            characteristics, // characteristics
+            finalWeather, // weather
+            trackWidth, // trackWidth
+            false // isLoop
         );
     }
 
@@ -1010,6 +1023,16 @@ class TrackGenerator {
      * Generates a complete track
      */
     generateTrack(trackType = null, width = 8000, height = 6000, raceSettings = {}, leagueTier = 1) { // Added leagueTier parameter
+        // Determine initial weather
+        let finalWeather = this.generateWeather();
+
+        // Override weather if a race modifier demands it
+        if (raceSettings.weather === "Rain") {
+            finalWeather = { type: "Rain", gripModifier: 0.65 };
+        } else if (raceSettings.weather === "Night") {
+            finalWeather = { type: "Night", gripModifier: 1.0 };
+        }
+
         // If a trackType is specifically requested, we use it to derive the league name.
         // Otherwise, we use the leagueTier to generate an appropriate track type.
         let leagueName;
@@ -1030,19 +1053,10 @@ class TrackGenerator {
         }
 
         if (trackType === "Drag Race") {
-            return this.generateDragStripTrack(width, height);
+            return this.generateDragStripTrack(width, height, finalWeather);
         }
         
-        const generatedTrack = this.generateTrackForLeague(leagueName, width, height);
-
-        // Override weather if a race modifier demands it
-        const weather = raceSettings.weather === "Rain" ? { type: "Rain", gripModifier: 0.65 } :
-                        raceSettings.weather === "Night" ? { type: "Night", gripModifier: 1.0 } :
-                        generatedTrack.weather; // Use generated track's weather if no override
-
-        generatedTrack.weather = weather; // Apply weather override if any
-
-        return generatedTrack;
+        return this.generateTrackForLeague(leagueName, width, height, finalWeather);
     }
 
     /**

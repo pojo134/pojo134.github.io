@@ -1022,12 +1022,41 @@ function generateOvalPitLane(mainCenterline, mainTrackWidth, pitLaneStartMainIdx
 
     const { leftBorder, rightBorder } = generateBorders(pitCenterline, pitLaneWidth);
 
+    // Define p1 and p2 for the pit lane (start and end of the centerline)
+    const p1 = pitCenterline[0];
+    const p2 = pitCenterline[pitCenterline.length - 1];
+
+    // Generate pit stalls
+    const stalls = [];
+    const numStalls = 6; // Example: 6 pit stalls
+    const stallSpacing = Math.floor((parallelEndIdx - parallelStartIdx) / numStalls);
+    const stallOffsetFromCenter = pitLaneWidth * 0.25; // Offset from pitCenterline for the car to park
+
+    for (let i = 0; i < numStalls; i++) {
+        const centerlineIdx = parallelStartIdx + i * stallSpacing;
+        if (centerlineIdx < pitCenterline.length - 1) {
+            const p = pitCenterline[centerlineIdx];
+            const nextP = pitCenterline[centerlineIdx + 1];
+            const normal = getNormal(p, nextP);
+
+            stalls.push({
+                x: p.x + normal.x * stallOffsetFromCenter,
+                y: p.y + normal.y * stallOffsetFromCenter,
+                direction: Math.atan2(nextP.y - p.y, nextP.x - p.x) // Direction along the pit lane
+            });
+        }
+    }
+
     return {
         centerline: pitCenterline,
         leftBorder,
         rightBorder,
         entryMainTrackPoints: [mainCenterline[pitLaneStartMainIdx]],
-        exitMainTrackPoints: [mainCenterline[pitLaneEndMainIdx + taperLengthPoints]] // End of exit taper
+        exitMainTrackPoints: [mainCenterline[pitLaneEndMainIdx + taperLengthPoints]],
+        p1: p1,
+        p2: p2,
+        width: pitLaneWidth,
+        stalls: stalls
     };
 }
 

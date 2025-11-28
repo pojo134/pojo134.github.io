@@ -136,8 +136,10 @@ class InputManager {
      */
     _handleMouseMove(e) {
         const rect = this.canvas.getBoundingClientRect();
-        this.mouse.x = e.clientX - rect.left;
-        this.mouse.y = e.clientY - rect.top;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        this.mouse.x = (e.clientX - rect.left) * scaleX;
+        this.mouse.y = (e.clientY - rect.top) * scaleY;
     }
 
     /**
@@ -650,6 +652,29 @@ class Game {
     }
 
     /**
+     * Calculates the race speedup based on finished cars.
+     * @param {Array<object>} finishedCars - Array of cars that have finished the race.
+     * @param {number} totalCars - Total number of cars in the race.
+     * @returns {number} The calculated time scale.
+     */
+    _calculateRaceSpeedup(finishedCars, totalCars) {
+        if (totalCars === 0) {
+            return 1;
+        }
+
+        const finishedPercentage = finishedCars.length / totalCars;
+        if (finishedPercentage >= 0.75) {
+            return 8;
+        } else if (finishedPercentage >= 0.5) {
+            return 4;
+        } else if (finishedPercentage >= 0.25) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    /**
      * Starts a new game
      * @private
      */
@@ -770,6 +795,11 @@ class Game {
         // Update race simulator
         if (this.raceSimulator) {
             const raceState = this.raceSimulator.getRaceState();
+
+            // Dynamic race speed scaling based on finished cars
+            const finishedCars = raceState.finishedCars || []; // Ensure it's an array
+            const totalCars = this.gameState.race.drivers.length;
+            this.timeScale = this._calculateRaceSpeedup(finishedCars, totalCars);
 
             // Update race simulation
             this.raceSimulator.update(scaledDeltaTime);
