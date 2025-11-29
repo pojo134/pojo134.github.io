@@ -217,6 +217,14 @@ class InputManager {
     }
 
     /**
+     * Check if mouse button is currently held down
+     * @returns {boolean}
+     */
+    isMouseDown() {
+        return this.mouse.pressed;
+    }
+
+    /**
      * Get mouse position
      * @returns {{x: number, y: number}}
      */
@@ -849,7 +857,7 @@ class Game {
 
         // Handle mouse move
         const mouse = this.inputManager.getMousePosition();
-        this.screens.betting.handleMouseMove(mouse.x, mouse.y);
+        this.screens.betting.handleMouseMove(mouse.x, mouse.y, this.inputManager.isMouseDown());
     }
 
     _updateRace(scaledDeltaTime) {

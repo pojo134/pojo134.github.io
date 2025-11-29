@@ -92,7 +92,7 @@ class BettingScreen {
         this.renderTrackMap(ctx, gameState, 20, 100, 280, 180);
 
         // Track info (to the right of track map)
-        this.renderTrackInfo(ctx, gameState, 320, 100, 280, 180);
+        this.renderTrackInfo(ctx, gameState, 320, 100, 640, 180);
 
         // Driver portrait (top right)
         this.renderDriverPortrait(ctx, gameState, canvas.width - 300, 100, 280, 180);
@@ -100,11 +100,11 @@ class BettingScreen {
         // Driver list
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
-        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+        const DRIVER_LIST_HEIGHT = 400;
         this.renderDriverList(ctx, gameState, DRIVER_LIST_START_X, this.driverListY, DRIVER_LIST_WIDTH, DRIVER_LIST_HEIGHT);
 
         // Betting slip
-        this.renderBettingSlip(ctx, gameState, canvas.width - 300, 300, 280, 350);
+        this.renderBettingSlip(ctx, gameState, canvas.width - 300, 300, 280, 400);
     }
 
     renderTrackMap(ctx, gameState, x, y, width, height) {
@@ -264,35 +264,69 @@ class BettingScreen {
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Header
+        // Header background
+        ctx.fillStyle = '#0d0d0d';
+        ctx.fillRect(x + 2, y + 2, width - 4, 35);
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(x + 2, y + 37, width - 4, 2); // Header separator
+
+        // Header Text
         ctx.font = 'bold 14px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText('DRIVER', x + 10, y + 20);
-        ctx.fillText('SKILL', x + 250, y + 20);
-        ctx.fillText('FORM', x + 350, y + 20);
-        ctx.fillText('ODDS', x + 450, y + 20);
+        ctx.fillText('DRIVER', x + 10, y + 25);
+        
+        // Column lines
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(x + 240, y + 2, 2, height - 4);
+        ctx.fillRect(x + 340, y + 2, 2, height - 4);
+        ctx.fillRect(x + 440, y + 2, 2, height - 4);
+
+        ctx.fillStyle = '#ffff00';
+        ctx.fillText('SKILL', x + 250, y + 25);
+        ctx.fillText('FORM', x + 350, y + 25);
+        ctx.fillText('ODDS', x + 450, y + 25);
 
         // Drivers
         const drivers = gameState?.race?.drivers || this.generateDummyDrivers();
         const rowHeight = 35;
         const startY = y + 40;
 
+        // Define scrollbar area
+        const scrollBarX = x + width - 15;
+        const scrollBarY = y + 40;
+        const scrollBarHeight = height - 45;
+
+        // Store maxScroll for interaction
+        const totalContentHeight = drivers.length * rowHeight;
+        const visibleListHeight = height - 40;
+        this.maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
+
+        // Clip the list area so scrolling doesn't draw outside
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x + 2, y + 39, width - 4, height - 41);
+        ctx.clip();
+
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
 
-            if (rowY < y + 30 || rowY > y + height - 10) return; // Skip if out of view
+            // Optimization: Don't draw if completely out of view
+            if (rowY < y - rowHeight || rowY > y + height) return;
 
             const isSelected = this.selectedDriver === driver;
             const isHovered = this.hoveredDriver === driver;
 
-            // Row background
+            // Row background (Zebra striping)
             if (isSelected) {
                 ctx.fillStyle = '#330033';
-                ctx.fillRect(x + 5, rowY - 20, width - 10, rowHeight - 2);
+                ctx.fillRect(x + 5, rowY - 20, width - 20, rowHeight - 2);
             } else if (isHovered) {
                 ctx.fillStyle = '#1a1a00';
-                ctx.fillRect(x + 5, rowY - 20, width - 10, rowHeight - 2);
+                ctx.fillRect(x + 5, rowY - 20, width - 20, rowHeight - 2);
+            } else if (index % 2 === 1) {
+                ctx.fillStyle = '#141414'; // Darker for alternate rows
+                ctx.fillRect(x + 5, rowY - 20, width - 20, rowHeight - 2);
             }
 
             // Driver data
@@ -303,26 +337,35 @@ class BettingScreen {
 
             const skillValue = this.getDriverSkill(driver);
             ctx.fillStyle = this.getSkillColor(skillValue);
-            ctx.fillText(skillValue, x + 265, rowY);
+            ctx.fillText(skillValue, x + 250, rowY); // Adjusted X
 
             const formValue = this.getDriverForm(driver);
             ctx.fillStyle = this.getFormColor(formValue);
-            ctx.fillText(formValue, x + 365, rowY);
+            ctx.fillText(formValue, x + 350, rowY); // Adjusted X
 
             const oddsValue = this.getDriverOdds(driver, gameState);
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(oddsValue, x + 460, rowY);
+            ctx.fillText(oddsValue, x + 450, rowY); // Adjusted X
         });
 
-        // Scroll indicator
-        if (drivers.length * rowHeight > height - 40) {
-            ctx.fillStyle = '#666666';
-            ctx.fillRect(x + width - 15, y + 30, 10, height - 40);
+        ctx.restore();
 
-            const scrollHeight = (height - 40) * (height / (drivers.length * rowHeight));
-            const scrollY = y + 30 + (this.scrollOffset / (drivers.length * rowHeight)) * (height - 40);
+        // Scroll indicator
+        if (totalContentHeight > visibleListHeight) {
+            // Scroll track
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(scrollBarX, scrollBarY, 10, scrollBarHeight);
+
+            // Scroll thumb
+            const thumbHeight = Math.max(20, (visibleListHeight / totalContentHeight) * scrollBarHeight);
+            const scrollRatio = this.scrollOffset / this.maxScroll;
+            const thumbY = scrollBarY + (scrollRatio * (scrollBarHeight - thumbHeight));
+
             ctx.fillStyle = '#ff0066';
-            ctx.fillRect(x + width - 15, scrollY, 10, scrollHeight);
+            ctx.fillRect(scrollBarX, thumbY, 10, thumbHeight);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(scrollBarX, thumbY, 10, thumbHeight);
         }
     }
 
@@ -395,14 +438,21 @@ class BettingScreen {
             // Increment/Decrement buttons
             let buttonY = y + 185;
             const buttonHeight = 25;
-            const smallButtonWidth = (width - 40 - 20) / 5; // 5 buttons in a row, with 5px spacing between them
+            const smallButtonWidth = Math.floor((width - 40 - (5 * 5)) / 6); // 6 buttons in a row, with 5px spacing between them
             let currentButtonX = x + 20;
 
             const betIncrements = [-1000, -100, -10, 10, 100, 1000];
             
             // Render fixed increment buttons
             betIncrements.forEach(inc => {
-                const buttonLabel = inc > 0 ? `+${inc}` : String(inc);
+                let buttonLabel;
+                if (inc === 1000) {
+                    buttonLabel = '+1K';
+                } else if (inc === -1000) {
+                    buttonLabel = '-1K';
+                } else {
+                    buttonLabel = inc > 0 ? `+${inc}` : String(inc);
+                }
                 this.drawButton(ctx, currentButtonX, buttonY, smallButtonWidth, buttonHeight, buttonLabel, false);
                 currentButtonX += smallButtonWidth + 5;
             });
@@ -431,14 +481,14 @@ class BettingScreen {
             // Place bet button
             const canBet = gameState?.player?.bankroll >= this.betAmount;
             ctx.fillStyle = canBet ? '#ff0066' : '#333333';
-            ctx.fillRect(x + 20, y + height - 30, width - 40, 40);
+            ctx.fillRect(x + 20, y + height - 50, width - 40, 40);
             ctx.strokeStyle = canBet ? '#ffffff' : '#666666';
             ctx.lineWidth = 3;
-            ctx.strokeRect(x + 20, y + height - 30, width - 40, 40);
+            ctx.strokeRect(x + 20, y + height - 50, width - 40, 40);
 
             ctx.font = 'bold 18px "Courier New", monospace';
             ctx.fillStyle = canBet ? '#ffffff' : '#666666';
-            ctx.fillText('PLACE BET', x + width / 2, y + height - 3);
+            ctx.fillText('PLACE BET', x + width / 2, y + height - 23);
         } else {
             ctx.font = '16px "Courier New", monospace';
             ctx.fillStyle = '#666666';
@@ -452,7 +502,7 @@ class BettingScreen {
         const canvas = { width: 1280, height: 720 }; // Canvas dimensions
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
-        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+        const DRIVER_LIST_HEIGHT = 400;
 
         // Check bet type selector (now in betting slip)
         const slipX = canvas.width - 300;
@@ -477,6 +527,26 @@ class BettingScreen {
         const rowHeight = 35;
         const startY = listY + 40;
 
+        // Scroll bar interaction
+        const scrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15;
+        const scrollBarY = listY + 30;
+        const scrollBarHeight = DRIVER_LIST_HEIGHT - 40;
+        const scrollBarWidth = 10;
+
+        if (x >= scrollBarX && x <= scrollBarX + scrollBarWidth &&
+            y >= scrollBarY && y <= scrollBarY + scrollBarHeight) {
+            
+            const clickRelativeY = y - scrollBarY;
+            const scrollPercentage = clickRelativeY / scrollBarHeight;
+            
+            const totalContentHeight = drivers.length * rowHeight;
+            const visibleListHeight = DRIVER_LIST_HEIGHT - 40;
+            const maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
+            
+            this.scrollOffset = scrollPercentage * maxScroll;
+            return null; // Handled scroll click
+        }
+
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
             if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH &&
@@ -490,12 +560,12 @@ class BettingScreen {
         // slipX already declared above for bet type selector
         const slipY = 300;
         const width = 280; // Betting slip width, explicitly defined
-        const height = 350; // Betting slip height, explicitly defined as in render method
+        const height = 400; // Betting slip height, explicitly defined as in render method
 
         // Define button dimensions and positions (should match renderBettingSlip)
         const buttonHeight = 25;
         let buttonY = slipY + 185;
-        const smallButtonWidth = (width - 40 - 20) / 5;
+        const smallButtonWidth = Math.floor((width - 40 - (5 * 5)) / 6);
         const percentageButtonWidth = (width - 40 - 15) / 4;
 
         const betIncrements = [-1000, -100, -10, 10, 100, 1000];
@@ -524,7 +594,7 @@ class BettingScreen {
 
         // Place bet button
         if (this.selectedDriver && x >= slipX + 20 && x <= slipX + 260 &&
-            y >= slipY + height - 30 && y <= slipY + height + 10 && gameState?.player?.bankroll >= this.betAmount) {
+            y >= slipY + height - 50 && y <= slipY + height - 10 && gameState?.player?.bankroll >= this.betAmount) {
             return {
                 action: 'placeBet',
                 driver: this.selectedDriver,
@@ -536,22 +606,56 @@ class BettingScreen {
         return null;
     }
 
-    handleMouseMove(x, y) {
+    handleMouseMove(x, y, isMouseDown) {
         const canvas = { width: 1280, height: 720 }; // Canvas dimensions
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20;
-        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+        const DRIVER_LIST_HEIGHT = 400;
+
+        // Scroll bar drag logic
+        const listY = this.driverListY;
+        const scrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15;
+        const scrollBarY = listY + 40;
+        const scrollBarHeight = DRIVER_LIST_HEIGHT - 45;
+        const scrollBarWidth = 15; // slightly wider hit area
+
+        if (isMouseDown && x >= scrollBarX && x <= scrollBarX + scrollBarWidth &&
+            y >= scrollBarY && y <= scrollBarY + scrollBarHeight) {
+            
+            // Determine scroll position based on Y relative to track
+            const clickRelativeY = y - scrollBarY;
+            const scrollPercentage = Math.max(0, Math.min(1, clickRelativeY / scrollBarHeight));
+            
+            if (this.maxScroll !== undefined) {
+                this.scrollOffset = scrollPercentage * this.maxScroll;
+            }
+        }
 
         // Track hovered driver in list
-        const listY = this.driverListY;
-        const drivers = this.generateDummyDrivers();
+        const drivers = this.generateDummyDrivers(); // Default if no gameState passed, but render handles this better visually
         const rowHeight = 35;
         const startY = listY + 40;
 
         this.hoveredDriver = null;
+        // Note: To accurately hover, we really need the same driver list as render. 
+        // Since we don't have gameState here easily without changing call signature significantly, 
+        // this hover might be slightly out of sync if 'drivers' changes dynamically (e.g. filtering).
+        // But for now, assuming full list or dummy list is consistent.
+        
+        // We can't iterate easily without the driver list. 
+        // We'll rely on render generating dummy list if needed, but strictly speaking
+        // we should have access to the real list here.
+        // However, since this method doesn't have access to gameState, we'll skip hover update 
+        // if we can't get the list, OR we accept that hover only works for dummy/default list context.
+        // Actually, we CAN access `this.selectedDriver` etc.
+        
+        // Let's try to get drivers from where? We can't. 
+        // But the original code generated dummy drivers inside handleMouseMove too!
+        // So we keep that pattern.
+        
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
-            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH &&
+            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15 &&
                 y >= listY && y <= listY + DRIVER_LIST_HEIGHT && // Ensure mouse is within the overall list bounds
                 y >= rowY - 20 && y <= rowY + 15) {
                 this.hoveredDriver = driver;
@@ -559,9 +663,9 @@ class BettingScreen {
         });
     }
 
-    handleWheel(event, gameState) {
+    handleWheel(wheelDelta, gameState) {
         const canvas = { width: 1280, height: 720 };
-        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+        const DRIVER_LIST_HEIGHT = 400;
         const rowHeight = 35;
         const drivers = gameState?.race?.drivers || this.generateDummyDrivers();
 
@@ -571,7 +675,9 @@ class BettingScreen {
         let maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
 
         // Update scrollOffset
-        this.scrollOffset -= event.wheelDeltaY;
+        // wheelDelta is usually positive for scrolling down with deltaY. 
+        // We want scrollOffset to increase when scrolling down.
+        this.scrollOffset += wheelDelta;
 
         // Clamp scrollOffset
         this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxScroll));
@@ -597,7 +703,7 @@ class BettingScreen {
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        ctx.font = 'bold 14px "Courier New", monospace';
+        ctx.font = 'bold 12px "Courier New", monospace'; 
         ctx.fillStyle = isSelected ? '#ffffff' : '#ffffff';
         ctx.textAlign = 'center';
         ctx.fillText(text, x + width / 2, y + height / 2 + 5);

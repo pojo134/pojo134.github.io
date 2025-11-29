@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Stats</title>
+    <!-- Import a retro tech font -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --row-odd: #1a1a1a;
+            --row-even: #0a0a0a;
+            --text-color: #cccccc;
+            --header-text: #ffd700; /* Yellow */
+            --highlight: #4a0072; /* Dark Purple */
+            --border-color: #333;
+            --font-stack: 'Share Tech Mono', monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-stack);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden; /* Prevent body scroll, use table scroll */
+        }
+
+        h1 {
+            color: var(--header-text);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+
+        /* Container for scrolling */
+        .table-container {
+            width: 100%;
+            max-width: 900px;
+            height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        /* Custom Scrollbar */
+        .table-container::-webkit-scrollbar {
+            width: 10px;
+            background: #000;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #444;
+            border: 1px solid #000;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed; /* Ensures headers align with columns */
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background-color: #000;
+            color: var(--header-text);
+            padding: 15px;
+            text-align: left;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-bottom: 2px solid var(--header-text);
+            user-select: none;
+            z-index: 10;
+        }
+
+        thead th:hover {
+            background-color: #111;
+            color: #fff;
+        }
+
+        /* Sort indicators */
+        thead th::after {
+            content: ' ▾';
+            opacity: 0.3;
+        }
+        thead th.asc::after {
+            content: ' ▲';
+            opacity: 1;
+        }
+        thead th.desc::after {
+            content: ' ▼';
+            opacity: 1;
+        }
+
+        tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            height: 40px;
+        }
+
+        tbody td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Zebra Striping */
+        tbody tr:nth-child(odd) {
+            background-color: var(--row-odd);
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: var(--row-even);
+        }
+
+        /* Hover State */
+        tbody tr:hover {
+            background-color: #333;
+            color: #fff;
+        }
+
+        /* Selected State */
+        tbody tr.selected {
+            background-color: var(--highlight) !important;
+            color: #fff;
+            border-left: 4px solid var(--header-text);
+        }
+
+        /* Skill Bar visualization */
+        .skill-bar-bg {
+            background-color: #333;
+            height: 6px;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .skill-bar-fill {
+            height: 100%;
+            background-color: var(--header-text);
+        }
+
+        /* Odds styling */
+        .odds {
+            font-weight: bold;
+            color: #fff;
+        }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            th, td { padding: 10px 5px; font-size: 0.9em; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Global Racing Database // 2099</h1>
+
+    <div class="table-container">
+        <table id="driverTable">
+            <thead>
+                <tr>
+                    <th data-sort="name">Driver Name</th>
+                    <th data-sort="skill">Skill Rating</th>
+                    <th data-sort="form">Recent Form</th>
+                    <th data-sort="odds">Win Odds</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- Rows will be populated by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Mock Data Generation
+        const firstNames = ["Axel", "Nova", "Cipher", "Jaxon", "Kael", "Lyra", "Orion", "Raven", "Stryker", "Vega", "Zane", "Echo", "Flux", "Grimm", "Haze"];
+        const lastNames = ["Vance", "Steele", "Frost", "Mercer", "Drift", "Storm", "Racer", "Black", "Knight", "Shadow", "Chrome", "Spark", "Volt", "Warp", "Zero"];
+        
+        function generateDrivers(count) {
+            const drivers = [];
+            for (let i = 0; i < count; i++) {
+                const skill = Math.floor(Math.random() * (99 - 60 + 1) + 60);
+                // Odds roughly correlate inversely to skill, but with some noise
+                const baseOdd = (100 - skill) / 2; 
+                const odds = (baseOdd + (Math.random() * 5)).toFixed(1); 
+                
+                drivers.push({
+                    id: i,
+                    name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                    skill: skill,
+                    form: ["🔥", "😐", "❄️", "📈", "📉"][Math.floor(Math.random() * 5)], // Simple visual form
+                    odds: parseFloat(odds)
+                });
+            }
+            return drivers;
+        }
+
+        let driverData = generateDrivers(50);
+        let currentSort = { column: 'skill', direction: 'desc' }; // Default sort by skill high to low
+        let selectedRowId = null;
+
+        const tableBody = document.getElementById('tableBody');
+        const headers = document.querySelectorAll('thead th');
+
+        function renderTable() {
+            tableBody.innerHTML = '';
+
+            driverData.forEach(driver => {
+                const tr = document.createElement('tr');
+                if (driver.id === selectedRowId) {
+                    tr.classList.add('selected');
+                }
+                
+                tr.onclick = () => {
+                    // Toggle selection
+                    if (selectedRowId === driver.id) {
+                        selectedRowId = null;
+                    } else {
+                        selectedRowId = driver.id;
+                    }
+                    renderTable();
+                };
+
+                tr.innerHTML = `
+                    <td>${driver.name}</td>
+                    <td>
+                        ${driver.skill}
+                        <div class="skill-bar-bg">
+                            <div class="skill-bar-fill" style="width: ${driver.skill}%"></div>
+                        </div>
+                    </td>
+                    <td style="font-size: 1.2em;">${driver.form}</td>
+                    <td class="odds">${driver.odds}:1</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function sortData(column) {
+            // Toggle direction if clicking same column
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc'; // Default new sort to ascending
+                // Exception: Skill usually wanted Descending first
+                if (column === 'skill') currentSort.direction = 'desc';
+            }
+
+            driverData.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+
+                if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            updateHeaderClasses();
+            renderTable();
+        }
+
+        function updateHeaderClasses() {
+            headers.forEach(th => {
+                th.classList.remove('asc', 'desc');
+                if (th.dataset.sort === currentSort.column) {
+                    th.classList.add(currentSort.direction);
+                }
+            });
+        }
+
+        // Initialize Listeners
+        headers.forEach(th => {
+            th.addEventListener('click', () => {
+                sortData(th.dataset.sort);
+            });
+        });
+
+        // Initial Sort and Render
+        sortData('skill'); 
+
+    </script>
+</body>
+</html>
