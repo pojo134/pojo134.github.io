@@ -13,3 +13,7 @@
 6. Implement anime graphics that were generated for backgrounds to the game screens. 
 
 7. Add who you placed a bet on to the drag racing screen.
+
+8. Implement H2H mode. Show and keep track of rival. Update results screen. 
+
+9. Add more random drivers, probably a different random list for each league. 

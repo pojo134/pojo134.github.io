@@ -395,7 +395,7 @@ class DriverGenerator {
 }
 
 import { Vec2, getSplinePoint, pointToSegmentDistance, intersect, checkCollision } from '../utils/utils.js';
-import { generateOvalPitLane, generatePitLaneOnStraight, generateSimplePitLane } from '../systems/segmentTrackGenerator.js';
+import { generateOvalPitLane, generatePitLaneOnStraight, generateSimplePitLane, generateBorders } from '../systems/segmentTrackGenerator.js';
 
 // ============================================================================
 // TRACK GENERATOR CLASS
@@ -1090,29 +1090,36 @@ class TrackGenerator {
         // Based on physics engine speeds, 1000-1200 units is roughly 10-12s at top speed
         const DRAG_STRIP_LENGTH = 1200; 
 
-        const startX = (width - DRAG_STRIP_LENGTH) / 2;
-        const endX = startX + DRAG_STRIP_LENGTH;
-        const yCenter = height / 2;
+        // Vertical Track: Start at bottom, go up
+        // Center X
+        const xCenter = width / 2;
         
-        const numPoints = 20; // Enough points for smooth rendering/physics
+        // Start Y (near bottom)
+        const startY = height - 1000; 
+        const endY = startY - DRAG_STRIP_LENGTH;
+        
+        const numPoints = 40; // Points for the straight line
 
-        // Generate points for the straight line
+        // Generate points for the straight line (Bottom to Top)
         for (let i = 0; i <= numPoints; i++) {
             const t = i / numPoints;
             waypoints.push({
-                x: Math.round(startX + (endX - startX) * t),
-                y: Math.round(yCenter)
+                x: Math.round(xCenter),
+                y: Math.round(startY + (endY - startY) * t)
             });
         }
         
-        const trackWidth = 20; // Narrower for a drag strip
+        const trackWidth = 60; // Wider for 2 lanes (30 per lane)
 
         const trackName = this.generateTrackName('Drag Strip');
         const characteristics = this.calculateCharacteristics(waypoints, false);
         const finalWeather = weatherOverride || this.generateWeather(); // Use override if provided
         const trackType = 'Drag Strip';
 
-        return new Track(
+        // Generate Borders for Rendering
+        const { leftBorder, rightBorder } = generateBorders(waypoints, trackWidth);
+
+        const track = new Track(
             trackType, // type
             trackName, // name
             waypoints, // waypoints
@@ -1121,6 +1128,12 @@ class TrackGenerator {
             trackWidth, // trackWidth
             false // isLoop
         );
+
+        track.leftBorder = leftBorder;
+        track.rightBorder = rightBorder;
+        track.startLine = { x: xCenter, y: startY, directionDegrees: -90 }; // Pointing Up
+
+        return track;
     }
 
     /**

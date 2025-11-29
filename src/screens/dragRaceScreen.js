@@ -124,13 +124,15 @@ class DragRaceScreen {
                 let isActiveSlot = false;
                 let driverName = "---";
                 let nameColor = '#666'; // Dim for empty/inactive
+                let seedNum = "";
 
                 if (participants && participants[i]) {
                     driverName = participants[i].name;
+                    seedNum = participants[i].seed ? `${participants[i].seed} ` : "";
                     nameColor = '#fff'; // Standard white for present drivers
 
-                    // Check if active in current heat
-                    if (this.bracketState.heatState && 
+                    // Check if active in current heat AND it's the current round being simulated
+                    if (r === (this.bracketState.currentRound -1) && this.bracketState.heatState && 
                        (this.bracketState.heatState.driver1?.name === driverName || 
                         this.bracketState.heatState.driver2?.name === driverName)) {
                         isActiveSlot = true;
@@ -138,6 +140,7 @@ class DragRaceScreen {
                     }
                 } else if (isChampionSlot && this.bracketState.champion) {
                     driverName = this.bracketState.champion.name;
+                    seedNum = this.bracketState.champion.seed ? `${this.bracketState.champion.seed} ` : "";
                     nameColor = this.colors.textHighlight;
                     isActiveSlot = true; // Highlight champion
                 }
@@ -157,10 +160,29 @@ class DragRaceScreen {
                 ctx.shadowBlur = 0; // Reset glow
 
                 // Fill Name
-                ctx.fillStyle = nameColor;
-                ctx.font = isActiveSlot ? 'bold 14px "Courier New", monospace' : '14px "Courier New", monospace';
+                ctx.font = isActiveSlot ? 'bold 13px "Courier New", monospace' : '13px "Courier New", monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText(driverName, currentX + 20, slotY + 25);
+                
+                // Draw Seed Number (Always white)
+                if (seedNum) {
+                    ctx.fillStyle = '#fff'; // Always white
+                    ctx.fillText(seedNum, currentX + 20, slotY + 25);
+                }
+                
+                // Draw Driver Name
+                // Get the driver's team color, or a fallback if not available
+                let driverTextColor = participants[i]?.teamColor || '#ffffff';
+                
+                // For Champion Slot, override team color with textHighlight, but only for text.
+                if (isChampionSlot && this.bracketState.champion) {
+                    driverTextColor = this.colors.textHighlight;
+                }
+
+                ctx.fillStyle = driverTextColor;
+                
+                // Measure seedNum width to position driverName correctly
+                const seedNumWidth = seedNum ? ctx.measureText(seedNum).width : 0;
+                ctx.fillText(driverName, currentX + 20 + seedNumWidth, slotY + 25);
                 
                 // Connectors
                 if (!isChampionSlot) {
@@ -188,19 +210,136 @@ class DragRaceScreen {
     }
 
     renderRacePanel(ctx, x, y, width, height) {
-        // Panel Background
-        ctx.fillStyle = '#000000';
+        // Panel Background - Green "Grass"
+        ctx.fillStyle = '#1a2a1a'; 
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = this.colors.panelBorder;
         ctx.strokeRect(x, y, width, height);
 
-        // The Vertical Track (Taking up full panel space now)
-        const trackY = y + 20;
-        const trackHeight = height - 40;
-        const trackWidth = width - 20;
-        const trackX = x + 10;
+        const track = this.bracketState.track;
+        if (!track) return;
 
-        this.renderVerticalTrack(ctx, trackX, trackY, trackWidth, trackHeight);
+        // Calculate aspect-ratio-preserving centered rect
+        // The drag strip is tall and narrow. The panel is likely wider.
+        // We want to fit the track height into the panel height with padding,
+        // and let the width fall where it may, centered.
+        
+        const padding = 20;
+        const availW = width - 2 * padding;
+        const availH = height - 2 * padding;
+        
+        const trackBounds = track.visualBounds;
+        const trackAspect = trackBounds.width / trackBounds.height;
+        const panelAspect = availW / availH;
+        
+        let renderW, renderH;
+        
+        if (trackAspect > panelAspect) {
+            // Track is wider than panel relative to height (unlikely for drag strip)
+            renderW = availW;
+            renderH = renderW / trackAspect;
+        } else {
+            // Track is taller than panel relative to width (likely)
+            renderH = availH;
+            renderW = renderH * trackAspect;
+        }
+        
+        const renderX = x + (width - renderW) / 2;
+        const renderY = y + (height - renderH) / 2;
+
+        // Render the generated track centered
+        track.renderFullTrack(ctx, renderX, renderY, renderW, renderH);
+
+        // Render Cars
+        if (this.bracketState.heatState) {
+            const heat = this.bracketState.heatState;
+            
+            // Lane 1 (Left)
+            this.renderCarOnStrip(ctx, renderX, renderY, renderW, renderH, heat.car1, heat.driver1, heat.car1ET, -1);
+            
+            // Lane 2 (Right)
+            this.renderCarOnStrip(ctx, renderX, renderY, renderW, renderH, heat.car2, heat.driver2, heat.car2ET, 1);
+        }
+
+        // 6. Render Christmas Tree (Overlay)
+        const isPreHeat = this.bracketState.state === RaceState.PRE_HEAT;
+        const isJustStarted = this.bracketState.state === RaceState.RACING && this.bracketState.heatState && this.bracketState.heatState.heatRaceTime < 1.0;
+        
+        if (isPreHeat || isJustStarted) {
+            // Position tree in the center of the panel, slightly down from the top
+            this.renderChristmasTree(ctx, x + width / 2, y + 100, this.bracketState.startLightState);
+        }
+    }
+
+    renderCarOnStrip(ctx, displayX, displayY, displayWidth, displayHeight, carController, driver, et, laneDirection) {
+        if (!carController) return;
+        
+        const track = this.bracketState.track;
+        if (!track) return;
+
+        // Use the actual DRAG_DISTANCE from the simulation state, default to 1200
+        const dragDistance = this.bracketState.DRAG_DISTANCE || 1200;
+        
+        // Calculate progress (0-1)
+        let progress = carController.currentWaypoint / dragDistance;
+        progress = Math.max(0, Math.min(1, progress));
+        
+        // Get track position at this progress
+        const trackPos = track.getPositionAtProgress(progress);
+        
+        // Convert to screen coordinates using the Centered Render Rect
+        const screenPos = track.trackToScreen(trackPos.x, trackPos.y, displayX, displayY, displayWidth, displayHeight);
+        
+        // Calculate visual lane offset
+        const scale = displayWidth / track.visualBounds.width;
+        const laneOffset = 15 * scale * laneDirection; 
+
+        const carX = screenPos.screenX + laneOffset;
+        const carY = screenPos.screenY;
+
+        // 1. Draw Car Body (Circle)
+        const teamColor = driver.teamColor || '#00ffff';
+        ctx.fillStyle = teamColor;
+        
+        // Glow effect
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = teamColor;
+        
+        ctx.beginPath();
+        ctx.arc(carX, carY, 8, 0, Math.PI * 2); 
+        ctx.fill();
+        
+        ctx.shadowBlur = 0; // Reset glow
+
+        // 2. Driver Initial/Number
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Use the Seed Number if available, otherwise first letter
+        const label = driver.seed ? `${driver.seed}` : (driver.name ? driver.name.substring(0, 1).toUpperCase() : '#');
+        ctx.fillText(label, carX, carY);
+        ctx.textBaseline = 'alphabetic'; // Reset
+
+        // 3. Name Label (Below car) removed as requested to simplify, or keep if needed?
+        // User said: "simplify the display on the drawn cars to just that number"
+        // So we comment out the name label below car
+        /*
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(driver.name, carX, carY + 20);
+        */
+
+        // 4. ET Display (if finished)
+        if (et) {
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 14px "Courier New", monospace';
+            ctx.shadowColor = '#00ff00';
+            ctx.shadowBlur = 5;
+            ctx.fillText(`${et.toFixed(3)}s`, carX, carY - 20);
+            ctx.shadowBlur = 0;
+        }
     }
 
     renderChristmasTree(ctx, x, y, lightState) {
@@ -208,7 +347,7 @@ class DragRaceScreen {
         // We want it to persist for a moment on Green
         
         // Tree Box
-        ctx.fillStyle = 'rgba(17, 17, 17, 0.9)'; // Semi-transparent background
+        ctx.fillStyle = '#111111'; // Solid background color
         ctx.fillRect(x - 40, y - 60, 80, 160);
         ctx.strokeStyle = '#333';
         ctx.strokeRect(x - 40, y - 60, 80, 160);
@@ -237,153 +376,6 @@ class DragRaceScreen {
         
         ctx.fillStyle = mainColor;
         ctx.beginPath(); ctx.arc(x, y + 80, 15, 0, Math.PI*2); ctx.fill();
-    }
-
-    renderVerticalTrack(ctx, x, y, width, height) {
-        // 1. Terrain (Grass/Dirt surrounding track)
-        ctx.fillStyle = '#1a2a1a'; // Dark green/mud
-        ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, width, height);
-
-        // Track Dimensions
-        const trackWidth = width * 0.6; // Track takes up 60% of the panel width
-        const trackX = x + (width - trackWidth) / 2;
-        
-        // 2. Track Surface (Asphalt)
-        ctx.fillStyle = '#222222';
-        ctx.fillRect(trackX, y, trackWidth, height);
-
-        // 3. Curbs (Red/White strips on edges)
-        const curbWidth = 10;
-        const numStripes = 20;
-        const stripeHeight = height / numStripes;
-        
-        for (let i = 0; i < numStripes; i++) {
-            ctx.fillStyle = (i % 2 === 0) ? '#cc0000' : '#eeeeee';
-            // Left Curb
-            ctx.fillRect(trackX - curbWidth, y + i * stripeHeight, curbWidth, stripeHeight);
-            // Right Curb
-            ctx.fillRect(trackX + trackWidth, y + i * stripeHeight, curbWidth, stripeHeight);
-        }
-
-        // 4. Lane Dividers
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([20, 20]); // Dashed line
-        ctx.beginPath();
-        ctx.moveTo(trackX + trackWidth / 2, y);
-        ctx.lineTo(trackX + trackWidth / 2, y + height);
-        ctx.stroke();
-        ctx.setLineDash([]); // Reset
-
-        // 5. Start & Finish Lines
-        const startY = y + height - 50;
-        const finishY = y + 50;
-
-        // Start Line (Thick White)
-        ctx.lineWidth = 6;
-        ctx.strokeStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.moveTo(trackX, startY);
-        ctx.lineTo(trackX + trackWidth, startY);
-        ctx.stroke();
-
-        // Finish Line (Checkered Pattern)
-        const checkSize = 10;
-        const numChecks = trackWidth / checkSize;
-        for (let i = 0; i < numChecks; i++) {
-            ctx.fillStyle = (i % 2 === 0) ? '#ffffff' : '#000000';
-            ctx.fillRect(trackX + i * checkSize, finishY, checkSize, checkSize);
-            ctx.fillStyle = (i % 2 !== 0) ? '#ffffff' : '#000000';
-            ctx.fillRect(trackX + i * checkSize, finishY + checkSize, checkSize, checkSize);
-        }
-
-        // Labels
-        ctx.font = 'bold 16px "Courier New", monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'right';
-        ctx.fillText('FINISH', trackX - 15, finishY + 15);
-        ctx.fillText('START', trackX - 15, startY + 5);
-
-        // Render Cars
-        if (this.bracketState.heatState) {
-            const heat = this.bracketState.heatState;
-            const laneWidth = trackWidth / 2;
-            
-            // Lane 1 (Left)
-            this.renderCarOnStrip(ctx, trackX + laneWidth * 0.5, startY, finishY + checkSize, heat.car1, heat.driver1, heat.car1ET);
-            
-            // Lane 2 (Right)
-            this.renderCarOnStrip(ctx, trackX + laneWidth * 1.5, startY, finishY + checkSize, heat.car2, heat.driver2, heat.car2ET);
-        }
-
-        // 6. Render Christmas Tree (Overlay)
-        // Hide after race starts (allow a brief moment on Green)
-        const isPreHeat = this.bracketState.state === RaceState.PRE_HEAT;
-        // Allow showing for 1s after start
-        const isJustStarted = this.bracketState.state === RaceState.RACING && this.bracketState.heatState && this.bracketState.heatState.heatRaceTime < 1.0;
-        
-        if (isPreHeat || isJustStarted) {
-            this.renderChristmasTree(ctx, trackX + trackWidth / 2, y + 100, this.bracketState.startLightState);
-        }
-    }
-
-    renderCarOnStrip(ctx, centerX, startY, finishY, carController, driver, et) {
-        if (!carController) return;
-        
-        // Use the actual DRAG_DISTANCE from the simulation state, default to 1200
-        const dragDistance = this.bracketState.DRAG_DISTANCE || 1200;
-        
-        // Normalize position: 0 at start, 1 at finish
-        // Clamp to 0-1 to ensure it stays on track
-        let progress = carController.currentWaypoint / dragDistance;
-        progress = Math.max(0, Math.min(1, progress));
-        
-        // Visual Y position (moving UP)
-        // startY is high value (bottom), finishY is low value (top)
-        const trackLength = startY - finishY;
-        const carY = startY - (progress * trackLength);
-
-        // 1. Draw Car Body (Circle)
-        const teamColor = driver.teamColor || '#00ffff';
-        ctx.fillStyle = teamColor;
-        
-        // Glow effect
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = teamColor;
-        
-        ctx.beginPath();
-        ctx.arc(centerX, carY, 12, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.shadowBlur = 0; // Reset glow
-
-        // 2. Driver Initial/Number
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 12px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const label = driver.name ? driver.name.substring(0, 1).toUpperCase() : '#';
-        ctx.fillText(label, centerX, carY);
-        ctx.textBaseline = 'alphabetic'; // Reset
-
-        // 3. Name Label (Below car)
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(driver.name, centerX, carY + 25);
-
-        // 4. ET Display (if finished)
-        if (et) {
-            ctx.fillStyle = '#00ff00';
-            ctx.font = 'bold 18px "Courier New", monospace';
-            ctx.shadowColor = '#00ff00';
-            ctx.shadowBlur = 5;
-            ctx.fillText(`${et.toFixed(3)}s`, centerX, carY - 25);
-            ctx.shadowBlur = 0;
-        }
     }
 
     renderChampionOverlay(ctx, width, height) {

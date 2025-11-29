@@ -15,7 +15,8 @@ export const RaceState = Object.freeze({
     PRE_RACE: 'PRE_RACE',
     RACING: 'RACING',
     FINISHED: 'FINISHED',
-    PRE_HEAT: 'PRE_HEAT'
+    PRE_HEAT: 'PRE_HEAT',
+    HEAT_FINISHED: 'HEAT_FINISHED'
 });
 
 export const CarStatus = Object.freeze({

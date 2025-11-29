@@ -1754,6 +1754,11 @@ class DragRaceSimulator {
         // Shuffle drivers for fair matchups
         const shuffledDrivers = [...this.drivers].sort(() => 0.5 - Math.random());
 
+        // Assign seeding/qualifying numbers based on shuffle order (1-8)
+        shuffledDrivers.forEach((driver, index) => {
+            driver.seed = index + 1;
+        });
+
         // Initial seeding for Round 1 heats (e.g., 8 drivers -> 4 heats)
         // Each element in `bracket` array represents a round's matchups
         // `bracket[0]` = drivers for Round 1
@@ -1812,6 +1817,10 @@ class DragRaceSimulator {
             // This is a bye, advance driver1 automatically if only one exists
             if (driver1) {
                 this.roundWinners.push(driver1);
+                // Push to bracket immediately for visual update
+                if (this.bracket[this.currentRound]) {
+                    this.bracket[this.currentRound].push(driver1);
+                }
                 console.log(`Heat: ${driver1.name} has a bye and advances.`);
             }
             this.currentHeatIndex++;
@@ -1874,7 +1883,7 @@ class DragRaceSimulator {
         // If there are winners from the current round
         if (this.roundWinners.length > 0) {
             // Check if this was the final round (only one winner expected)
-            const expectedWinnersForNextRound = Math.ceil(this.bracket[this.currentRound - 1].length / 2);
+            // const expectedWinnersForNextRound = Math.ceil(this.bracket[this.currentRound - 1].length / 2); // Unused
 
             if (this.roundWinners.length === 1 && this.currentRound === Math.ceil(Math.log2(this.drivers.length))) {
                 // This means the final heat has been run, and we have a champion
@@ -1883,7 +1892,9 @@ class DragRaceSimulator {
                 console.log(`Drag Race Finished! Champion: ${this.champion.name}`);
                 return;
             } else if (this.roundWinners.length > 0) { // If there are winners, but not the champion yet
-                this.bracket[this.currentRound] = [...this.roundWinners]; // Promote winners to next round
+                // Winners are already pushed to this.bracket[this.currentRound] during heat finish
+                // Just need to clear tracking and advance index
+                // this.bracket[this.currentRound] = [...this.roundWinners]; // No longer needed if pushing incrementally
                 this.roundWinners = []; // Clear current round winners
                 this.currentRound++; // Advance to next round
                 this.currentHeatIndex = 0; // Reset heat index for the new round
@@ -2002,6 +2013,12 @@ class DragRaceSimulator {
                     this.heatState.heatWinner = this.heatState.driver2;
                     this.roundWinners.push(this.heatState.driver2);
                 }
+                
+                // Push winner to next bracket slot immediately for visual update
+                if (this.bracket[this.currentRound]) {
+                    this.bracket[this.currentRound].push(this.heatState.heatWinner);
+                }
+
                 this.heatState.heatFinished = true;
                 
                 // Log result
@@ -2030,7 +2047,8 @@ class DragRaceSimulator {
             champion: this.champion,
             heatState: this.heatState,
             startLightState: this.startLightState,
-            DRAG_DISTANCE: this.DRAG_DISTANCE
+            DRAG_DISTANCE: this.DRAG_DISTANCE,
+            track: this.track
         };
     }
 

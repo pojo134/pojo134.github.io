@@ -197,17 +197,26 @@ class Track {
             maxY = Math.max(maxY, wp.y);
         });
 
-        const width = maxX - minX || 100;
-        const height = maxY - minY || 100;
-        const padding = Math.max(width, height) * 0.1;
+        // Take trackWidth into account for horizontal bounds, assuming centerline points
+        // The track extends +/- half trackWidth from the centerline.
+        const effectiveMinX = minX - this.trackWidth / 2;
+        const effectiveMaxX = maxX + this.trackWidth / 2;
+        
+        // Calculate width/height of the actual track content
+        const contentWidth = effectiveMaxX - effectiveMinX;
+        const contentHeight = maxY - minY;
+
+        // Apply padding to these content bounds
+        // Padding should be relative to the larger dimension to ensure sufficient space
+        const padding = Math.max(contentWidth, contentHeight) * 0.1;
 
         return {
-            minX: minX - padding,
-            minY: minY - padding,
-            maxX: maxX + padding,
-            maxY: maxY + padding,
-            width: width + padding * 2,
-            height: height + padding * 2
+            minX: effectiveMinX - padding,
+            minY: minY - padding, // Apply padding to Y bounds
+            maxX: effectiveMaxX + padding,
+            maxY: maxY + padding, // Apply padding to Y bounds
+            width: contentWidth + padding * 2,
+            height: contentHeight + padding * 2
         };
     }
 
@@ -220,17 +229,52 @@ class Track {
             return { x: 0, y: 0 };
         }
 
-        // Normalize progress to 0-1 range
-        progress = ((progress % 1) + 1) % 1;
+        // For non-looping tracks (like drag strip), clamp progress to 0-1
+        // Otherwise, progress > 1 might wrap around unexpectedly
+        if (!this.isLoop) {
+            progress = Math.max(0, Math.min(1, progress));
+        } else {
+            // Normalize progress to 0-1 range for loops
+            progress = ((progress % 1) + 1) % 1;
+        }
 
         // Total waypoint segments
         const segments = this.waypoints.length;
-        const segmentProgress = progress * segments;
-        const currentSegment = Math.floor(segmentProgress) % segments;
-        const progressInSegment = segmentProgress - Math.floor(segmentProgress);
+        
+        // For non-looping tracks, we have length-1 segments.
+        // The last point is at index length-1.
+        // If progress is 1, we want exactly the last point.
+        const effectiveSegments = this.isLoop ? segments : segments - 1;
+        
+        const segmentProgress = progress * effectiveSegments;
+        let currentSegment = Math.floor(segmentProgress);
+        
+        // Handle the exact end case for non-looping tracks
+        if (!this.isLoop && currentSegment >= effectiveSegments) {
+            currentSegment = effectiveSegments - 1;
+            // Force progress in segment to 1.0 to reach the end point
+            // segmentProgress was 'effectiveSegments' (e.g. 40). 
+            // currentSegment becomes 39.
+            // progressInSegment should be 1.0.
+        }
+        
+        const progressInSegment = (progress === 1 && !this.isLoop) ? 1.0 : (segmentProgress - currentSegment);
 
         const currentWaypoint = this.waypoints[currentSegment];
-        const nextWaypoint = this.waypoints[(currentSegment + 1) % segments];
+        
+        // Determine next waypoint
+        let nextWaypoint;
+        if (this.isLoop) {
+            nextWaypoint = this.waypoints[(currentSegment + 1) % segments];
+        } else {
+            // For non-loop, next is just +1, unless we are at the very last segment
+            if (currentSegment < segments - 1) {
+                nextWaypoint = this.waypoints[currentSegment + 1];
+            } else {
+                // Should not happen with the clamping logic above, but safe fallback
+                nextWaypoint = currentWaypoint;
+            }
+        }
 
         // Linear interpolation between waypoints
         const x = currentWaypoint.x + (nextWaypoint.x - currentWaypoint.x) * progressInSegment;
