@@ -209,6 +209,187 @@ class DragRaceScreen {
         }
     }
 
+    renderTrackStartExtension(ctx, track, x, y, width, height, panelBottomY) {
+        if (!track.waypoints || track.waypoints.length === 0) return;
+
+        // Calculate scale matching renderFullTrack logic
+        const bounds = track.visualBounds;
+        const scaleX = width / bounds.width;
+        const scaleY = height / bounds.height;
+        const scale = Math.min(scaleX, scaleY);
+        const scaledTrackWidth = track.trackWidth * scale;
+
+        // Get start point (waypoint 0)
+        const w0 = track.waypoints[0];
+        const screen0 = track.trackToScreen(w0.x, w0.y, x, y, width, height);
+
+        const topY = screen0.screenY;
+        const bottomY = panelBottomY; // Extend to bottom of panel
+        const centerX = screen0.screenX;
+
+        const topWidth = scaledTrackWidth;
+        const bottomWidth = scaledTrackWidth * 5.0; // Widen significantly to create the perspective effect
+
+        ctx.save();
+
+        // Gravel/Dirt base
+        const gravelPaddingTop = 12 * scale;
+        const gravelPaddingBottom = 40 * scale;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX - topWidth / 2 - gravelPaddingTop, topY);
+        ctx.lineTo(centerX + topWidth / 2 + gravelPaddingTop, topY);
+        ctx.lineTo(centerX + bottomWidth / 2 + gravelPaddingBottom, bottomY);
+        ctx.lineTo(centerX - bottomWidth / 2 - gravelPaddingBottom, bottomY);
+        ctx.fillStyle = "#5a3a2a";
+        ctx.fill();
+
+        // Asphalt
+        ctx.beginPath();
+        ctx.moveTo(centerX - topWidth / 2, topY);
+        ctx.lineTo(centerX + topWidth / 2, topY);
+        ctx.lineTo(centerX + bottomWidth / 2, bottomY);
+        ctx.lineTo(centerX - bottomWidth / 2, bottomY);
+        ctx.fillStyle = "#333";
+        ctx.fill();
+
+        // Side Lines (White)
+        ctx.beginPath();
+        ctx.moveTo(centerX - topWidth / 2, topY);
+        ctx.lineTo(centerX - bottomWidth / 2, bottomY);
+        ctx.moveTo(centerX + topWidth / 2, topY);
+        ctx.lineTo(centerX + bottomWidth / 2, bottomY);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    renderTrackEndExtension(ctx, track, x, y, width, height, panelTopY) {
+        if (!track.waypoints || track.waypoints.length === 0) return;
+
+        // Calculate scale matching renderFullTrack logic
+        const bounds = track.visualBounds;
+        const scaleX = width / bounds.width;
+        const scaleY = height / bounds.height;
+        const scale = Math.min(scaleX, scaleY);
+        const scaledTrackWidth = track.trackWidth * scale;
+
+        // Get end point (last waypoint)
+        const wLast = track.waypoints[track.waypoints.length - 1];
+        const screenLast = track.trackToScreen(wLast.x, wLast.y, x, y, width, height);
+
+        const bottomY = screenLast.screenY; // Finish line (top of generated track)
+        const topY = panelTopY; // Extend to top of panel
+        const centerX = screenLast.screenX;
+
+        // Use a uniform width for the entire extension
+        const uniformExtensionWidth = scaledTrackWidth; 
+
+        ctx.save();
+
+        // Gravel/Dirt on sides
+        const gravelPadding = 40 * scale; // Keep this consistent with start extension's general padding style
+
+        ctx.fillStyle = "#5a3a2a";
+        // Left Gravel
+        ctx.fillRect(centerX - uniformExtensionWidth / 2 - gravelPadding, topY, gravelPadding, bottomY - topY);
+        // Right Gravel
+        ctx.fillRect(centerX + uniformExtensionWidth / 2, topY, gravelPadding, bottomY - topY);
+
+        // Asphalt
+        ctx.fillStyle = "#333";
+        ctx.fillRect(centerX - uniformExtensionWidth / 2, topY, uniformExtensionWidth, bottomY - topY);
+
+        // Side Lines (White)
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Left line
+        ctx.moveTo(centerX - uniformExtensionWidth / 2, bottomY);
+        ctx.lineTo(centerX - uniformExtensionWidth / 2, topY);
+        // Right line
+        ctx.moveTo(centerX + uniformExtensionWidth / 2, bottomY);
+        ctx.lineTo(centerX + uniformExtensionWidth / 2, topY);
+        ctx.stroke();
+
+        // checkered line at bottomY
+        const checkerHeight = 5 * scale;
+        const numCheckers = 10;
+        const checkerWidth = uniformExtensionWidth / numCheckers;
+
+        for (let i = 0; i < numCheckers; i++) {
+            const checkerX = centerX - uniformExtensionWidth / 2 + (i * checkerWidth);
+            ctx.fillStyle = (i % 2 === 0) ? '#FFFFFF' : '#000000'; // Alternating white and black
+            ctx.fillRect(checkerX, bottomY - checkerHeight, checkerWidth, checkerHeight);
+        }
+
+        ctx.restore();
+    }
+
+    renderTrackEndExtension(ctx, track, x, y, width, height, panelTopY) {
+        if (!track.waypoints || track.waypoints.length === 0) return;
+
+        // Calculate scale matching renderFullTrack logic
+        const bounds = track.visualBounds;
+        const scaleX = width / bounds.width;
+        const scaleY = height / bounds.height;
+        const scale = Math.min(scaleX, scaleY);
+        const scaledTrackWidth = track.trackWidth * scale;
+
+        // Get end point (last waypoint)
+        const wLast = track.waypoints[track.waypoints.length - 1];
+        const screenLast = track.trackToScreen(wLast.x, wLast.y, x, y, width, height);
+
+        const bottomY = screenLast.screenY; // Finish line (top of generated track)
+        const topY = panelTopY; // Extend to top of panel
+        const centerX = screenLast.screenX;
+
+        // Use a uniform width for the entire extension
+        const uniformExtensionWidth = scaledTrackWidth; 
+
+        ctx.save();
+
+        // Gravel/Dirt on sides
+        const gravelPadding = 40 * scale; // Keep this consistent with start extension's general padding style
+
+        ctx.fillStyle = "#5a3a2a";
+        // Left Gravel
+        ctx.fillRect(centerX - uniformExtensionWidth / 2 - gravelPadding, topY, gravelPadding, bottomY - topY);
+        // Right Gravel
+        ctx.fillRect(centerX + uniformExtensionWidth / 2, topY, gravelPadding, bottomY - topY);
+
+        // Asphalt
+        ctx.fillStyle = "#333";
+        ctx.fillRect(centerX - uniformExtensionWidth / 2, topY, uniformExtensionWidth, bottomY - topY);
+
+        // Side Lines (White)
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Left line
+        ctx.moveTo(centerX - uniformExtensionWidth / 2, bottomY);
+        ctx.lineTo(centerX - uniformExtensionWidth / 2, topY);
+        // Right line
+        ctx.moveTo(centerX + uniformExtensionWidth / 2, bottomY);
+        ctx.lineTo(centerX + uniformExtensionWidth / 2, topY);
+        ctx.stroke();
+
+        // checkered line at bottomY
+        const checkerHeight = 5 * scale;
+        const numCheckers = 10;
+        const checkerWidth = uniformExtensionWidth / numCheckers;
+
+        for (let i = 0; i < numCheckers; i++) {
+            const checkerX = centerX - uniformExtensionWidth / 2 + (i * checkerWidth);
+            ctx.fillStyle = (i % 2 === 0) ? '#FFFFFF' : '#000000'; // Alternating white and black
+            ctx.fillRect(checkerX, bottomY - checkerHeight, checkerWidth, checkerHeight);
+        }
+
+        ctx.restore();
+    }
+
     renderRacePanel(ctx, x, y, width, height) {
         // Panel Background - Green "Grass"
         ctx.fillStyle = '#1a2a1a'; 
@@ -250,6 +431,10 @@ class DragRaceScreen {
         // Render the generated track centered
         track.renderFullTrack(ctx, renderX, renderY, renderW, renderH);
 
+        // Render Extensions AFTER (so they draw on top of the track ends to clean up lines)
+        this.renderTrackStartExtension(ctx, track, renderX, renderY, renderW, renderH, y + height);
+        this.renderTrackEndExtension(ctx, track, renderX, renderY, renderW, renderH, y);
+
         // Render Cars
         if (this.bracketState.heatState) {
             const heat = this.bracketState.heatState;
@@ -269,6 +454,13 @@ class DragRaceScreen {
             // Position tree in the center of the panel, slightly down from the top
             this.renderChristmasTree(ctx, x + width / 2, y + 100, this.bracketState.startLightState);
         }
+
+        // Render ET Slip Data
+        if (this.bracketState.heatState) {
+            const heat = this.bracketState.heatState;
+            this._renderDriverETSlip(ctx, heat, 1, x, y, width, height); // Driver 1 (left lane)
+            this._renderDriverETSlip(ctx, heat, 2, x, y, width, height); // Driver 2 (right lane)
+        }
     }
 
     renderCarOnStrip(ctx, displayX, displayY, displayWidth, displayHeight, carController, driver, et, laneDirection) {
@@ -277,18 +469,34 @@ class DragRaceScreen {
         const track = this.bracketState.track;
         if (!track) return;
 
-        // Use the actual DRAG_DISTANCE from the simulation state, default to 1200
         const dragDistance = this.bracketState.DRAG_DISTANCE || 1200;
         
-        // Calculate progress (0-1)
-        let progress = carController.currentWaypoint / dragDistance;
-        progress = Math.max(0, Math.min(1, progress));
+        // visualDistance now comes directly from the simulator's carController.currentWaypoint
+        const visualDistance = carController.currentWaypoint;
         
-        // Get track position at this progress
-        const trackPos = track.getPositionAtProgress(progress);
+        let screenPos;
         
-        // Convert to screen coordinates using the Centered Render Rect
-        const screenPos = track.trackToScreen(trackPos.x, trackPos.y, displayX, displayY, displayWidth, displayHeight);
+        if (visualDistance <= dragDistance) {
+            // Use track.getPositionAtProgress for positions within the defined track length
+            // We need to calculate progress correctly for getPositionAtProgress
+            const progressRatio = visualDistance / dragDistance;
+            const trackPos = track.getPositionAtProgress(progressRatio);
+            screenPos = track.trackToScreen(trackPos.x, trackPos.y, displayX, displayY, displayWidth, displayHeight);
+        } else {
+            // Extrapolate screen position linearly past the finish line
+            const wLast = track.waypoints[track.waypoints.length - 1];
+            const screenLast = track.trackToScreen(wLast.x, wLast.y, displayX, displayY, displayWidth, displayHeight);
+            
+            const scale = displayWidth / track.visualBounds.width; // Assuming scale is consistent
+            
+            const pixelOffset = (visualDistance - dragDistance) * scale;
+            
+            // Apply offset (UP means decreasing Y on canvas)
+            screenPos = {
+                screenX: screenLast.screenX,
+                screenY: screenLast.screenY - pixelOffset
+            };
+        }
         
         // Calculate visual lane offset
         const scale = displayWidth / track.visualBounds.width;
@@ -296,6 +504,12 @@ class DragRaceScreen {
 
         const carX = screenPos.screenX + laneOffset;
         const carY = screenPos.screenY;
+
+        // Stop drawing cars once they are significantly off-screen at the top
+        // Add a buffer so they fully disappear
+        if (carY < displayY - 50) { 
+            return;
+        }
 
         // 1. Draw Car Body (Circle)
         const teamColor = driver.teamColor || '#00ffff';
@@ -331,14 +545,111 @@ class DragRaceScreen {
         ctx.fillText(driver.name, carX, carY + 20);
         */
 
-        // 4. ET Display (if finished)
-        if (et) {
-            ctx.fillStyle = '#00ff00';
-            ctx.font = 'bold 14px "Courier New", monospace';
-            ctx.shadowColor = '#00ff00';
-            ctx.shadowBlur = 5;
-            ctx.fillText(`${et.toFixed(3)}s`, carX, carY - 20);
-            ctx.shadowBlur = 0;
+
+    }
+
+    _renderDriverETSlip(ctx, heatState, driverNum, panelX, panelY, panelWidth, panelHeight) {
+        const driver = heatState[`driver${driverNum}`];
+        const rt = heatState[`reactionTime${driverNum}`];
+        const ft60 = heatState[`car${driverNum}_60ftTime`];
+        const ft330 = heatState[`car${driverNum}_330ftTime`];
+        const ft660 = heatState[`car${driverNum}_660ftTime`];
+        const ft660mph = heatState[`car${driverNum}_660ftMPH`];
+        const ft1000 = heatState[`car${driverNum}_1000ftTime`]; // New: 1000ft time
+        const et = heatState[`car${driverNum}ET`];
+        const etmph = heatState[`car${driverNum}_ET_MPH`];
+        
+        const isLeftLane = driverNum === 1;
+        // Reverted to left/right alignment
+        const textX = isLeftLane ? panelX + 10 : panelX + panelWidth - 10;
+        const align = isLeftLane ? 'left' : 'right';
+        
+        ctx.textAlign = align;
+        ctx.shadowBlur = 0; // Reset shadow if any
+
+        // Calculate total height of the text block to vertically center it
+        // Driver Name: 22px + 30px spacing + 6 lines of 16px (20px lineHeight) + 2 lines of 18px (20px lineHeight)
+        const nameHeight = 22;
+        const nameSpacing = 30;
+        const regularLineHeight = 20; // for 16px font
+        const finalLineHeight = 20; // for 18px font (bold)
+        const numRegularLines = 6; // RT, 60FT, 330FT, 1/8, 1/8 Speed, 1000FT
+        const numFinalLines = 2; // 1/4 ET, MPH
+
+        const totalTextHeight = nameHeight + nameSpacing + (numRegularLines * regularLineHeight) + (numFinalLines * finalLineHeight);
+        let currentY = panelY + (panelHeight / 2) - (totalTextHeight / 2); // Vertically centered
+
+        // Driver Name at the very top of the centered block
+        ctx.fillStyle = driver.teamColor || this.colors.text;
+        ctx.font = 'bold 22px "Courier New", monospace'; // Increased by 2px
+        ctx.fillText(driver.name.toUpperCase(), textX, currentY);
+        currentY += nameSpacing; // Space after name
+
+        ctx.fillStyle = this.colors.text;
+        ctx.font = '16px "Courier New", monospace'; // Increased by 2px
+        const lineHeight = regularLineHeight; // Adjusted for new font size
+
+        // Display ET data points if available
+        // Reaction Time (RT)
+        if (rt && heatState.heatRaceTime >= rt) { // Only show RT once race starts
+            ctx.fillText(`R/T: ${rt.toFixed(3)}`, textX, currentY);
+        } else {
+             ctx.fillText(`R/T: ---`, textX, currentY);
+        }
+        currentY += lineHeight;
+
+        // 60ft
+        if (ft60) {
+            ctx.fillText(`60': ${ft60.toFixed(3)}`, textX, currentY);
+        } else {
+             ctx.fillText(`60': ---`, textX, currentY);
+        }
+        currentY += lineHeight;
+
+        // 330ft
+        if (ft330) {
+            ctx.fillText(`330': ${ft330.toFixed(3)}`, textX, currentY);
+        } else {
+             ctx.fillText(`330': ---`, textX, currentY);
+        }
+        currentY += lineHeight;
+
+        // 1/8 Mile (660ft) ET & MPH
+        if (ft660) {
+            ctx.fillText(`1/8: ${ft660.toFixed(3)}`, textX, currentY);
+        } else {
+             ctx.fillText(`1/8: ---`, textX, currentY);
+        }
+        currentY += lineHeight;
+        if (ft660mph) {
+            ctx.fillText(`MPH: ${ft660mph.toFixed(1)}`, textX, currentY); // Simplified display
+        } else {
+             ctx.fillText(`MPH: ---`, textX, currentY);
+        }
+        currentY += lineHeight;
+
+        // 1000ft
+        if (ft1000) {
+            ctx.fillText(`1000': ${ft1000.toFixed(3)}`, textX, currentY);
+        } else {
+            ctx.fillText(`1000': ---`, textX, currentY);
+        }
+        currentY += lineHeight;
+
+
+        // Final ET & MPH (only if race is finished)
+        if (et && heatState.heatFinished) {
+            ctx.fillStyle = this.colors.textHighlight;
+            ctx.font = 'bold 18px "Courier New", monospace'; // Increased by 2px
+            ctx.fillText(`1/4 ET: ${et.toFixed(3)}`, textX, currentY);
+            currentY += finalLineHeight;
+            ctx.fillText(`MPH: ${etmph ? etmph.toFixed(1) : '---'}`, textX, currentY);
+        } else {
+            ctx.fillStyle = this.colors.text;
+            ctx.font = '16px "Courier New", monospace'; // Increased by 2px
+            ctx.fillText(`1/4 ET: ---`, textX, currentY);
+            currentY += finalLineHeight;
+            ctx.fillText(`MPH: ---`, textX, currentY);
         }
     }
 

@@ -1869,7 +1869,34 @@ class DragRaceSimulator {
             reactionTime1: Math.random() * 0.15 + 0.05, // 0.05s to 0.20s reaction
             reactionTime2: Math.random() * 0.15 + 0.05,
             falseStart1: false,
-            falseStart2: false
+            falseStart2: false,
+
+            // ET Slip data for car1
+            car1_60ftTime: null,
+            car1_330ftTime: null,
+            car1_660ftTime: null,
+            car1_660ftMPH: null,
+            car1_1000ftTime: null, // New: 1000ft time
+            car1_ET_MPH: null,
+
+            // Flags to ensure each time is recorded only once
+            car1_60ftPassed: false,
+            car1_330ftPassed: false,
+            car1_660ftPassed: false,
+            car1_1000ftPassed: false, // New: 1000ft passed flag
+            // ET Slip data for car2
+            car2_60ftTime: null,
+            car2_330ftTime: null,
+            car2_660ftTime: null,
+            car2_660ftMPH: null,
+            car2_1000ftTime: null, // New: 1000ft time
+            car2_ET_MPH: null,
+
+            // Flags to ensure each time is recorded only once
+            car2_60ftPassed: false,
+            car2_330ftPassed: false,
+            car2_660ftPassed: false,
+            car2_1000ftPassed: false // New: 1000ft passed flag
         };
         this.heatSimulationTimer = 0;
         this.startLightState = 'OFF';
@@ -1930,6 +1957,23 @@ class DragRaceSimulator {
 
         if (this.state === RaceState.FINISHED) return;
 
+        // Constants for drag race checkpoints (as fractions of DRAG_DISTANCE)
+        const DIST_60FT = this.DRAG_DISTANCE * (60 / 1320); // Using 1/4 mile (1320ft) as a reference for proportions
+        const DIST_330FT = this.DRAG_DISTANCE * (330 / 1320);
+        const DIST_660FT = this.DRAG_DISTANCE * (660 / 1320);
+        const DIST_1000FT = this.DRAG_DISTANCE * (1000 / 1320); // New: 1000ft distance
+        // Assuming 1 game unit = 1 foot for MPH conversion
+        const FT_PER_SEC_TO_MPH = 0.681818; 
+
+        // Helper function to calculate instantaneous MPH
+        const calculateInstantaneousMPH = (timeRun, actualFinishTime, dragDistance) => {
+            if (timeRun <= 0) return 0;
+            // Velocity = (2 * dragDistance) / actualFinishTime  (instantaneous speed at finish line, assuming constant acceleration)
+            // For instantaneous speed at 'timeRun': v = (2 * dragDistance / actualFinishTime^2) * timeRun
+            const velocity_ft_per_sec = (2 * dragDistance / (actualFinishTime * actualFinishTime)) * timeRun;
+            return velocity_ft_per_sec * FT_PER_SEC_TO_MPH;
+        };
+
         // Update Start Lights
         if (this.state === RaceState.PRE_HEAT) {
             this.startLightTimer += deltaTime;
@@ -1943,89 +1987,142 @@ class DragRaceSimulator {
             } else if (this.startLightState === 'YELLOW2' && this.startLightTimer > this.DRAG_TREE_DELAY_YELLOW) {
                 this.startLightState = 'YELLOW3';
                 this.startLightTimer = 0;
-            } else if (this.startLightState === 'YELLOW3' && this.startLightTimer > this.DRAG_TREE_DELAY_YELLOW) {
-                this.startLightState = 'GREEN';
-                this.startLightTimer = 0;
-                this.state = RaceState.RACING;
-                // Set reaction times here if we want to be precise, but we simulated them in setup
-            }
-        }
-
-        // Update Racing Logic
-        if (this.state === RaceState.RACING && this.heatState) {
-            this.heatState.heatRaceTime += deltaTime;
+                        } else if (this.startLightState === 'YELLOW3' && this.startLightTimer > this.DRAG_TREE_DELAY_YELLOW) {
+                            this.startLightState = 'GREEN';
+                            this.startLightTimer = 0;
+                            this.state = RaceState.RACING;
+                            // Reset heatRaceTime to 0 when the green light turns on
+                            if (this.heatState) {
+                                this.heatState.heatRaceTime = 0;
+                            }
+                        }
+                    }
+            
+                    // Update Racing Logic (car movement and heatRaceTime accumulation)
+                    // This runs if heatState exists and the race is either RACING or HEAT_FINISHED (for runoff)
+                    if (this.heatState && (this.state === RaceState.RACING || this.state === RaceState.HEAT_FINISHED)) {
+                        this.heatState.heatRaceTime += deltaTime;
 
             // Update Car 1
-            // Movement logic: x = 0.5 * a * t^2
-            // We know TargetTime (ET). So x = D * (t / ET)^2
-            // We account for reaction time: t_run = time - reaction
-            if (!this.heatState.car1Finished) {
-                const timeRun = Math.max(0, this.heatState.heatRaceTime - this.heatState.reactionTime1);
-                if (timeRun > 0) {
-                    // Quadratic acceleration curve
-                    const progress = Math.pow(timeRun / this.heatState.actualFinishTime1, 2);
-                    this.heatState.car1.currentWaypoint = Math.min(progress, 1.0) * this.DRAG_DISTANCE;
-                    
-                    if (progress >= 1.0) {
-                        this.heatState.car1.currentWaypoint = this.DRAG_DISTANCE;
+            const car1TimeRun = Math.max(0, this.heatState.heatRaceTime - this.heatState.reactionTime1);
+            if (car1TimeRun > 0) {
+                let car1CurrentPos;
+                if (car1TimeRun <= this.heatState.actualFinishTime1) { // Accelerating to finish line
+                    const progress = Math.pow(car1TimeRun / this.heatState.actualFinishTime1, 2);
+                    car1CurrentPos = progress * this.DRAG_DISTANCE;
+
+                    // Record intermediate times and speeds for car1
+                    if (!this.heatState.car1_60ftPassed && car1CurrentPos >= DIST_60FT) {
+                        this.heatState.car1_60ftTime = car1TimeRun;
+                        this.heatState.car1_60ftPassed = true;
+                    }
+                    if (!this.heatState.car1_330ftPassed && car1CurrentPos >= DIST_330FT) {
+                        this.heatState.car1_330ftTime = car1TimeRun;
+                        this.heatState.car1_330ftPassed = true;
+                    }
+                    if (!this.heatState.car1_660ftPassed && car1CurrentPos >= DIST_660FT) {
+                        this.heatState.car1_660ftTime = car1TimeRun;
+                        this.heatState.car1_660ftMPH = calculateInstantaneousMPH(car1TimeRun, this.heatState.actualFinishTime1, this.DRAG_DISTANCE);
+                        this.heatState.car1_660ftPassed = true;
+                    }
+                    if (!this.heatState.car1_1000ftPassed && car1CurrentPos >= DIST_1000FT) {
+                        this.heatState.car1_1000ftTime = car1TimeRun;
+                        this.heatState.car1_1000ftPassed = true;
+                    }
+
+                } else { // Already finished, now in constant speed run-off
+                    // Ensure car is marked as finished first frame it crosses DRAG_DISTANCE
+                    if (!this.heatState.car1Finished) {
                         this.heatState.car1Finished = true;
                         this.heatState.car1ET = this.heatState.actualFinishTime1;
+                        this.heatState.car1_ET_MPH = calculateInstantaneousMPH(this.heatState.actualFinishTime1, this.heatState.actualFinishTime1, this.DRAG_DISTANCE);
                     }
+                    const timePastFinish = car1TimeRun - this.heatState.actualFinishTime1;
+                    const v_finish = (2 * this.DRAG_DISTANCE) / this.heatState.car1ET; 
+                    car1CurrentPos = this.DRAG_DISTANCE + v_finish * timePastFinish;
                 }
+                this.heatState.car1.currentWaypoint = car1CurrentPos;
             }
 
             // Update Car 2
-            if (!this.heatState.car2Finished) {
-                const timeRun = Math.max(0, this.heatState.heatRaceTime - this.heatState.reactionTime2);
-                if (timeRun > 0) {
-                    const progress = Math.pow(timeRun / this.heatState.actualFinishTime2, 2);
-                    this.heatState.car2.currentWaypoint = Math.min(progress, 1.0) * this.DRAG_DISTANCE;
-                    
-                    if (progress >= 1.0) {
-                        this.heatState.car2.currentWaypoint = this.DRAG_DISTANCE;
+            const car2TimeRun = Math.max(0, this.heatState.heatRaceTime - this.heatState.reactionTime2);
+            if (car2TimeRun > 0) {
+                let car2CurrentPos;
+                if (car2TimeRun <= this.heatState.actualFinishTime2) {
+                    const progress = Math.pow(car2TimeRun / this.heatState.actualFinishTime2, 2);
+                    car2CurrentPos = progress * this.DRAG_DISTANCE;
+
+                    // Record intermediate times and speeds for car2
+                    if (!this.heatState.car2_60ftPassed && car2CurrentPos >= DIST_60FT) {
+                        this.heatState.car2_60ftTime = car2TimeRun;
+                        this.heatState.car2_60ftPassed = true;
+                    }
+                    if (!this.heatState.car2_330ftPassed && car2CurrentPos >= DIST_330FT) {
+                        this.heatState.car2_330ftTime = car2TimeRun;
+                        this.heatState.car2_330ftPassed = true;
+                    }
+                    if (!this.heatState.car2_660ftPassed && car2CurrentPos >= DIST_660FT) {
+                        this.heatState.car2_660ftTime = car2TimeRun;
+                        this.heatState.car2_660ftMPH = calculateInstantaneousMPH(car2TimeRun, this.heatState.actualFinishTime2, this.DRAG_DISTANCE);
+                        this.heatState.car2_660ftPassed = true;
+                    }
+                    if (!this.heatState.car2_1000ftPassed && car2CurrentPos >= DIST_1000FT) {
+                        this.heatState.car2_1000ftTime = car2TimeRun;
+                        this.heatState.car2_1000ftPassed = true;
+                    }
+
+                } else {
+                    if (!this.heatState.car2Finished) {
                         this.heatState.car2Finished = true;
                         this.heatState.car2ET = this.heatState.actualFinishTime2;
+                        this.heatState.car2_ET_MPH = calculateInstantaneousMPH(this.heatState.actualFinishTime2, this.heatState.actualFinishTime2, this.DRAG_DISTANCE);
                     }
+                    const timePastFinish = car2TimeRun - this.heatState.actualFinishTime2;
+                    const v_finish = (2 * this.DRAG_DISTANCE) / this.heatState.car2ET;
+                    car2CurrentPos = this.DRAG_DISTANCE + v_finish * timePastFinish;
                 }
+                this.heatState.car2.currentWaypoint = car2CurrentPos;
             }
 
             // Check for Heat Finish
             if (this.heatState.car1Finished && this.heatState.car2Finished) {
-                this.state = RaceState.HEAT_FINISHED;
-                
-                // Determine Winner based on Total Time (Reaction + ET)
-                const totalTime1 = this.heatState.reactionTime1 + this.heatState.car1ET;
-                const totalTime2 = this.heatState.reactionTime2 + this.heatState.car2ET;
+                if (this.state !== RaceState.HEAT_FINISHED) { // Only set once
+                    this.state = RaceState.HEAT_FINISHED;
+                    
+                    // Determine Winner based on Total Time (Reaction + ET)
+                    const totalTime1 = this.heatState.reactionTime1 + this.heatState.car1ET;
+                    const totalTime2 = this.heatState.reactionTime2 + this.heatState.car2ET;
 
-                // Record Stats for Results Calculation
-                if (!this.driverStats) this.driverStats = new Map();
-                const recordStat = (id, et) => {
-                    if (!this.driverStats.has(id)) this.driverStats.set(id, {});
-                    this.driverStats.get(id)[`round${this.currentRound}ET`] = et;
-                };
-                recordStat(this.heatState.driver1.id, this.heatState.car1ET);
-                recordStat(this.heatState.driver2.id, this.heatState.car2ET);
+                    // Record Stats for Results Calculation
+                    if (!this.driverStats) this.driverStats = new Map();
+                    const recordStat = (id, et) => {
+                        if (!this.driverStats.has(id)) this.driverStats.set(id, {});
+                        this.driverStats.get(id)[`round${this.currentRound}ET`] = et;
+                    };
+                    recordStat(this.heatState.driver1.id, this.heatState.car1ET);
+                    recordStat(this.heatState.driver2.id, this.heatState.car2ET);
 
-                if (totalTime1 < totalTime2) {
-                    this.heatState.heatWinner = this.heatState.driver1;
-                    this.roundWinners.push(this.heatState.driver1);
-                } else {
-                    this.heatState.heatWinner = this.heatState.driver2;
-                    this.roundWinners.push(this.heatState.driver2);
-                }
-                
-                // Push winner to next bracket slot immediately for visual update
-                if (this.bracket[this.currentRound]) {
-                    this.bracket[this.currentRound].push(this.heatState.heatWinner);
-                }
+                    if (totalTime1 < totalTime2) {
+                        this.heatState.heatWinner = this.heatState.driver1;
+                        this.roundWinners.push(this.heatState.driver1);
+                    } else {
+                        this.heatState.heatWinner = this.heatState.driver2;
+                        this.roundWinners.push(this.heatState.driver2);
+                    }
+                    
+                    // Push winner to next bracket slot immediately for visual update
+                    if (this.bracket[this.currentRound]) {
+                        this.bracket[this.currentRound].push(this.heatState.heatWinner);
+                    }
 
-                this.heatState.heatFinished = true;
-                
-                // Log result
-                console.log(`Heat Finished! Winner: ${this.heatState.heatWinner.name}`);
-                console.log(`  ${this.heatState.driver1.name}: ${totalTime1.toFixed(3)}s (R:${this.heatState.reactionTime1.toFixed(3)} + E:${this.heatState.car1ET.toFixed(3)})`);
-                console.log(`  ${this.heatState.driver2.name}: ${totalTime2.toFixed(3)}s (R:${this.heatState.reactionTime2.toFixed(3)} + E:${this.heatState.car2ET.toFixed(3)})`);
-            }
+                    this.heatState.heatFinished = true;
+                    
+                    // Log result
+                    console.log(`Heat Finished! Winner: ${this.heatState.heatWinner.name}`);
+                    console.log(`  ${this.heatState.driver1.name}: ${totalTime1.toFixed(3)}s (R:${this.heatState.reactionTime1.toFixed(3)} + E:${this.heatState.car1ET.toFixed(3)})`);
+                    console.log(`  ${this.heatState.driver2.name}: ${totalTime2.toFixed(3)}s (R:${this.heatState.reactionTime2.toFixed(3)} + E:${this.heatState.car2ET.toFixed(3)})`);
+                } // closing brace for if (this.state !== RaceState.HEAT_FINISHED)
+            } // closing brace for if (this.heatState.car1Finished && this.heatState.car2Finished)
         }
 
         // Handle Heat Transition
