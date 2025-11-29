@@ -187,7 +187,7 @@ class InputManager {
      */
     _handleWheel(e) {
         e.preventDefault(); // Prevent default scroll behavior
-        this.mouse.wheelDeltaY = e.deltaY;
+        this.mouse.wheelDeltaY += e.deltaY;
     }
 
     /**
@@ -733,6 +733,7 @@ class Game {
         this._prepareRace();
 
         // Transition to betting
+        this.screens.betting.reset();
         this.screenManager.changeState(GameStates.BETTING);
     }
 
@@ -804,6 +805,7 @@ class Game {
                     // Select contract and prepare race
                     this.gameState.selectContract(action.contractIndex);
                     this._prepareRace();
+                    this.screens.betting.reset();
                     this.screenManager.changeState(GameStates.BETTING);
                 } else if (action.action === 'debugDragRace') {
                     // Create and select dummy drag race contract
@@ -818,6 +820,7 @@ class Game {
                     };
                     this.gameState.season.selectedContract = dummyDragContract;
                     this._prepareRace();
+                    this.screens.betting.reset();
                     this.screenManager.changeState(GameStates.BETTING);
                 } else if (action.action === 'forceTier') {
                     this._debugForceTier();
@@ -1086,7 +1089,22 @@ class Game {
     _handleWheelInput() {
         const wheelDeltaY = this.inputManager.getWheelDeltaY();
         if (wheelDeltaY !== 0) {
-            const currentScreen = this.screens[this.screenManager.getCurrentState()];
+            const currentState = this.screenManager.getCurrentState();
+            let currentScreen = null;
+
+            switch (currentState) {
+                case GameStates.MAIN_MENU: currentScreen = this.screens.mainMenu; break;
+                case GameStates.GARAGE: currentScreen = this.screens.garage; break;
+                case GameStates.BETTING: currentScreen = this.screens.betting; break;
+                case GameStates.RACE: currentScreen = this.screens.race; break;
+                case GameStates.DRAG_RACE: currentScreen = this.screens.dragRace; break;
+                case GameStates.RESULTS: currentScreen = this.screens.results; break;
+                case GameStates.SETTINGS: currentScreen = this.screens.settings; break;
+                case GameStates.LOAD_GAME: currentScreen = this.screens.loadGame; break;
+                case GameStates.GAME_OVER: currentScreen = this.screens.gameOver; break;
+                case GameStates.TIER_ADVANCEMENT: currentScreen = this.screens.tierAdvancement; break;
+            }
+
             if (currentScreen && typeof currentScreen.handleWheel === 'function') {
                 currentScreen.handleWheel(wheelDeltaY, this.gameState);
             }

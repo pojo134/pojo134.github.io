@@ -7,10 +7,84 @@ class BettingScreen {
         this.hoveredDriver = null;
         this.driverListY = 300;
         this.portraitFlashTimer = 0;
+        
+        // Sort state
+        this.currentSort = { column: 'position', direction: 'asc' };
+        this.lastSortedDrivers = [];
+        
+        this.columnConfig = [
+             { key: 'position', label: 'POS', xOffset: 10, width: 60, clickable: true },
+             { key: 'name', label: 'DRIVER', xOffset: 80, width: 230, clickable: true },
+             { key: 'skill', label: 'SKILL', xOffset: 320, width: 100, clickable: true },
+             { key: 'form', label: 'FORM', xOffset: 430, width: 100, clickable: true },
+             { key: 'odds', label: 'ODDS', xOffset: 540, width: 80, clickable: true }
+        ];
     }
 
     update(deltaTime, gameState) {
         this.portraitFlashTimer += deltaTime;
+    }
+    
+    sortDrivers(drivers, gameState) {
+        if (!drivers) return [];
+        
+        // Ensure qualifying position is set (assuming input array is in grid order)
+        drivers.forEach((d, i) => {
+            if (d.qualifyingPosition === undefined) {
+                d.qualifyingPosition = i + 1;
+            }
+        });
+
+        const { column, direction } = this.currentSort;
+        
+        // Create shallow copy to sort
+        const sorted = [...drivers];
+        
+        sorted.sort((a, b) => {
+            let valA, valB;
+
+            if (column === 'position') {
+                valA = a.qualifyingPosition;
+                valB = b.qualifyingPosition;
+            } else if (column === 'name') {
+                valA = a.name.toLowerCase();
+                valB = b.name.toLowerCase();
+            } else if (column === 'skill') {
+                valA = this.getDriverRawSkill(a);
+                valB = this.getDriverRawSkill(b);
+            } else if (column === 'form') {
+                valA = this.getFormValue(this.getDriverForm(a));
+                valB = this.getFormValue(this.getDriverForm(b));
+            } else if (column === 'odds') {
+                valA = this.parseOdds(this.getDriverOdds(a, gameState));
+                valB = this.parseOdds(this.getDriverOdds(b, gameState));
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        
+        return sorted;
+    }
+
+    getDriverRawSkill(driver) {
+        if (driver.skill !== undefined) return parseInt(driver.skill) || 0;
+        if (driver.stats) {
+             return Math.round((driver.stats.topSpeed + driver.stats.cornering + driver.stats.reliability) / 3);
+        }
+        return 0;
+    }
+
+    getFormValue(formStr) {
+        const map = { 'HOT': 4, 'GOOD': 3, 'AVG': 2, 'COLD': 1 }; 
+        return map[formStr] || 0;
+    }
+    
+    parseOdds(oddsStr) {
+        if (typeof oddsStr === 'number') return oddsStr;
+        if (!oddsStr) return 999;
+        return parseFloat(String(oddsStr).replace('x', '')) || 999;
     }
 
     getDriverOdds(driver, gameState) {
@@ -270,82 +344,112 @@ class BettingScreen {
         ctx.fillStyle = '#444444';
         ctx.fillRect(x + 2, y + 37, width - 4, 2); // Header separator
 
-        // Header Text
+        // Render Headers
         ctx.font = 'bold 14px "Courier New", monospace';
-        ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText('DRIVER', x + 10, y + 25);
         
-        // Column lines
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(x + 240, y + 2, 2, height - 4);
-        ctx.fillRect(x + 340, y + 2, 2, height - 4);
-        ctx.fillRect(x + 440, y + 2, 2, height - 4);
-
-        ctx.fillStyle = '#ffff00';
-        ctx.fillText('SKILL', x + 250, y + 25);
-        ctx.fillText('FORM', x + 350, y + 25);
-        ctx.fillText('ODDS', x + 450, y + 25);
+        this.columnConfig.forEach(col => {
+             ctx.fillStyle = this.currentSort.column === col.key ? '#ffffff' : '#ffff00';
+             ctx.fillText(col.label, x + col.xOffset, y + 25);
+             
+             // Sort indicator
+             if (this.currentSort.column === col.key) {
+                 const arrow = this.currentSort.direction === 'asc' ? '▲' : '▼';
+                 // Estimate text width to place arrow
+                 const textWidth = ctx.measureText(col.label).width;
+                 ctx.font = '12px "Courier New", monospace';
+                 ctx.fillText(arrow, x + col.xOffset + textWidth + 5, y + 25);
+                 ctx.font = 'bold 14px "Courier New", monospace'; // Restore font
+             }
+        });
 
         // Drivers
-        const drivers = gameState?.race?.drivers || this.generateDummyDrivers();
+        const rawDrivers = gameState?.race?.drivers || this.generateDummyDrivers();
+        const drivers = this.sortDrivers(rawDrivers, gameState);
+        this.lastSortedDrivers = drivers; // Cache for interaction
+        
         const rowHeight = 35;
-        const startY = y + 40;
+        const contentStartY = y + 40; // Visual top of the content area for rows
+        const textBaselineOffset = 23; // To center text vertically in a 35px row (approx)
 
         // Define scrollbar area
         const scrollBarX = x + width - 15;
-        const scrollBarY = y + 40;
-        const scrollBarHeight = height - 45;
+        const scrollBarY = y + 40; // Matches contentStartY
+        const scrollBarHeight = height - 40; // Height of the actual scrollable track
 
         // Store maxScroll for interaction
         const totalContentHeight = drivers.length * rowHeight;
-        const visibleListHeight = height - 40;
+        const visibleListHeight = height - 40; // Height of the actual visible content area.
         this.maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
 
         // Clip the list area so scrolling doesn't draw outside
         ctx.save();
         ctx.beginPath();
-        ctx.rect(x + 2, y + 39, width - 4, height - 41);
+        // Clipping area top is now contentStartY, height is visibleListHeight
+        ctx.rect(x + 2, contentStartY, width - 4, visibleListHeight);
         ctx.clip();
 
         drivers.forEach((driver, index) => {
-            const rowY = startY + index * rowHeight - this.scrollOffset;
+            const rowTop = contentStartY + index * rowHeight - this.scrollOffset; // Top edge of this row's visual bounding box
+            const textY = rowTop + textBaselineOffset; // Baseline for text
 
             // Optimization: Don't draw if completely out of view
-            if (rowY < y - rowHeight || rowY > y + height) return;
+            if (rowTop + rowHeight < contentStartY || rowTop > contentStartY + visibleListHeight) return;
 
             const isSelected = this.selectedDriver === driver;
             const isHovered = this.hoveredDriver === driver;
 
             // Row background (Zebra striping)
             if (isSelected) {
-                ctx.fillStyle = '#330033';
-                ctx.fillRect(x + 5, rowY - 20, width - 20, rowHeight - 2);
+                ctx.fillStyle = '#330033'; // Selection highlight
+                ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
             } else if (isHovered) {
-                ctx.fillStyle = '#1a1a00';
-                ctx.fillRect(x + 5, rowY - 20, width - 20, rowHeight - 2);
+                ctx.fillStyle = '#1a1a00'; // Hover highlight
+                ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
             } else if (index % 2 === 1) {
                 ctx.fillStyle = '#141414'; // Darker for alternate rows
-                ctx.fillRect(x + 5, rowY - 20, width - 20, rowHeight - 2);
+                ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
             }
 
             // Driver data
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = isSelected ? '#ffffff' : '#aaaaaa';
             ctx.textAlign = 'left';
-            ctx.fillText(`${index + 1}. ${driver.name}`, x + 10, rowY);
 
+            // POS
+            ctx.fillText(driver.qualifyingPosition || '-', x + this.columnConfig[0].xOffset, textY);
+
+            // NAME
+            ctx.fillText(`${driver.name}`, x + this.columnConfig[1].xOffset, textY);
+
+            // Skill with bar
             const skillValue = this.getDriverSkill(driver);
+            const skillNum = this.getDriverRawSkill(driver);
             ctx.fillStyle = this.getSkillColor(skillValue);
-            ctx.fillText(skillValue, x + 250, rowY); // Adjusted X
+            ctx.fillText(skillValue, x + this.columnConfig[2].xOffset, textY); 
+            
+            // Draw Skill Bar
+            const barWidth = 80;
+            const barHeight = 4;
+            const barX = x + this.columnConfig[2].xOffset;
+            const barY = textY + 4; // Position relative to text baseline (under the text)
+            
+            ctx.fillStyle = '#333333'; // Bar bg
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+            
+            ctx.fillStyle = '#ffd700'; // Bar fill
+            const fillPct = Math.min(1, Math.max(0, skillNum / 100));
+            ctx.fillRect(barX, barY, barWidth * fillPct, barHeight);
 
+            // Form
             const formValue = this.getDriverForm(driver);
             ctx.fillStyle = this.getFormColor(formValue);
-            ctx.fillText(formValue, x + 350, rowY); // Adjusted X
+            ctx.fillText(formValue, x + this.columnConfig[3].xOffset, textY); 
 
+            // Odds
             const oddsValue = this.getDriverOdds(driver, gameState);
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(oddsValue, x + 450, rowY); // Adjusted X
+            ctx.fillText(oddsValue, x + this.columnConfig[4].xOffset, textY); 
         });
 
         ctx.restore();
@@ -521,9 +625,34 @@ class BettingScreen {
             }
         }
 
-        // Check driver list
+        // Check driver list interactions
         const listY = this.driverListY;
-        const drivers = gameState?.race?.drivers || this.generateDummyDrivers();
+        
+        // 1. Header Clicks (Sorting)
+        if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH && y >= listY && y <= listY + 35) {
+            // Header Clicked
+            for (let col of this.columnConfig) {
+                const headerX = DRIVER_LIST_START_X + col.xOffset;
+                // Simple hit detection for headers (approx width based on next column or end)
+                const nextCol = this.columnConfig.find(c => c.xOffset > col.xOffset);
+                const colWidth = nextCol ? (nextCol.xOffset - col.xOffset) : (DRIVER_LIST_WIDTH - col.xOffset);
+                
+                if (x >= headerX && x < headerX + colWidth) {
+                    if (this.currentSort.column === col.key) {
+                        this.currentSort.direction = this.currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.currentSort.column = col.key;
+                        this.currentSort.direction = 'desc'; // Default to desc (usually better for numbers)
+                        if (col.key === 'name') this.currentSort.direction = 'asc';
+                    }
+                    return null;
+                }
+            }
+        }
+        
+        // Use cached sorted drivers to match what user sees
+        const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : this.sortDrivers(gameState?.race?.drivers || this.generateDummyDrivers(), gameState);
+        
         const rowHeight = 35;
         const startY = listY + 40;
 
@@ -550,7 +679,7 @@ class BettingScreen {
         drivers.forEach((driver, index) => {
             const rowY = startY + index * rowHeight - this.scrollOffset;
             if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH &&
-                y >= listY && y <= listY + DRIVER_LIST_HEIGHT && // Ensure click is within the overall list bounds
+                y >= listY + 40 && y <= listY + DRIVER_LIST_HEIGHT && // Ensure click is within the content area
                 y >= rowY - 20 && y <= rowY + 15) {
                 this.selectedDriver = driver;
             }
@@ -611,12 +740,15 @@ class BettingScreen {
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20;
         const DRIVER_LIST_HEIGHT = 400;
+        const rowHeight = 35;
+        const contentStartY = this.driverListY + 40; // Visual top of the content area for rows
+        const visibleListHeight = DRIVER_LIST_HEIGHT - 40; // Height of the actual visible content area.
 
         // Scroll bar drag logic
         const listY = this.driverListY;
         const scrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15;
-        const scrollBarY = listY + 40;
-        const scrollBarHeight = DRIVER_LIST_HEIGHT - 45;
+        const scrollBarY = this.driverListY + 40; // Matches contentStartY
+        const scrollBarHeight = DRIVER_LIST_HEIGHT - 40;
         const scrollBarWidth = 15; // slightly wider hit area
 
         if (isMouseDown && x >= scrollBarX && x <= scrollBarX + scrollBarWidth &&
@@ -632,32 +764,16 @@ class BettingScreen {
         }
 
         // Track hovered driver in list
-        const drivers = this.generateDummyDrivers(); // Default if no gameState passed, but render handles this better visually
-        const rowHeight = 35;
-        const startY = listY + 40;
-
+        // Use cached sorted drivers for consistency with render
+        const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : this.generateDummyDrivers();
+        
         this.hoveredDriver = null;
-        // Note: To accurately hover, we really need the same driver list as render. 
-        // Since we don't have gameState here easily without changing call signature significantly, 
-        // this hover might be slightly out of sync if 'drivers' changes dynamically (e.g. filtering).
-        // But for now, assuming full list or dummy list is consistent.
-        
-        // We can't iterate easily without the driver list. 
-        // We'll rely on render generating dummy list if needed, but strictly speaking
-        // we should have access to the real list here.
-        // However, since this method doesn't have access to gameState, we'll skip hover update 
-        // if we can't get the list, OR we accept that hover only works for dummy/default list context.
-        // Actually, we CAN access `this.selectedDriver` etc.
-        
-        // Let's try to get drivers from where? We can't. 
-        // But the original code generated dummy drivers inside handleMouseMove too!
-        // So we keep that pattern.
         
         drivers.forEach((driver, index) => {
-            const rowY = startY + index * rowHeight - this.scrollOffset;
+            const rowTop = contentStartY + index * rowHeight - this.scrollOffset; // Top edge of this row's visual bounding box
             if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15 &&
-                y >= listY && y <= listY + DRIVER_LIST_HEIGHT && // Ensure mouse is within the overall list bounds
-                y >= rowY - 20 && y <= rowY + 15) {
+                y >= contentStartY && y <= contentStartY + visibleListHeight && // Ensure mouse is within the content area
+                y >= rowTop && y <= rowTop + rowHeight) { // Check if mouse is within this specific row
                 this.hoveredDriver = driver;
             }
         });
@@ -667,7 +783,9 @@ class BettingScreen {
         const canvas = { width: 1280, height: 720 };
         const DRIVER_LIST_HEIGHT = 400;
         const rowHeight = 35;
-        const drivers = gameState?.race?.drivers || this.generateDummyDrivers();
+        // Use sorted drivers if available or re-sort
+        const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : 
+                       (gameState?.race?.drivers || this.generateDummyDrivers());
 
         const totalContentHeight = drivers.length * rowHeight;
         const visibleListHeight = DRIVER_LIST_HEIGHT - 40; // Accounting for padding in renderDriverList
@@ -725,18 +843,39 @@ class BettingScreen {
         return Math.floor(bankroll * (value / 100));
     }
 
-    generateDummyDrivers() {
-        const names = ['HAMILTON', 'VERSTAPPEN', 'LECLERC', 'SAINZ', 'NORRIS', 'PIASTRI', 'RUSSELL', 'ALONSO'];
-        const skills = ['95', '92', '88', '85', '83', '82', '86', '84'];
-        const forms = ['HOT', 'GOOD', 'GOOD', 'AVG', 'HOT', 'GOOD', 'AVG', 'GOOD'];
-        const odds = ['2.5x', '3.0x', '4.5x', '5.0x', '6.5x', '7.0x', '4.0x', '5.5x'];
+    reset() {
+        this.selectedDriver = null;
+        this.betAmount = 100;
+        this.betType = 'win';
+        this.scrollOffset = 0;
+        this.hoveredDriver = null;
+        this.currentSort = { column: 'position', direction: 'asc' };
+        this.lastSortedDrivers = [];
+    }
 
-        return names.map((name, i) => ({
-            name,
-            skill: skills[i],
-            form: forms[i],
-            odds: odds[i]
-        }));
+    generateDummyDrivers() {
+        const names = [
+            'Dummy Driver 1', 'Dummy Driver 2', 'Dummy Driver 3', 'Dummy Driver 4', 'Dummy Driver 6',
+        ];
+        
+        return names.map((name, i) => {
+            // Generate deterministic pseudo-random stats for consistency
+            const baseSkill = 95 - Math.floor(i * 1.5);
+            const skill = Math.max(60, baseSkill);
+            const oddsVal = (2.0 + (i * 0.5)).toFixed(1);
+            
+            return {
+                name,
+                skill: String(skill),
+                form: ['HOT', 'GOOD', 'AVG', 'COLD'][i % 4],
+                odds: `${oddsVal}x`,
+                stats: {
+                    topSpeed: skill,
+                    cornering: skill - 5,
+                    reliability: 80
+                }
+            };
+        });
     }
 }
 
