@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oval Pit Lane Test</title>
+    <style>
+        body { background-color: #111; color: #eee; font-family: sans-serif; padding: 20px; }
+        canvas { border: 1px solid #444; background: #000; display: block; margin: 20px auto; }
+        #info { text-align: center; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center">Oval Pit Lane Test</h1>
+    <div id="info">Generating...</div>
+    <canvas id="trackCanvas" width="800" height="600"></canvas>
+
+    <script type="module">
+        import { TrackGenerator } from './src/systems/generators.js';
+
+        const canvas = document.getElementById('trackCanvas');
+        const ctx = canvas.getContext('2d');
+        const info = document.getElementById('info');
+
+        const trackGen = new TrackGenerator();
+
+        // Force Oval generation
+        // We can ask for 'Stock Car' league which favors Ovals, but we need to ensure it picks Oval.
+        // Actually, generateTrackForLeague(leagueName) -> picks type based on settings.
+        // But we can use generateTrack("Oval") directly which calls generateTrackForLeague but sets type?
+        // No, generateTrack("Oval") calls generateTrackForLeague("Stock Car") roughly.
+        
+        // Let's force it by calling _generateBaseProceduralTrack manually? No, too complex.
+        // generateTrack("Oval", ...) will call generateTrackForLeague("Stock Car", ...).
+        // But inside generateTrackForLeague, if league is Stock Car, it randomly picks Oval/TriOval.
+        // However, if we modify generateTrack to accept explicit override?
+        
+        // Actually, generateTrack accepts trackType as first arg.
+        // If trackType is provided, it maps to leagueName.
+        // But inside generateTrackForLeague, it RE-GENERATES trackStyle based on league settings.
+        // It ignores the requested trackType mostly, except for determining the league name.
+        
+        // Wait, let's check generateTrack:
+        // if (trackType) { ... leagueName = ... }
+        // ...
+        // return this.generateTrackForLeague(leagueName, ...);
+        
+        // And generateTrackForLeague:
+        // const settings = this.leagueSettings[leagueName];
+        // ...
+        // if (leagueName === 'Stock Car') { trackStyle = randomChoice(...) }
+        
+        // So to force Oval, we need to be lucky or patch it.
+        // Or we can loop until we get an Oval.
+        
+        let track;
+        let attempts = 0;
+        do {
+            track = trackGen.generateTrack("Oval", 8000, 6000);
+            attempts++;
+        } while (track.type !== 'Oval' && attempts < 10);
+
+        // Render
+        track.renderFullTrack(ctx, 50, 50, canvas.width - 100, canvas.height - 100);
+
+        // Inspect pit lane
+        let msg = `Track Type: ${track.type} (Attempts: ${attempts})<br>`;
+        if (track.pitLane) {
+            msg += `Pit Lane Present. Stalls: ${track.pitLane.stalls.length} <br>`;
+            msg += `Pit Width: ${track.pitLane.width} <br>`;
+            msg += `Pit Start: (${track.pitLane.p1.x.toFixed(0)}, ${track.pitLane.p1.y.toFixed(0)}) <br>`;
+            msg += `Pit End: (${track.pitLane.p2.x.toFixed(0)}, ${track.pitLane.p2.y.toFixed(0)}) <br>`;
+            if (track.pitLane.location) {
+                msg += `Location: ${track.pitLane.location} <br>`;
+            }
+        } else {
+            msg += `<span style="color:red">NO PIT LANE GENERATED</span>`;
+        }
+        info.innerHTML = msg;
+
+        console.log(track);
+    </script>
+</body>
+</html>

@@ -7,7 +7,7 @@ class TierAdvancementScreen {
     update(deltaTime, gameState) {
         this.animationTimer += deltaTime;
 
-        if (this.animationTimer > 2000 && !this.showDetails) {
+        if (this.animationTimer > 1.0 && !this.showDetails) {
             this.showDetails = true;
         }
     }
@@ -23,7 +23,7 @@ class TierAdvancementScreen {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Tier advancement text
-        const pulse = Math.sin(this.animationTimer * 0.003) * 20 + 60;
+        const pulse = Math.sin(this.animationTimer * 3) * 20 + 60;
         ctx.font = 'bold 72px "Courier New", monospace';
         ctx.fillStyle = '#00ff00';
         ctx.textAlign = 'center';
@@ -34,7 +34,7 @@ class TierAdvancementScreen {
 
         // New tier info
         const newTier = gameState?.player?.tier || 2;
-        const tierNames = ['', 'Go-Kart', 'Dirt Track', 'Stock Car', 'GT3', 'Open Wheel'];
+        const tierNames = ['', 'Go-Kart', 'Dirt Track', 'GT3', 'LM', 'Stock Car', 'Open Wheel'];
         ctx.font = '48px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.fillText(`TIER ${newTier}: ${tierNames[newTier]}`, canvas.width / 2, 260);
@@ -67,6 +67,7 @@ class TierAdvancementScreen {
         ctx.fillText('• New track types', x + 50, y + 150);
         ctx.fillText('• Advanced betting options', x + 50, y + 180);
         ctx.fillText('• Increased payout multipliers', x + 50, y + 210);
+        ctx.fillText('• Unlocked Drag Race Bonus Round!', x + 50, y + 240);
     }
 
     renderContinueButton(ctx, x, y, width, height) {

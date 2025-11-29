@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(gemini:*)",
+      "Bash(timeout 10 ping:*)",
+      "Bash(timeout 15 ping:*)",
+      "Bash(timeout 20 ping:*)",
+      "Bash(timeout 60 ping:*)",
+      "Bash(timeout 65 ping:*)",
+      "Bash(timeout 185 ping -n 181 127.0.0.)"
     ],
     "deny": [],
     "ask": []

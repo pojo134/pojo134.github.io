@@ -91,11 +91,11 @@ class BettingScreen {
         // Track map (top left)
         this.renderTrackMap(ctx, gameState, 20, 100, 280, 180);
 
+        // Track info (to the right of track map)
+        this.renderTrackInfo(ctx, gameState, 320, 100, 280, 180);
+
         // Driver portrait (top right)
         this.renderDriverPortrait(ctx, gameState, canvas.width - 300, 100, 280, 180);
-
-        // Bet type selector
-        this.renderBetTypeSelector(ctx, 320, 100, 280, 60);
 
         // Driver list
         const DRIVER_LIST_START_X = 20;
@@ -104,7 +104,7 @@ class BettingScreen {
         this.renderDriverList(ctx, gameState, DRIVER_LIST_START_X, this.driverListY, DRIVER_LIST_WIDTH, DRIVER_LIST_HEIGHT);
 
         // Betting slip
-        this.renderBettingSlip(ctx, gameState, canvas.width - 300, 300, 280, 280);
+        this.renderBettingSlip(ctx, gameState, canvas.width - 300, 300, 280, 350);
     }
 
     renderTrackMap(ctx, gameState, x, y, width, height) {
@@ -123,31 +123,18 @@ class BettingScreen {
 
         // Get track object
         const track = gameState?.currentTrack;
-        const trackName = track?.name || 'UNKNOWN TRACK';
-        ctx.font = '14px "Courier New", monospace';
-        ctx.fillStyle = '#00ffff';
-        ctx.fillText(trackName, x + 10, y + 45);
 
-        // Add track details
-        if (track) {
-            const trackInfo = track.getInfo();
-            ctx.font = '12px "Courier New", monospace';
-            ctx.fillStyle = '#cccccc';
-            ctx.fillText(`Length: ${trackInfo.totalDistance}m`, x + 10, y + 60);
-            ctx.fillText(`Laps: ${trackInfo.totalLaps || 1}`, x + 10, y + 75); // Assuming 1 lap if not defined
-        }
-
-        // Draw actual track if available
+        // Draw actual track if available - full track rendering like in test visualizer
         if (track && track.waypoints && track.waypoints.length > 1) {
-            const displayX = x + 15;
-            const displayY = y + 65;
-            const displayWidth = width - 30;
-            const displayHeight = height - 90;
+            const displayX = x + 10;
+            const displayY = y + 35;
+            const displayWidth = width - 20;
+            const displayHeight = height - 45;
 
-            // Use the new wire outline rendering method
-            track.renderWireOutline(ctx, displayX, displayY, displayWidth, displayHeight);
+            // Render full track with 0.1x line width multiplier for finer detail (like test visualizer)
+            track.renderFullTrack(ctx, displayX, displayY, displayWidth, displayHeight, 0.1);
         } else {
-            // Fallback to simple track
+            // Fallback to simple track preview
             ctx.strokeStyle = '#666666';
             ctx.lineWidth = 3;
             ctx.beginPath();
@@ -173,6 +160,57 @@ class BettingScreen {
             ctx.font = '10px "Courier New", monospace';
             ctx.fillStyle = '#ffffff';
             ctx.fillText('START', x + 45, y + 73);
+        }
+    }
+
+    renderTrackInfo(ctx, gameState, x, y, width, height) {
+        // Track info box
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = '#ff0066';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+
+        // Title
+        ctx.font = 'bold 16px "Courier New", monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'left';
+        ctx.fillText('TRACK INFO', x + 10, y + 25);
+
+        // Get track object
+        const track = gameState?.currentTrack;
+
+        if (track) {
+            const trackInfo = track.getInfo();
+
+            // Track name
+            ctx.font = 'bold 18px "Courier New", monospace';
+            ctx.fillStyle = '#00ffff';
+            ctx.fillText(track.name || 'UNKNOWN TRACK', x + 10, y + 55);
+
+            // Track type
+            ctx.font = '14px "Courier New", monospace';
+            ctx.fillStyle = '#cccccc';
+            ctx.fillText(`Type: ${trackInfo.type}`, x + 10, y + 80);
+
+            // Track details
+            ctx.font = '14px "Courier New", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(`Length: ${trackInfo.totalDistance}m`, x + 10, y + 105);
+            ctx.fillText(`Waypoints: ${trackInfo.waypointCount}`, x + 10, y + 125);
+
+            // Race info
+            const laps = gameState?.race?.totalLaps || 1;
+            ctx.fillText(`Laps: ${laps}`, x + 10, y + 145);
+
+            // Total distance
+            const totalDistance = Math.floor(parseFloat(trackInfo.totalDistance) * laps);
+            ctx.fillStyle = '#00ff00';
+            ctx.fillText(`Total: ${totalDistance}m`, x + 10, y + 165);
+        } else {
+            ctx.font = '14px "Courier New", monospace';
+            ctx.fillStyle = '#666666';
+            ctx.fillText('NO TRACK DATA', x + 10, y + 100);
         }
     }
 
@@ -216,32 +254,6 @@ class BettingScreen {
             ctx.textAlign = 'center';
             ctx.fillText('SELECT A DRIVER', x + width / 2, y + height / 2);
         }
-    }
-
-    renderBetTypeSelector(ctx, x, y, width, height) {
-        const betTypes = [
-            { id: 'win', label: 'WIN', width: 90 },
-            { id: 'top3', label: 'TOP 3', width: 90 },
-            { id: 'h2h', label: 'H2H', width: 90 }
-        ];
-
-        let currentX = x;
-        betTypes.forEach(type => {
-            const isSelected = this.betType === type.id;
-
-            ctx.fillStyle = isSelected ? '#ff0066' : '#1a1a1a';
-            ctx.fillRect(currentX, y, type.width, height);
-            ctx.strokeStyle = isSelected ? '#ffffff' : '#444444';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(currentX, y, type.width, height);
-
-            ctx.font = 'bold 14px "Courier New", monospace';
-            ctx.fillStyle = isSelected ? '#ffffff' : '#888888';
-            ctx.textAlign = 'center';
-            ctx.fillText(type.label, currentX + type.width / 2, y + 38);
-
-            currentX += type.width + 5;
-        });
     }
 
     renderDriverList(ctx, gameState, x, y, width, height) {
@@ -328,19 +340,40 @@ class BettingScreen {
         ctx.textAlign = 'center';
         ctx.fillText('BETTING SLIP', x + width / 2, y + 25);
 
+        // Bet type selector (moved to betting slip)
+        const betTypes = [
+            { id: 'win', label: 'WIN', width: 85 },
+            { id: 'top3', label: 'TOP 3', width: 85 },
+            { id: 'h2h', label: 'H2H', width: 85 }
+        ];
+
+        let currentX = x + 10;
+        const selectorY = y + 35;
+        betTypes.forEach(type => {
+            const isSelected = this.betType === type.id;
+
+            ctx.fillStyle = isSelected ? '#ff0066' : '#2a2a2a';
+            ctx.fillRect(currentX, selectorY, type.width, 30);
+            ctx.strokeStyle = isSelected ? '#ffffff' : '#444444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(currentX, selectorY, type.width, 30);
+
+            ctx.font = 'bold 12px "Courier New", monospace';
+            ctx.fillStyle = isSelected ? '#ffffff' : '#888888';
+            ctx.textAlign = 'center';
+            ctx.fillText(type.label, currentX + type.width / 2, selectorY + 20);
+
+            currentX += type.width + 5;
+        });
+
         if (this.selectedDriver) {
             // Selection
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'left';
-            ctx.fillText('DRIVER:', x + 20, y + 55);
+            ctx.fillText('DRIVER:', x + 20, y + 90);
             ctx.fillStyle = '#00ffff';
-            ctx.fillText(this.selectedDriver.name || 'UNKNOWN', x + 90, y + 55);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText('BET TYPE:', x + 20, y + 80);
-            ctx.fillStyle = '#00ffff';
-            ctx.fillText(this.betType.toUpperCase(), x + 110, y + 80);
+            ctx.fillText(this.selectedDriver.name || 'UNKNOWN', x + 90, y + 90);
 
             // Get odds from driver or from gameState odds array
             const driverOdds = this.getDriverOdds(this.selectedDriver, gameState);
@@ -389,23 +422,23 @@ class BettingScreen {
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'left';
-            ctx.fillText('POTENTIAL PAYOUT:', x + 20, y + 250); // Adjusted Y
+            ctx.fillText('POTENTIAL PAYOUT:', x + 20, y + 280); // Adjusted Y
             ctx.font = 'bold 20px "Courier New", monospace';
             ctx.fillStyle = '#00ff00';
             ctx.textAlign = 'center';
-            ctx.fillText(`$${potentialPayout}`, x + width / 2, y + 275); // Adjusted Y
+            ctx.fillText(`$${potentialPayout}`, x + width / 2, y + 305); // Adjusted Y
 
             // Place bet button
             const canBet = gameState?.player?.bankroll >= this.betAmount;
             ctx.fillStyle = canBet ? '#ff0066' : '#333333';
-            ctx.fillRect(x + 20, y + height - 30, width - 40, 40); // Adjusted Y
+            ctx.fillRect(x + 20, y + height - 30, width - 40, 40);
             ctx.strokeStyle = canBet ? '#ffffff' : '#666666';
             ctx.lineWidth = 3;
-            ctx.strokeRect(x + 20, y + height - 30, width - 40, 40); // Adjusted Y
+            ctx.strokeRect(x + 20, y + height - 30, width - 40, 40);
 
             ctx.font = 'bold 18px "Courier New", monospace';
             ctx.fillStyle = canBet ? '#ffffff' : '#666666';
-            ctx.fillText('PLACE BET', x + width / 2, y + height - 3); // Adjusted Y
+            ctx.fillText('PLACE BET', x + width / 2, y + height - 3);
         } else {
             ctx.font = '16px "Courier New", monospace';
             ctx.fillStyle = '#666666';
@@ -421,16 +454,18 @@ class BettingScreen {
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
         const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
 
-
-        // Check bet type selector
+        // Check bet type selector (now in betting slip)
+        const slipX = canvas.width - 300;
+        const selectorY = 335; // y + 35 where y = 300
         const betTypes = [
-            { id: 'win', x: 320, width: 90 },
-            { id: 'top3', x: 415, width: 90 },
-            { id: 'h2h', x: 510, width: 90 }
+            { id: 'win', xOffset: 10, width: 85 },
+            { id: 'top3', xOffset: 100, width: 85 },
+            { id: 'h2h', xOffset: 190, width: 85 }
         ];
 
         for (let type of betTypes) {
-            if (x >= type.x && x <= type.x + type.width && y >= 100 && y <= 160) {
+            const typeX = slipX + type.xOffset;
+            if (x >= typeX && x <= typeX + type.width && y >= selectorY && y <= selectorY + 30) {
                 this.betType = type.id;
                 return null;
             }
@@ -452,10 +487,10 @@ class BettingScreen {
         });
 
         // Check betting slip controls
-        const slipX = canvas.width - 300;
+        // slipX already declared above for bet type selector
         const slipY = 300;
         const width = 280; // Betting slip width, explicitly defined
-        const height = 280; // Betting slip height, explicitly defined as in render method
+        const height = 350; // Betting slip height, explicitly defined as in render method
 
         // Define button dimensions and positions (should match renderBettingSlip)
         const buttonHeight = 25;
@@ -522,6 +557,24 @@ class BettingScreen {
                 this.hoveredDriver = driver;
             }
         });
+    }
+
+    handleWheel(event, gameState) {
+        const canvas = { width: 1280, height: 720 };
+        const DRIVER_LIST_HEIGHT = canvas.height - this.driverListY - 150;
+        const rowHeight = 35;
+        const drivers = gameState?.race?.drivers || this.generateDummyDrivers();
+
+        const totalContentHeight = drivers.length * rowHeight;
+        const visibleListHeight = DRIVER_LIST_HEIGHT - 40; // Accounting for padding in renderDriverList
+
+        let maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
+
+        // Update scrollOffset
+        this.scrollOffset -= event.wheelDeltaY;
+
+        // Clamp scrollOffset
+        this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxScroll));
     }
 
     getSkillColor(skill) {

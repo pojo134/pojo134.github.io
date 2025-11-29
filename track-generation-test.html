@@ -85,6 +85,7 @@
     
     <div id="controls">
         <button id="regenerate-btn">Regenerate All Tracks</button>
+        <button id="dirt-btn">Test Dirt Oval</button>
     </div>
 
     <div id="tracks-container">
@@ -97,6 +98,59 @@
         const trackGen = new TrackGenerator();
         const container = document.getElementById('tracks-container');
         const regenerateBtn = document.getElementById('regenerate-btn');
+        const dirtBtn = document.getElementById('dirt-btn');
+
+        function renderTrack(track, nameOverride) {
+             // Create Card
+             const card = document.createElement('div');
+                card.className = 'track-card';
+
+                // Info Header
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'track-info';
+                
+                const leagueTitle = document.createElement('span');
+                leagueTitle.className = 'league-name';
+                leagueTitle.textContent = nameOverride || track.type;
+                
+                const trackName = document.createElement('span');
+                trackName.className = 'track-name';
+                trackName.textContent = track.name;
+
+                infoDiv.appendChild(leagueTitle);
+                infoDiv.appendChild(trackName);
+
+                // Canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = 400;
+                canvas.height = 300;
+                const ctx = canvas.getContext('2d');
+
+                // Render Track (Full)
+                ctx.fillStyle = '#1a2a1a'; // Updated background
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                track.renderFullTrack(ctx, 20, 20, canvas.width - 40, canvas.height - 40);
+
+                // Stats Footer
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'track-stats';
+                const chars = track.characteristics;
+                if (chars) {
+                    statsDiv.innerHTML = `
+                        Type: ${track.type} | Distance: ${chars.totalDistance}m<br>
+                        Turns: ${chars.turnCount} | Straight: ${chars.maxStraightLength}m<br>
+                        Tech: ${chars.technicalDifficulty} | Width: ${track.trackWidth} | Surface: ${track.surface}
+                    `;
+                } else {
+                     statsDiv.innerHTML = `Type: ${track.type} | Width: ${track.trackWidth} | Surface: ${track.surface}`;
+                }
+
+                card.appendChild(infoDiv);
+                card.appendChild(canvas);
+                card.appendChild(statsDiv);
+                container.appendChild(card);
+        }
 
         function generateAndRender() {
             container.innerHTML = ''; // Clear existing
@@ -115,61 +169,20 @@
                 } else {
                     track = trackGen.generateTrackForLeague(leagueName, 8000, 6000);
                 }
-
-                // Create Card
-                const card = document.createElement('div');
-                card.className = 'track-card';
-
-                // Info Header
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'track-info';
-                
-                const leagueTitle = document.createElement('span');
-                leagueTitle.className = 'league-name';
-                leagueTitle.textContent = leagueName;
-                
-                const trackName = document.createElement('span');
-                trackName.className = 'track-name';
-                trackName.textContent = track.name;
-
-                infoDiv.appendChild(leagueTitle);
-                infoDiv.appendChild(trackName);
-
-                // Canvas
-                const canvas = document.createElement('canvas');
-                canvas.width = 400;
-                canvas.height = 300;
-                const ctx = canvas.getContext('2d');
-
-                // Render Track (Wire Outline)
-                // Use a slight padding for the view
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                track.renderWireOutline(ctx, 20, 20, canvas.width - 40, canvas.height - 40);
-
-                // Stats Footer
-                const statsDiv = document.createElement('div');
-                statsDiv.className = 'track-stats';
-                const chars = track.characteristics;
-                if (chars) {
-                    statsDiv.innerHTML = `
-                        Type: ${track.type} | Distance: ${chars.totalDistance}m<br>
-                        Turns: ${chars.turnCount} | Straight: ${chars.maxStraightLength}m<br>
-                        Tech: ${chars.technicalDifficulty} | Width: ${track.trackWidth}
-                    `;
-                } else {
-                     statsDiv.innerHTML = `Type: ${track.type} | Width: ${track.trackWidth}`;
-                }
-
-                card.appendChild(infoDiv);
-                card.appendChild(canvas);
-                card.appendChild(statsDiv);
-                container.appendChild(card);
+                renderTrack(track, leagueName);
             });
         }
 
         regenerateBtn.addEventListener('click', generateAndRender);
+        
+        dirtBtn.addEventListener('click', () => {
+            container.innerHTML = '';
+            // Generate specifically a Dirt Oval
+            // We can use generateTrackForLeague if we pass "Dirt Oval" as league name (which we added to generators)
+            // Or use generateTrack("Dirt Oval")
+            const track = trackGen.generateTrack("Dirt Oval", 8000, 6000);
+            renderTrack(track, "Dirt Oval Test");
+        });
 
         // Initial render
         window.addEventListener('load', generateAndRender);

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tri-Oval Pit Lane Test</title>
+    <style>
+        body { background-color: #111; color: #eee; font-family: sans-serif; padding: 20px; }
+        canvas { border: 1px solid #444; background: #000; display: block; margin: 20px auto; }
+        #info { text-align: center; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center">Tri-Oval Pit Lane Test</h1>
+    <div id="info">Generating...</div>
+    <canvas id="trackCanvas" width="800" height="600"></canvas>
+
+    <script type="module">
+        import { TrackGenerator } from './src/systems/generators.js';
+
+        const canvas = document.getElementById('trackCanvas');
+        const ctx = canvas.getContext('2d');
+        const info = document.getElementById('info');
+
+        const trackGen = new TrackGenerator();
+
+        // Force Tri-Oval generation
+        // We can ask for 'Tri-Oval' league which has trackStyle 'tri-oval'
+        const track = trackGen.generateTrackForLeague('Tri-Oval', 8000, 6000);
+
+        // Render
+        track.renderFullTrack(ctx, 50, 50, canvas.width - 100, canvas.height - 100);
+
+        // Inspect pit lane
+        let msg = `Track Type: ${track.type} <br>`;
+        if (track.pitLane) {
+            msg += `Pit Lane Present. Stalls: ${track.pitLane.stalls.length} <br>`;
+            msg += `Pit Width: ${track.pitLane.width} <br>`;
+            msg += `Pit Start: (${track.pitLane.p1.x.toFixed(0)}, ${track.pitLane.p1.y.toFixed(0)}) <br>`;
+            msg += `Pit End: (${track.pitLane.p2.x.toFixed(0)}, ${track.pitLane.p2.y.toFixed(0)}) <br>`;
+        } else {
+            msg += `<span style="color:red">NO PIT LANE GENERATED</span>`;
+        }
+        info.innerHTML = msg;
+
+        console.log(track);
+    </script>
+</body>
+</html>

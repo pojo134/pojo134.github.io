@@ -8,7 +8,7 @@ import { assembleTrack, generateBorders, degToRad } from '../systems/segmentTrac
  */
 
 class Track {
-    constructor(type, name, waypoints, characteristics, weather, trackWidth, isLoop, pitLaneData = null) {
+    constructor(type, name, waypoints, characteristics, weather, trackWidth, isLoop, pitLaneData = null, surface = 'asphalt') {
         this.type = type; // e.g., 'Circuit', 'Oval', 'Drag Strip'
         this.name = name;
         this.waypoints = waypoints || [];
@@ -17,6 +17,7 @@ class Track {
         this.trackWidth = trackWidth || 30;
         this.isLoop = isLoop;
         this.pitLane = pitLaneData;
+        this.surface = surface;
 
         // These properties are not used by the simple procedural track generation
         // but might be by the segmentTrackGenerator. We'll keep them as null/default for now.
@@ -322,7 +323,8 @@ class Track {
             JSON.parse(JSON.stringify(this.weather)),
             this.trackWidth,
             this.isLoop,
-            JSON.parse(JSON.stringify(this.pitLane))
+            JSON.parse(JSON.stringify(this.pitLane)),
+            this.surface
         );
         clonedTrack.segmentTemplates = JSON.parse(JSON.stringify(this.segmentTemplates));
         clonedTrack.startLine = JSON.parse(JSON.stringify(this.startLine));
@@ -369,8 +371,9 @@ class Track {
     /**
      * Render full track with all details for race screen
      * Includes gravel, kerbs, tarmac, centerline, and start/finish line
+     * @param {number} lineWidthMultiplier - Optional multiplier for line widths (default 1.0)
      */
-    renderFullTrack(ctx, displayX, displayY, displayWidth, displayHeight) {
+    renderFullTrack(ctx, displayX, displayY, displayWidth, displayHeight, lineWidthMultiplier = 1.0) {
         if (!this.waypoints || this.waypoints.length < 2) return;
 
         const bounds = this.visualBounds;
@@ -397,38 +400,57 @@ class Track {
         const scaleX = displayWidth / bounds.width;
         const scaleY = displayHeight / bounds.height;
         const scale = Math.min(scaleX, scaleY);
-        const scaledTrackWidth = this.trackWidth * scale;
+        const scaledTrackWidth = this.trackWidth * scale * lineWidthMultiplier;
 
         // 1. Gravel (outer buffer) - Draw FIRST so it doesn't cover pit lane (if pit lane is on top)
         // OR draw it first so pit lane covers it.
         drawPath();
-        ctx.lineWidth = scaledTrackWidth + 12 * scale;
+        ctx.lineWidth = scaledTrackWidth + 12 * scale * lineWidthMultiplier;
         ctx.strokeStyle = "#5a3a2a";
         ctx.stroke();
 
         // 0. Pit Lane (Draw AFTER gravel, BEFORE track tarmac)
+        // Pit lane extends from track centerline outward
         if (this.pitLane) {
             const pl = this.pitLane;
-            const s1 = this.trackToScreen(pl.p1.x, pl.p1.y, displayX, displayY, displayWidth, displayHeight);
-            const s2 = this.trackToScreen(pl.p2.x, pl.p2.y, displayX, displayY, displayWidth, displayHeight);
-            
-            // Draw Pit Area Background (Simple Grey Box)
-            ctx.lineWidth = pl.width * scale;
-            ctx.strokeStyle = "#666666"; // Slightly lighter grey
-            ctx.lineCap = "butt";
+
+            // Use entry/exit points (which are on the track centerline)
+            const entry = pl.entryMainTrackPoints && pl.entryMainTrackPoints[0] ? pl.entryMainTrackPoints[0] : pl.p1;
+            const exit = pl.exitMainTrackPoints && pl.exitMainTrackPoints[0] ? pl.exitMainTrackPoints[0] : pl.p2;
+
+            const s1 = this.trackToScreen(entry.x, entry.y, displayX, displayY, displayWidth, displayHeight);
+            const s2 = this.trackToScreen(exit.x, exit.y, displayX, displayY, displayWidth, displayHeight);
+
+            // Calculate direction vector for the pit lane
+            const dx = s2.screenX - s1.screenX;
+            const dy = s2.screenY - s1.screenY;
+            const len = Math.sqrt(dx * dx + dy * dy);
+
+            // Normal vector (perpendicular, pointing left - same as generator)
+            const nx = -dy / len;
+            const ny = dx / len;
+
+            // Calculate offset for the outer edge of pit lane
+            const offsetDistance = pl.width * scale * lineWidthMultiplier;
+
+            // Draw pit lane as a filled polygon from centerline to outer edge
+            ctx.fillStyle = "#666666"; // Slightly lighter grey
             ctx.beginPath();
-            ctx.moveTo(s1.screenX, s1.screenY);
-            ctx.lineTo(s2.screenX, s2.screenY);
-            ctx.stroke();
+            ctx.moveTo(s1.screenX, s1.screenY); // Start at centerline entry
+            ctx.lineTo(s2.screenX, s2.screenY); // Go to centerline exit
+            ctx.lineTo(s2.screenX + nx * offsetDistance, s2.screenY + ny * offsetDistance); // Outer edge exit
+            ctx.lineTo(s1.screenX + nx * offsetDistance, s1.screenY + ny * offsetDistance); // Outer edge entry
+            ctx.closePath();
+            ctx.fill();
         }
 
         // 2. Kerbs (red/white stripes)
         drawPath();
-        ctx.lineWidth = scaledTrackWidth + 4 * scale;
-        ctx.setLineDash([15 * scale, 15 * scale]);
+        ctx.lineWidth = scaledTrackWidth + 4 * scale * lineWidthMultiplier;
+        ctx.setLineDash([15 * scale * lineWidthMultiplier, 15 * scale * lineWidthMultiplier]);
         ctx.strokeStyle = "#cc0000";
         ctx.stroke();
-        ctx.lineDashOffset = 15 * scale;
+        ctx.lineDashOffset = 15 * scale * lineWidthMultiplier;
         ctx.strokeStyle = "#ffffff";
         ctx.stroke();
         ctx.setLineDash([]);
@@ -437,14 +459,20 @@ class Track {
         // 3. Tarmac (track surface)
         drawPath();
         ctx.lineWidth = scaledTrackWidth;
-        ctx.strokeStyle = "#333";
+        if (this.surface === 'dirt') {
+            ctx.strokeStyle = "#5d4037"; // Dirt brown
+        } else {
+            ctx.strokeStyle = "#333"; // Asphalt
+        }
         ctx.stroke();
 
-        // 4. Centerline
-        drawPath();
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-        ctx.stroke();
+        // 4. Centerline (Only for asphalt)
+        if (this.surface !== 'dirt') {
+            drawPath();
+            ctx.lineWidth = 1 * lineWidthMultiplier;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+            ctx.stroke();
+        }
 
         // 5. Start/Finish line
         if (this.waypoints.length > 1) {

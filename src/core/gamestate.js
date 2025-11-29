@@ -310,7 +310,7 @@ class GameState {
         };
 
         // Check if season is complete
-        if (this.player.week > 16) {
+        if (this.player.week > 5) {
             return this.completeSeason();
         }
 
@@ -393,9 +393,10 @@ class GameState {
         const tiers = {
             1: 'Go-Kart',
             2: 'Dirt Track',
-            3: 'Stock Car',
-            4: 'GT3',
-            5: 'Open Wheel'
+            3: 'GT',
+            4: 'Le Mans',
+            5: 'Stock Car',
+            6: 'Open Wheel'
         };
         return tiers[this.player.tier] || 'Unknown';
     }

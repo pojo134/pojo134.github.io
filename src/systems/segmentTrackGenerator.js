@@ -711,6 +711,267 @@ function relaxSegments(segments, startPosition) {
     return adjustedSegments;
 }
 
+// --- Pit Lane Helper Functions ---
+
+/**
+ * Finds the longest straight section using chord-to-arc ratio (sliding window approach).
+ * More accurate than point-by-point angle checking as it looks at overall straightness.
+ *
+ * A section is "straight" if the direct distance (chord) from start to end
+ * is very close to the actual path length (arc) through all the waypoints.
+ *
+ * @param {Array} centerline - Array of {x, y} points representing the track centerline
+ * @param {number} straightnessRatio - Minimum chord/arc ratio to be considered straight (default 0.98 = 98%)
+ * @param {number} minPhysicalLength - Minimum physical length in units (default 100)
+ * @returns {Object|null} {startIndex, endIndex, physicalLength, chordDirection} or null if not found
+ */
+function findLongestStraight(centerline, straightnessRatio = 0.98, minPhysicalLength = 100) {
+    if (!centerline || centerline.length < 5) {
+        return null;
+    }
+    
+    const n = centerline.length;
+    const candidates = [];
+    
+    // Helper: calculate distance between two points
+    const dist = (p1, p2) => {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+    
+    // Try all possible start points
+    for (let start = 0; start < n - 5; start++) {
+        let arcLength = 0;
+        let bestEnd = start;
+        let bestArcLength = 0;
+        let bestChordLength = 0;
+        
+        // Extend forward from this start point
+        for (let end = start + 1; end < n && end < start + Math.floor(n * 0.6); end++) {
+            // Add the next segment to arc length
+            arcLength += dist(centerline[end - 1], centerline[end]);
+            
+            // Calculate chord length (direct distance from start to end)
+            const chordLength = dist(centerline[start], centerline[end]);
+            
+            // Check straightness: chord should be close to arc for straight sections
+            const ratio = chordLength / arcLength;
+            
+            if (ratio >= straightnessRatio) {
+                // This section is straight enough - keep extending
+                if (arcLength > bestArcLength) {
+                    bestEnd = end;
+                    bestArcLength = arcLength;
+                    bestChordLength = chordLength;
+                }
+            } else {
+                // No longer straight, stop extending from this start point
+                break;
+            }
+        }
+        
+        // If we found a good straight from this start point, save it
+        if (bestArcLength >= minPhysicalLength * 0.5) {
+            const startPt = centerline[start];
+            const endPt = centerline[bestEnd];
+            candidates.push({
+                startIndex: start,
+                endIndex: bestEnd,
+                physicalLength: bestArcLength,
+                chordLength: bestChordLength,
+                chordDirection: Math.atan2(endPt.y - startPt.y, endPt.x - startPt.x),
+                ratio: bestChordLength / bestArcLength
+            });
+        }
+    }
+    
+    // Remove overlapping candidates (keep the longest in each region)
+    const nonOverlapping = [];
+    candidates.sort((a, b) => b.physicalLength - a.physicalLength);
+    
+    for (const candidate of candidates) {
+        let overlaps = false;
+        for (const kept of nonOverlapping) {
+            // Check if this candidate overlaps significantly with an already-kept one
+            const overlapStart = Math.max(candidate.startIndex, kept.startIndex);
+            const overlapEnd = Math.min(candidate.endIndex, kept.endIndex);
+            const overlapLength = overlapEnd - overlapStart;
+            
+            if (overlapLength > 0) {
+                overlaps = true;
+                break;
+            }
+        }
+        
+        if (!overlaps) {
+            nonOverlapping.push(candidate);
+        }
+    }
+    
+    // Sort by physical length
+    nonOverlapping.sort((a, b) => b.physicalLength - a.physicalLength);
+    
+    // Log top candidates for debugging
+    if (nonOverlapping.length > 0) {
+        console.log(`Found ${nonOverlapping.length} straight sections using chord-to-arc method. Top 3:`);
+        for (let i = 0; i < Math.min(3, nonOverlapping.length); i++) {
+            const s = nonOverlapping[i];
+            console.log(`  ${i + 1}. Indices ${s.startIndex}-${s.endIndex}, arc: ${s.physicalLength.toFixed(1)}u, ratio: ${(s.ratio * 100).toFixed(1)}%`);
+        }
+    } else {
+        console.log('No straight sections found');
+    }
+    
+    // Return the longest that meets minimum length
+    for (const straight of nonOverlapping) {
+        if (straight.physicalLength >= minPhysicalLength) {
+            return straight;
+        }
+    }
+    
+    // Fallback: return longest available
+    if (nonOverlapping.length > 0) {
+        console.warn(`No straight meets minimum length (${minPhysicalLength}), using best: ${nonOverlapping[0].physicalLength.toFixed(1)}u`);
+        return nonOverlapping[0];
+    }
+    
+    return null;
+}
+
+/**
+ * Generates a SIMPLE pit lane along the longest straight section.
+ * Just a grey box parallel to the straight with waypoints for pit stops.
+ * No complex tapers or geometry - keep it simple!
+ *
+ * @param {Array} mainCenterline - The track's centerline points
+ * @param {number} mainTrackWidth - Width of the main track
+ * @param {number} pitLaneOffsetDistance - Gap between track edge and pit lane
+ * @param {number} pitLaneWidth - Width of the pit lane
+ * @returns {Object|null} Pit lane data or null if no suitable straight found
+ */
+function generatePitLaneOnStraight(mainCenterline, mainTrackWidth, pitLaneOffsetDistance, pitLaneWidth) {
+    // Find the longest straight section using chord-to-arc ratio
+    // 0.98 means chord must be at least 98% of arc length (very straight)
+    const straight = findLongestStraight(mainCenterline, 0.98, 200);
+    
+    if (!straight) {
+        // Try with relaxed ratio for twisty tracks
+        const fallback = findLongestStraight(mainCenterline, 0.95, 50);
+        if (!fallback) {
+            console.warn("No suitable straight section found for pit lane");
+            return null;
+        }
+        console.log(`Using fallback straight for pit lane`);
+        return generateSimplePitLane(mainCenterline, mainTrackWidth, pitLaneOffsetDistance, pitLaneWidth, fallback);
+    }
+    
+    console.log(`Using longest straight for pit lane: ${straight.physicalLength.toFixed(1)} units`);
+    
+    return generateSimplePitLane(mainCenterline, mainTrackWidth, pitLaneOffsetDistance, pitLaneWidth, straight);
+}
+
+/**
+ * Creates a simple pit lane - drawn from track center outward (under the track).
+ * Sized to fit 12 pit stalls with proper spacing.
+ * The pit lane is drawn UNDER the track, extending from center outward.
+ */
+function generateSimplePitLane(mainCenterline, mainTrackWidth, pitLaneOffsetDistance, pitLaneWidth, straight) {
+    const straightStartIdx = straight.startIndex;
+    const straightEndIdx = straight.endIndex;
+
+    // Calculate the midpoint of the straight section
+    const midIdx = Math.floor((straightStartIdx + straightEndIdx) / 2);
+
+    // Pit lane should fit 12 stalls (doubled from 6)
+    // Each car circle is roughly trackWidth, so 12 stalls need ~12 * trackWidth
+    // Add 20% padding
+    const desiredPitLength = mainTrackWidth * 13; // 12 stalls + padding
+
+    // Calculate how many waypoint indices that corresponds to
+    // Sample the segment spacing
+    const sampleStart = mainCenterline[midIdx];
+    const sampleEnd = mainCenterline[Math.min(midIdx + 1, straightEndIdx)];
+    const segmentSpacing = Math.sqrt(
+        Math.pow(sampleEnd.x - sampleStart.x, 2) +
+        Math.pow(sampleEnd.y - sampleStart.y, 2)
+    );
+
+    const pointsNeeded = Math.max(3, Math.ceil(desiredPitLength / segmentSpacing));
+
+    // Center the pit lane around the midpoint
+    const pitStartIdx = Math.max(straightStartIdx, midIdx - Math.floor(pointsNeeded / 2));
+    const pitEndIdx = Math.min(straightEndIdx, pitStartIdx + pointsNeeded);
+
+    // Get start and end points for the pit lane (on main track centerline)
+    const p1 = mainCenterline[pitStartIdx];
+    const p2 = mainCenterline[pitEndIdx];
+
+    // Calculate direction and perpendicular
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+
+    // Normal vector (perpendicular, pointing left)
+    const nx = -dy / len;
+    const ny = dx / len;
+
+    // NEW APPROACH: Pit lane extends from track CENTER outward
+    // Make it twice as wide as before (2x the original pitLaneWidth)
+    const newPitLaneWidth = pitLaneWidth * 2;
+
+    // The pit lane extends from the centerline outward by the full width
+    // This means cars will be positioned off the track surface
+    const pitOuterOffset = newPitLaneWidth;
+
+    // Create pit lane endpoints
+    // Start from center of track (p1, p2) and extend outward
+    const pitP1 = {
+        x: p1.x + nx * pitOuterOffset,
+        y: p1.y + ny * pitOuterOffset
+    };
+
+    const pitP2 = {
+        x: p2.x + nx * pitOuterOffset,
+        y: p2.y + ny * pitOuterOffset
+    };
+
+    // Generate 12 pit stalls evenly spaced along the pit lane
+    const numStalls = 12;
+    const stalls = [];
+
+    // Position stalls at the outer edge of pit lane (off track surface)
+    // This keeps them clear of the racing surface
+    const stallOffset = newPitLaneWidth * 0.85; // 85% outward to keep off track
+
+    for (let i = 0; i < numStalls; i++) {
+        const t = (i + 0.5) / numStalls; // Center of each stall
+
+        // Calculate position along the centerline of the straight
+        const baseX = p1.x + (p2.x - p1.x) * t;
+        const baseY = p1.y + (p2.y - p1.y) * t;
+
+        // Offset outward from track center to pit stall position
+        stalls.push({
+            x: baseX + nx * stallOffset,
+            y: baseY + ny * stallOffset,
+            direction: Math.atan2(dy, dx)
+        });
+    }
+
+    return {
+        p1: pitP1,
+        p2: pitP2,
+        width: newPitLaneWidth,
+        stalls: stalls,
+        centerline: [pitP1, pitP2],
+        leftBorder: [],
+        rightBorder: [],
+        entryMainTrackPoints: [p1],
+        exitMainTrackPoints: [p2]
+    };
+}
+
 // --- Main Generation Function ---
 
 /**
@@ -897,26 +1158,23 @@ function generateSegmentTrack(options) {
         console.log(`Track has ${intersections.length} self-intersection(s) - will render as bridges/tunnels`);
     }
 
-    // 5. Generate Pit Lane
+    // 5. Generate Pit Lane - Now works for all track types by finding the longest straight
     let pitLane = null;
-    if (template === 'oval') {
-        // Oval Pit Lane Configuration
-        // On first straight (Indices 0-60 roughly)
-        const pitLaneStartMainIdx = 5; 
-        const pitLaneEndMainIdx = 55;
-        const pitLaneOffsetDistance = 15;
-        const pitLaneWidth = trackWidth * 0.75;
-
-        if (centerline.length > pitLaneEndMainIdx) {
-            pitLane = generateOvalPitLane(
-                centerline,
-                trackWidth,
-                pitLaneStartMainIdx,
-                pitLaneEndMainIdx,
-                pitLaneOffsetDistance,
-                pitLaneWidth
-            );
-        }
+    const pitLaneOffsetDistance = 15;
+    const pitLaneWidth = trackWidth * 0.75;
+    
+    // Generate pit lane on the longest straight section
+    pitLane = generatePitLaneOnStraight(
+        centerline,
+        trackWidth,
+        pitLaneOffsetDistance,
+        pitLaneWidth
+    );
+    
+    if (pitLane) {
+        console.log(`Pit lane generated with ${pitLane.stalls.length} unique stalls (drawn from center outward, under track)`);
+    } else {
+        console.warn("Could not generate pit lane - no suitable straight section found");
     }
 
     const trackInstance = new Track(
@@ -943,16 +1201,22 @@ function generateSegmentTrack(options) {
 }
 
 /**
- * Generates a pit lane for an oval track with smooth entry/exit merges.
+ * Generates a pit lane for any track with smooth entry/exit merges.
  * Creates a parallel path to the main track.
+ * Now with dynamic taper calculation to handle short straights.
  */
 function generateOvalPitLane(mainCenterline, mainTrackWidth, pitLaneStartMainIdx, pitLaneEndMainIdx, pitLaneOffsetDistance, pitLaneWidth) {
-    const taperLengthPoints = 10; 
+    // Calculate available length
+    const availableLength = pitLaneEndMainIdx - pitLaneStartMainIdx;
+    
+    // Dynamic taper: use 15% of available length, min 2 points, max 10 points
+    const taperLengthPoints = Math.max(2, Math.min(10, Math.floor(availableLength * 0.15)));
+    
     const parallelStartIdx = pitLaneStartMainIdx + taperLengthPoints;
     const parallelEndIdx = pitLaneEndMainIdx - taperLengthPoints;
 
     if (parallelStartIdx >= parallelEndIdx) {
-        console.warn("Pit lane too short for tapered entry/exit");
+        console.warn(`Pit lane too short for tapered entry/exit (available: ${availableLength} points, need at least ${taperLengthPoints * 2 + 1})`);
         return null;
     }
 
@@ -1070,6 +1334,9 @@ export {
     generateBorders,
     generateSegmentTrack,
     generateOvalPitLane,
+    generatePitLaneOnStraight,
+    generateSimplePitLane,
+    findLongestStraight,
     detectTrackIntersections,
     degToRad,
     radToDeg

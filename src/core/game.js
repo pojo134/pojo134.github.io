@@ -105,7 +105,7 @@ class AssetManager {
 class InputManager {
     constructor(canvas) {
         this.canvas = canvas;
-        this.mouse = { x: 0, y: 0, pressed: false, clicked: false };
+        this.mouse = { x: 0, y: 0, pressed: false, clicked: false, wheelDeltaY: 0 };
         this.keys = new Set();
         this.keysPressed = new Set();
 
@@ -128,6 +128,9 @@ class InputManager {
 
         // Prevent context menu
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Wheel events
+        this.canvas.addEventListener('wheel', (e) => this._handleWheel(e));
     }
 
     /**
@@ -179,6 +182,15 @@ class InputManager {
     }
 
     /**
+     * Wheel event handler
+     * @private
+     */
+    _handleWheel(e) {
+        e.preventDefault(); // Prevent default scroll behavior
+        this.mouse.wheelDeltaY = e.deltaY;
+    }
+
+    /**
      * Check if key is currently held
      * @param {string} key
      * @returns {boolean}
@@ -213,11 +225,20 @@ class InputManager {
     }
 
     /**
+     * Get wheel delta Y
+     * @returns {number}
+     */
+    getWheelDeltaY() {
+        return this.mouse.wheelDeltaY;
+    }
+
+    /**
      * Reset frame-specific input states (call at end of frame)
      */
     reset() {
         this.mouse.clicked = false;
         this.keysPressed.clear();
+        this.mouse.wheelDeltaY = 0; // Reset wheel delta
     }
 }
 
@@ -552,6 +573,9 @@ class Game {
                 break;
         }
 
+        // Handle wheel input
+        this._handleWheelInput();
+
         // Reset input states for next frame
         this.inputManager.reset();
     }
@@ -675,18 +699,55 @@ class Game {
     }
 
     /**
+     * Sets up the bonus drag race after tier advancement
+     * @private
+     */
+    _setupBonusDragRace() {
+        // Create special bonus contract
+        const bonusContract = {
+            name: 'TIER BONUS CHALLENGE',
+            type: 'Drag Race',
+            trackType: 'Drag Race', // Ensure this matches a valid track type in generator or is handled
+            fieldSize: 8,
+            laps: 1,
+            isDragRace: true,
+            isBonus: true,
+            entryFee: 0,
+            basePayout: 50000, // Big bonus for winning
+            difficulty: 'HARD',
+            description: 'Celebratory Drag Tournament'
+        };
+
+        // Set as selected contract
+        this.gameState.season.selectedContract = bonusContract;
+
+        // Prepare the race (generates drivers, track, etc.)
+        this._prepareRace();
+
+        // Transition to betting
+        this.screenManager.changeState(GameStates.BETTING);
+    }
+
+    /**
      * Starts a new game
      * @private
      */
     _startNewGame() {
         this.gameState.startNewGame(1); // Start at tier 1
-
-        // Generate season calendar
-        const calendar = this.seasonGenerator.generateSeason(this.gameState.player.tier);
-        this.gameState.setSeasonCalendar(calendar);
+        this._startNewSeason();
 
         // Transition to garage
         this.screenManager.changeState(GameStates.GARAGE);
+    }
+
+    /**
+     * Starts a new season for the current tier
+     * @private
+     */
+    _startNewSeason() {
+        // Generate season calendar
+        const calendar = this.seasonGenerator.generateSeason(this.gameState.player.tier);
+        this.gameState.setSeasonCalendar(calendar);
     }
 
     // ===== STATE UPDATE METHODS =====
@@ -750,6 +811,8 @@ class Game {
                     this.gameState.season.selectedContract = dummyDragContract;
                     this._prepareRace();
                     this.screenManager.changeState(GameStates.BETTING);
+                } else if (action.action === 'forceTier') {
+                    this._debugForceTier();
                 }
             }
         }
@@ -849,6 +912,8 @@ class Game {
 
             // Check if drag race is complete
             const dragRaceState = this.raceSimulator.getRaceState();
+            /*
+            // DISABLE AUTO-TRANSITION - Wait for user to click Continue on Champion screen
             if (dragRaceState.state === RaceState.FINISHED) {
                 // Auto-transition to results after a delay
                 if (!this._dragRaceCompleteTime) {
@@ -861,6 +926,7 @@ class Game {
                     this._dragRaceCompleteTime = null;
                 }
             }
+            */
         }
 
         // Handle mouse clicks for drag race screen
@@ -869,9 +935,9 @@ class Game {
             const action = this.screens.dragRace.handleClick(mouse.x, mouse.y, this.gameState);
 
             if (action && action.action === 'continue') {
-                // After drag race, transition back to garage or next relevant state
-                this.screens.dragRace.reset();
-                this.screenManager.changeState(GameStates.GARAGE);
+                // NEW: Go to results screen to show winnings/champion
+                this._finishDragRace();
+                this.screenManager.changeState(GameStates.RESULTS);
             }
         }
     }
@@ -891,6 +957,7 @@ class Game {
                 if (lastContractWasDragRace) {
                     // For drag races, reset the results screen and go back to garage
                     // Do NOT advance week or season
+                    this.gameState.season.selectedContract = null; // Clear the bonus contract
                     this.screens.results.reset();
                     this.screenManager.changeState(GameStates.GARAGE);
                 } else {
@@ -909,6 +976,7 @@ class Game {
                             this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
                         } else {
                             // Can't advance - continue with same tier
+                            this._startNewSeason(); // Start new season at current tier
                             this.screens.results.reset();
                             this.screenManager.changeState(GameStates.GARAGE);
                         }
@@ -992,13 +1060,29 @@ class Game {
             const action = this.screens.tierAdvancement.handleClick(mouse.x, mouse.y, this.gameState);
 
             if (action && action.action === 'continue') {
+                this._startNewSeason(); // Generate season for the new tier
                 this.screens.tierAdvancement.reset();
-                this.screenManager.changeState(GameStates.GARAGE);
+                // this.screenManager.changeState(GameStates.GARAGE); // OLD
+                this._setupBonusDragRace(); // NEW: Go to bonus drag race
             }
         }
 
         const mouse = this.inputManager.getMousePosition();
         this.screens.tierAdvancement.handleMouseMove(mouse.x, mouse.y);
+    }
+
+    /**
+     * Handles wheel input and dispatches it to the current screen if a handleWheel method exists.
+     * @private
+     */
+    _handleWheelInput() {
+        const wheelDeltaY = this.inputManager.getWheelDeltaY();
+        if (wheelDeltaY !== 0) {
+            const currentScreen = this.screens[this.screenManager.getCurrentState()];
+            if (currentScreen && typeof currentScreen.handleWheel === 'function') {
+                currentScreen.handleWheel(wheelDeltaY, this.gameState);
+            }
+        }
     }
 
     // ===== STATE RENDER METHODS =====
@@ -1064,8 +1148,8 @@ class Game {
         const raceSettings = this.trackGenerator.generateRaceSettings(
             null, // raceType is derived from contract
             contract.trackType, // Use the track type from the contract
-            800, // default width
-            600, // default height
+            800, // default width - real scale
+            600, // default height - real scale
             this.gameState.player.tier // Pass leagueTier
         );
         const track = raceSettings.track; // Extract track object
@@ -1159,34 +1243,79 @@ class Game {
         }
 
         // Store results for results screen
-        this.gameState.raceResults = {
-            finalStandings: [results.champion], // Simplified to just the champion
+        const raceResults = {
+            finalStandings: results.finalStandings, // Use the full standings with 2nd/3rd place
             winner: results.champion,
             totalTime: results.totalTime,
             isDragRace: true // Flag to indicate it was a drag race
         };
+
+        // Store in both locations to ensure UI finds it
+        this.gameState.raceResults = raceResults;
+        this.gameState.race.raceResults = raceResults;
 
         // Mark the selected contract as completed
         if (this.gameState.season.selectedContract) {
             this.gameState.season.selectedContract.completed = true;
         }
 
-        // Handle player's bet on the champion (if implemented)
-        // For now, assume no betting is placed on drag races or it's a "free" event.
-        // If the player had a bet for this event, we'd process it here.
-        // Since drag races are "bonus rounds", there's no betting.
-        // We'll explicitly set betResult to indicate no active bet.
-        this.gameState.race.betResult = {
-            betAmount: 0,
-            payout: 0,
-            won: false,
-            message: "No bet placed for bonus drag race."
-        };
+        // Handle player's bet
+        if (this.gameState.race.currentBet) {
+            // If a bet exists, calculate the result normally
+            // calculateBetResult expects an array or object with finalStandings
+            // We just set raceResults with finalStandings, so we can pass that
+            this.gameState.calculateBetResult(raceResults);
+        } else {
+            // Fallback if no bet (e.g. just watching)
+            this.gameState.race.betResult = {
+                betAmount: 0,
+                payout: 0,
+                won: false,
+                message: "No bet placed."
+            };
+        }
 
         // This will be called in _updateResults after this method,
         // and _updateResults will handle advancing the week/season for non-drag races.
         // For drag races, _updateResults needs to know not to advance.
         // The flag `isDragRace` in `raceResults` will help with this.
+    }
+
+    /**
+     * Debug method to force tier advancement
+     * @private
+     */
+    _debugForceTier() {
+        // 1. Ensure player has enough money to advance
+        const profitTarget = this.gameState.calculateProfitTarget(this.gameState.player.tier);
+        if (this.gameState.player.bankroll < profitTarget.licenseCost) {
+            console.log(`Debug: Adding funds to meet tier requirement ($${profitTarget.licenseCost})`);
+            this.gameState.player.bankroll = profitTarget.licenseCost + 1000; // Cost + buffer
+        }
+
+        // 2. Force week to 5 so the next advanceWeek completes the season
+        this.gameState.player.week = 5;
+        this.gameState.season.currentWeek = 5;
+
+        const result = this.gameState.advanceWeek();
+
+        if (result && result.status === 'season_complete') {
+            console.log('Season skipped. Force Tier Advancement triggered.');
+            
+            // Logic similar to _updateResults
+            if (result.canAdvance && this.gameState.advanceTier()) {
+                // Tier advancement
+                this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
+            } else {
+                // Should not happen if we set bankroll correctly, but fallback safely
+                console.log('Debug: Tier advancement failed despite forced funds?');
+                this._startNewSeason();
+                this.screenManager.changeState(GameStates.GARAGE);
+            }
+            
+            // Save state
+            this.saveManager.autoSave(this._createSaveSlot());
+        }
     }
 
     /**

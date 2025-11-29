@@ -82,7 +82,7 @@ class RaceScreen {
         const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge
 
         // Clear the entire canvas
-        ctx.fillStyle = '#0a0a0a';
+        ctx.fillStyle = '#1a2a1a';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         // Removed the green border around the entire canvas as requested.
         
@@ -253,8 +253,8 @@ class RaceScreen {
      * Draw the track path using waypoints
      */
     drawTrackPath(ctx, track, x, y, width, height) {
-        // Use the new full track rendering method
-        track.renderFullTrack(ctx, x, y, width, height, 30);
+        // Use the new full track rendering method with normal line width (1.0x)
+        track.renderFullTrack(ctx, x, y, width, height);
     }
 
     /**
@@ -278,15 +278,14 @@ class RaceScreen {
 
             // Get position on track
             let pos;
-            
+
             // Check if car is in the pits
             // Note: CarStatus.PIT_STOP is 'PIT_STOP' (usually), checking string to be safe or we could import
-            if ((entry.status === 'PIT_STOP' || entry.status === 'PIT_ENTRY' || entry.status === 'PIT_EXIT') && track.pitLane && track.pitLane.stalls) {
-                // Use assigned pit stall
-                // startingPosition is 1-based
-                const stallIndex = Math.max(0, (entry.startingPosition || 1) - 1);
-                const safeIndex = stallIndex % track.pitLane.stalls.length;
-                pos = track.pitLane.stalls[safeIndex];
+            if ((entry.status === 'PIT_STOP' || entry.status === 'PIT_ENTRY' || entry.status === 'PIT_EXIT' ||
+                 entry.status === 'DNF_CRASH' || entry.status === 'DNF_MECHANICAL') && entry.x !== undefined && entry.y !== undefined) {
+                // Use the car's actual x, y coordinates from the race simulation
+                // The racing system has already assigned the car to a unique pit stall
+                pos = { x: entry.x, y: entry.y };
             } else {
                 pos = track.getPositionAtProgress(segmentProgress);
             }

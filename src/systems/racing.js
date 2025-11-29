@@ -401,8 +401,9 @@ class CarController {
         this.status = CarStatus.RACING;
         this.position = startingPosition;
         this.finishTime = null;
-        this.dnfTime = null; // New: Time car DNF'd
-        this.hasPitted = false;       // for pit stop logic
+                    this.dnfTime = null; // New: Time car DNF'd
+                    this.dnfPitStall = null; // New: Assigned pit stall for DNF cars
+                    this.currentPitStall = null; // New: Assigned pit stall for cars currently pitting        this.hasPitted = false;       // for pit stop logic
         this.pitTimeRemaining = 0;    // for pit stop timer
         this.raceInfo = {};           // Set by RaceSimulator at start
         this.distanceSinceEventCheck = 0; // New: Throttle event checks to roughly twice a lap
@@ -458,6 +459,12 @@ class CarController {
     update(deltaTime, physics, allCars) {
         if (this.status === CarStatus.DNF_CRASH || this.status === CarStatus.DNF_MECHANICAL || this.status === CarStatus.FINISHED) {
             this.speed = 0;
+            // If DNF and assigned a pit stall, ensure position and heading are fixed
+            if ((this.status === CarStatus.DNF_CRASH || this.status === CarStatus.DNF_MECHANICAL) && this.dnfPitStall) {
+                this.x = this.dnfPitStall.x;
+                this.y = this.dnfPitStall.y;
+                this.heading = this.dnfPitStall.direction;
+            }
             return;
         }
 
@@ -472,6 +479,19 @@ class CarController {
             this.speed = lerp(this.speed, cautionSpeed, 0.08);
             this._moveAlongTrack(deltaTime, physics);
             return; // No other major updates under caution
+        }
+
+        // Spontaneous event checks (DNF and potential Pit Stop)
+        // Moved here to ensure DNF is processed before movement calculations
+        this._spontaneousEventCheck(physics);
+        // If DNF was triggered in this frame, stop further processing
+        if (this.status === CarStatus.DNF_CRASH || this.status === CarStatus.DNF_MECHANICAL) {
+            this.speed = 0; // Ensure speed is immediately 0.
+            // Also, record the DNF time here if it's not set already (for tests and leaderboards)
+            if (this.dnfTime === null) { 
+                this.dnfTime = this.raceSimulator.raceTime;
+            }
+            return;
         }
 
         // Apply stamina degradation
@@ -501,19 +521,6 @@ class CarController {
             this._updatePitStop(deltaTime, physics);
             return;
         }
-        
-        // Spontaneous event checks (DNF and potential Pit Stop)
-        // Moved here to ensure DNF is processed before movement calculations
-        this._spontaneousEventCheck(physics);
-        // If DNF was triggered in this frame, stop further processing
-        if (this.status === CarStatus.DNF_CRASH || this.status === CarStatus.DNF_MECHANICAL) {
-            this.speed = 0; // Ensure speed is immediately 0.
-            // Also, record the DNF time here if it's not set already (for tests and leaderboards)
-            if (this.dnfTime === null) { 
-                this.dnfTime = this.raceSimulator.raceTime;
-            }
-            return;
-        }
     }
 
     /**
@@ -538,13 +545,41 @@ class CarController {
             if (inPitWindow && !this.hasPitted && this.currentLap > 0 &&
                 Math.random() < PHYSICS_CONFIG.PIT_CHANCE_PER_LAP) {
                 
-                this.status = CarStatus.PIT_STOP;
-                // Apply Quick Pit trait bonus
-                this.pitTimeRemaining = this.driver.traits.some(t => t.name === 'Quick Pit')
-                    ? PHYSICS_CONFIG.PIT_STOP_BASE_TIME * 0.75 : PHYSICS_CONFIG.PIT_STOP_BASE_TIME;
-                this.pitTimeRemaining += (Math.random() - 0.5) * PHYSICS_CONFIG.PIT_STOP_VARIANCE * 2;
-                this.pitTimeRemaining = Math.max(4, this.pitTimeRemaining); // Min 4 seconds
-                return;
+                // Find an available pit stall
+                const pitStalls = physics.track.pitLane ? physics.track.pitLane.stalls : [];
+                let assignedStall = null;
+                let assignedStallIndex = -1;
+
+                for (let i = 0; i < pitStalls.length; i++) {
+                    // Check if this stall is not occupied by another car
+                    if (!this.raceSimulator._occupiedPitStalls.has(i)) {
+                        assignedStall = pitStalls[i];
+                        assignedStallIndex = i;
+                        break;
+                    }
+                }
+
+                if (assignedStall) {
+                    this.status = CarStatus.PIT_STOP;
+                    this.currentPitStall = { ...assignedStall, index: assignedStallIndex }; // Store stall and its original index
+                    this.raceSimulator._occupiedPitStalls.add(assignedStallIndex);
+                    console.log(`Car ${this.id} (${this.driver.name}) pitting - assigned stall ${assignedStallIndex} of ${pitStalls.length} at (${this.currentPitStall.x.toFixed(1)}, ${this.currentPitStall.y.toFixed(1)})`);
+
+                    // Teleport car to the assigned pit stall for now (advanced movement can be added later)
+                    this.x = this.currentPitStall.x;
+                    this.y = this.currentPitStall.y;
+                    this.heading = this.currentPitStall.direction;
+
+                    // Apply Quick Pit trait bonus
+                    this.pitTimeRemaining = this.driver.traits.some(t => t.name === 'Quick Pit')
+                        ? PHYSICS_CONFIG.PIT_STOP_BASE_TIME * 0.75 : PHYSICS_CONFIG.PIT_STOP_BASE_TIME;
+                    this.pitTimeRemaining += (Math.random() - 0.5) * PHYSICS_CONFIG.PIT_STOP_VARIANCE * 2;
+                    this.pitTimeRemaining = Math.max(4, this.pitTimeRemaining); // Min 4 seconds
+                    return; // Car is now in pit stop, stop further processing for this update
+                } else {
+                    // No pit stall available, car continues racing for this lap
+                    console.log(`${this.driver.name} wants to pit but no stalls available.`);
+                }
             }
         }
         
@@ -557,6 +592,13 @@ class CarController {
      * @private
      */
     _updatePitStop(deltaTime, physics) {
+        // If the car has an assigned pit stall, keep it fixed there
+        if (this.currentPitStall) {
+            this.x = this.currentPitStall.x;
+            this.y = this.currentPitStall.y;
+            this.heading = this.currentPitStall.direction;
+        }
+
         // Pit lane speed limit (F1: ~80 km/h, NASCAR: ~55 mph)
         const pitSpeed = PHYSICS_CONFIG.BASE_SPEED * 0.4;
         this.speed = lerp(this.speed, pitSpeed, 0.15);
@@ -566,6 +608,12 @@ class CarController {
         if (this.pitTimeRemaining <= 0) {
             this.status = CarStatus.RACING;
             this.hasPitted = true;
+            // Free up the pit stall
+            if (this.currentPitStall && this.currentPitStall.index !== undefined) {
+                this.raceSimulator._occupiedPitStalls.delete(this.currentPitStall.index);
+            }
+            this.currentPitStall = null;
+
             // Exit at pit speed, will accelerate back to race speed
             this.speed = pitSpeed;
             // Note: RaceSimulator handles adding the event
@@ -895,6 +943,19 @@ class CarController {
             this.status = isCrash ? CarStatus.DNF_CRASH : CarStatus.DNF_MECHANICAL;
             this.speed = 0;
             this.dnfTime = this.raceSimulator.raceTime; // Record DNF time
+
+            // Assign to a pit stall if track has a pit lane
+            if (this.dnfPitStall === null && this.raceSimulator.physics.track.pitLane) {
+                const pitStalls = this.raceSimulator.physics.track.pitLane.stalls;
+                if (pitStalls && pitStalls.length > 0) {
+                    const stallIndex = this.id % pitStalls.length;
+                    this.dnfPitStall = pitStalls[stallIndex];
+                    console.log(`Car ${this.id} (${this.driver.name}) assigned to pit stall ${stallIndex} of ${pitStalls.length} at (${this.dnfPitStall.x.toFixed(1)}, ${this.dnfPitStall.y.toFixed(1)})`);
+                    this.x = this.dnfPitStall.x;
+                    this.y = this.dnfPitStall.y;
+                    this.heading = this.dnfPitStall.direction;
+                }
+            }
         }
     }
 
@@ -1092,6 +1153,7 @@ class RaceSimulator {
         // Initialize systems
         this.physics = new RacingPhysics(track, this);
         this.burnerPhone = new BurnerPhoneSystem();
+        this._occupiedPitStalls = new Set();
 
         // Initialize cars with reference to this simulator
         this.cars = drivers.map((driver, index) =>
@@ -1277,9 +1339,9 @@ class RaceSimulator {
                 return a.finishTime - b.finishTime;
             }
 
-            // DNF cars come after FINISHED cars, but before RACING/PIT_STOP cars
-            if (isADNF && !isBDNF) return -1;
-            if (!isADNF && isBDNF) return 1;
+            // DNF cars come after FINISHED and RACING/PIT_STOP cars
+            if (isADNF && !isBDNF && !isBFinished) return 1; // A is DNF, B is RACING/PIT_STOP -> B comes before A
+            if (!isADNF && isBDNF && !isAFinished) return -1; // B is DNF, A is RACING/PIT_STOP -> A comes before B
             if (isADNF && isBDNF) {
                 // Both are DNF, sort by dnfTime (earlier DNF means lower position among DNFs)
                 if (a.dnfTime !== b.dnfTime) return a.dnfTime - b.dnfTime;
@@ -1660,6 +1722,7 @@ class DragRaceSimulator {
         this.bracket = []; // Stores driver matchups for each round
         this.roundWinners = [];
         this.champion = null;
+        this.driverStats = new Map(); // Track stats/ETs for each driver by round
 
         // Current heat simulation state
         this.heatState = null; // { driver1, driver2, car1, car2, carPositions: [{x,y}, {x,y}], heatWinner, heatFinished, heatRaceTime }
@@ -1923,6 +1986,15 @@ class DragRaceSimulator {
                 const totalTime1 = this.heatState.reactionTime1 + this.heatState.car1ET;
                 const totalTime2 = this.heatState.reactionTime2 + this.heatState.car2ET;
 
+                // Record Stats for Results Calculation
+                if (!this.driverStats) this.driverStats = new Map();
+                const recordStat = (id, et) => {
+                    if (!this.driverStats.has(id)) this.driverStats.set(id, {});
+                    this.driverStats.get(id)[`round${this.currentRound}ET`] = et;
+                };
+                recordStat(this.heatState.driver1.id, this.heatState.car1ET);
+                recordStat(this.heatState.driver2.id, this.heatState.car2ET);
+
                 if (totalTime1 < totalTime2) {
                     this.heatState.heatWinner = this.heatState.driver1;
                     this.roundWinners.push(this.heatState.driver1);
@@ -1966,12 +2038,60 @@ class DragRaceSimulator {
         if (this.state !== RaceState.FINISHED) {
             return null;
         }
+
+        // 1. Champion: this.champion
+        
+        // 2. Runner-Up: The other finalist
+        // Finalists are in bracket[2] (for 8-car bracket) or bracket[length-2] generally?
+        // bracket = [R1, R2, R3, Champ]. R3 is index 2.
+        // Safe way: find the last bracket array with exactly 2 items.
+        let finalists = [];
+        for (let i = this.bracket.length - 1; i >= 0; i--) {
+            if (this.bracket[i] && this.bracket[i].length === 2) {
+                finalists = this.bracket[i];
+                break;
+            }
+        }
+        const runnerUp = finalists.find(d => d.id !== this.champion.id);
+
+        // 3. Third Place: The semi-final loser with the fastest Quarterfinal (Round 1) ET
+        let thirdPlace = null;
+        
+        // Semi-finalists are in the bracket array BEFORE the finalists (length 4)
+        let semiFinalists = [];
+        for (let i = this.bracket.length - 1; i >= 0; i--) {
+            if (this.bracket[i] && this.bracket[i].length === 4) {
+                semiFinalists = this.bracket[i];
+                break;
+            }
+        }
+
+        if (semiFinalists.length > 0 && finalists.length > 0) {
+            // Losers are those in semiFinalists but NOT in finalists
+            const semiLosers = semiFinalists.filter(d => !finalists.some(f => f.id === d.id));
+            
+            if (semiLosers.length > 0) {
+                // Sort by Round 1 ET (Quarterfinal ET). Lower is better/faster.
+                semiLosers.sort((a, b) => {
+                    const etA = this.driverStats?.get(a.id)?.round2ET || 999;
+                    const etB = this.driverStats?.get(b.id)?.round2ET || 999;
+                    return etA - etB;
+                });
+                thirdPlace = semiLosers[0];
+            }
+        }
+
+        const finalStandings = [this.champion];
+        if (runnerUp) finalStandings.push(runnerUp);
+        if (thirdPlace) finalStandings.push(thirdPlace);
+
         return {
-            finalStandings: [this.champion], // For now, just the champion
+            finalStandings: finalStandings, 
             winner: this.champion,
             totalTime: this.raceTime, 
             totalEvents: 0,
-            dnfCount: 0
+            dnfCount: 0,
+            champion: this.champion
         };
     }
 }

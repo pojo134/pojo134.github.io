@@ -5,6 +5,7 @@ class GarageScreen {
         this.hoveredUpgrade = null;
         this.hoveredContract = null;
         this.debugDragBtnBounds = null; // To store bounds for click detection
+        this.debugSkipSeasonBtnBounds = null;
 
         this.upgrades = [
             {
@@ -67,9 +68,21 @@ class GarageScreen {
         // Season progress
         const season = gameState?.player?.season || 1;
         const week = gameState?.player?.week || 1;
+        const maxWeeks = 5;
         ctx.font = '18px "Courier New", monospace';
         ctx.fillStyle = '#00ffff';
-        ctx.fillText(`SEASON ${season} - WEEK ${week}/16`, canvas.width - 20, 70);
+        ctx.textAlign = 'right';
+        ctx.fillText(`SEASON ${season} - WEEK ${week}/${maxWeeks}`, canvas.width - 20, 70);
+
+        // Tier Target Display
+        const tier = gameState?.player?.tier || 1;
+        const nextTierCost = 50000 * Math.pow(2, tier - 1);
+        const progress = bankroll / nextTierCost;
+        const progressPercent = Math.min(100, Math.floor(progress * 100));
+        
+        ctx.fillStyle = '#ff9900';
+        ctx.font = '16px "Courier New", monospace';
+        ctx.fillText(`NEXT TIER: $${nextTierCost.toLocaleString()} (${progressPercent}%)`, canvas.width - 20, 95);
 
         // Upgrade shop section
         ctx.font = 'bold 28px "Courier New", monospace';
@@ -204,6 +217,21 @@ class GarageScreen {
         ctx.textAlign = 'center';
         ctx.fillText('CONTINUE', continueBtn.x + continueBtn.width / 2, continueBtn.y + 32);
 
+        // --- FORCE TIER DEBUG BUTTON ---
+        const debugSkipBtn = { x: canvas.width - 200, y: canvas.height - 200, width: 180, height: 50 };
+        this.debugSkipSeasonBtnBounds = debugSkipBtn;
+
+        ctx.fillStyle = '#ff9900'; // Orange color for skip season
+        ctx.fillRect(debugSkipBtn.x, debugSkipBtn.y, debugSkipBtn.width, debugSkipBtn.height);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(debugSkipBtn.x, debugSkipBtn.y, debugSkipBtn.width, debugSkipBtn.height);
+
+        ctx.font = 'bold 18px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('FORCE TIER', debugSkipBtn.x + debugSkipBtn.width / 2, debugSkipBtn.y + 32);
+
         // --- DRAG DEBUG BUTTON ---
         const debugDragBtn = { x: canvas.width - 200, y: canvas.height - 140, width: 180, height: 50 };
         this.debugDragBtnBounds = debugDragBtn; // Store for click detection
@@ -256,6 +284,14 @@ class GarageScreen {
             y >= this.debugDragBtnBounds.y && y <= this.debugDragBtnBounds.y + this.debugDragBtnBounds.height) {
             
             return { action: 'debugDragRace' };
+        }
+
+        // Check FORCE TIER DEBUG button
+        if (this.debugSkipSeasonBtnBounds && 
+            x >= this.debugSkipSeasonBtnBounds.x && x <= this.debugSkipSeasonBtnBounds.x + this.debugSkipSeasonBtnBounds.width &&
+            y >= this.debugSkipSeasonBtnBounds.y && y <= this.debugSkipSeasonBtnBounds.y + this.debugSkipSeasonBtnBounds.height) {
+            
+            return { action: 'forceTier' };
         }
 
         return null;

@@ -380,6 +380,7 @@ class DriverGenerator {
         // Assign starting positions
         field.forEach((driver, index) => {
             driver.startingPosition = index + 1;
+            driver.id = index;
         });
 
         return field;
@@ -394,7 +395,7 @@ class DriverGenerator {
 }
 
 import { Vec2, getSplinePoint, pointToSegmentDistance, intersect, checkCollision } from '../utils/utils.js';
-import { generateOvalPitLane } from '../systems/segmentTrackGenerator.js';
+import { generateOvalPitLane, generatePitLaneOnStraight, generateSimplePitLane } from '../systems/segmentTrackGenerator.js';
 
 // ============================================================================
 // TRACK GENERATOR CLASS
@@ -406,16 +407,19 @@ class TrackGenerator {
             "Circuit",
             "Oval",
             "Tri-Oval",
-            "Drag Strip"
+            "Drag Strip",
+            "Dirt Oval"
         ];
 
         // Define track types available per league tier
         // These now refer to generic track styles (Circuit, Oval, Tri-Oval)
         this.tierTrackTypes = {
-            1: ["Circuit", "Oval"], // Tier 1: Go-Karts (mostly circuits, some simple ovals)
-            2: ["Circuit", "Oval", "Tri-Oval"], // Tier 2: Basic Ovals, Road Courses, Tri-Ovals
-            3: ["Circuit", "Oval", "Tri-Oval"], // Tier 3: Advanced Ovals, Technical Road Courses, Street Circuits (all covered by Circuit/Oval/Tri-Oval now)
-            4: ["Circuit", "Oval", "Tri-Oval"] // Tier 4: High-speed, high-skill tracks
+            1: ["Go-Kart Track"], // Tier 1: Go-Karts
+            2: ["Dirt Oval"], // Tier 2: Dirt Tracks
+            3: ["GT Circuit"], // Tier 3: GT tracks
+            4: ["LM Circuit"], // Tier 4: LM tracks
+            5: ["Oval", "Tri-Oval"], // Tier 5: stock car tracks
+            6: ["Open Wheel Circuit"] // Tier 6: open wheel tracks
         };
         // "Drag Strip" will be handled separately as a special event, not a general track type.
 
@@ -474,6 +478,12 @@ class TrackGenerator {
                 windiness: { min: 0.7, max: 0.9 },
                 straightLength: { min: 50, max: 70 },
                 trackStyle: 'tri-oval'
+            },
+            'Dirt Oval': {
+                complexity: { min: 12, max: 16 },
+                windiness: { min: 0.0, max: 0.1 },
+                straightLength: { min: 80, max: 120 },
+                trackStyle: 'oval'
             }
         };
     }
@@ -780,7 +790,19 @@ class TrackGenerator {
 
         // Determine the actual track type name for the Track object
         let actualTrackTypeName = 'Circuit'; // Default
-        if (trackStyle === 'oval') {
+        let surface = 'asphalt';
+
+        if (leagueName === 'Dirt Oval') {
+            actualTrackTypeName = 'Dirt Oval';
+            surface = 'dirt';
+            // Force simple oval parameters if not already set correctly by settings
+            if (!settings) {
+                complexity = 14;
+                windiness = 0.05;
+                straightLength = 100;
+                trackStyle = 'oval';
+            }
+        } else if (trackStyle === 'oval') {
             actualTrackTypeName = 'Oval';
         } else if (trackStyle === 'tri-oval') {
             actualTrackTypeName = 'Tri-Oval';
@@ -794,46 +816,255 @@ class TrackGenerator {
         const characteristics = this.calculateCharacteristics(scaledWaypoints);
         const finalWeather = weatherOverride || this.generateWeather(); // Use override if provided
 
+        // Generate pit lane based on track type
         let pitLaneData = null;
-        if (actualTrackTypeName === 'Oval') {
-            // For Ovals, place the pit lane on one of the main straights.
-            // Assuming the oval often starts and ends on a straight, 
-            // a section around 5% to 25% of the track length is a good candidate.
-            const pitLaneStartMainIdx = Math.floor(scaledWaypoints.length * 0.05);
-            const pitLaneEndMainIdx = Math.floor(scaledWaypoints.length * 0.25);
-            const pitLaneOffsetDistance = 15 * scaleX; // Scaled offset
-            const pitLaneWidth = trackWidth * 0.75;
-
-            if (scaledWaypoints.length > pitLaneEndMainIdx) {
-                pitLaneData = generateOvalPitLane(
-                    scaledWaypoints,
-                    trackWidth,
-                    pitLaneStartMainIdx,
-                    pitLaneEndMainIdx,
-                    pitLaneOffsetDistance,
-                    pitLaneWidth
-                );
-            }
+        const pitLaneOffsetDistance = 15 * scaleX; // Scaled offset
+        const pitLaneWidth = trackWidth * 0.75;
+        
+        if (actualTrackTypeName === 'Drag Strip' || actualTrackTypeName === 'Drag Race') {
+            // No pit lane for drag strips
+            pitLaneData = null;
+            console.log(`No pit lane for ${actualTrackTypeName}`);
+        } else if (actualTrackTypeName === 'Dirt Oval') {
+            // Dirt ovals have simple pit lanes
+            pitLaneData = generatePitLaneOnStraight(
+                scaledWaypoints,
+                trackWidth,
+                pitLaneOffsetDistance,
+                pitLaneWidth
+            );
         } else if (actualTrackTypeName === 'Tri-Oval') {
-            // For Tri-Ovals, place the pit lane on the longest front straight.
-            // This usually means a section covering the start/finish line.
-            // The indices need to be carefully chosen to match the tri-oval geometry.
-            // Assuming scaledWaypoints are ordered, a section from ~75% to 95% might work
-            // for a pit lane that spans the start/finish line.
-            const pitLaneStartMainIdx = Math.floor(scaledWaypoints.length * 0.75);
-            const pitLaneEndMainIdx = Math.floor(scaledWaypoints.length * 0.95);
-            const pitLaneOffsetDistance = 15 * scaleX; // Scaled offset
-            const pitLaneWidth = trackWidth * 0.75;
+            // CUSTOM TRI-OVAL PIT LANE GENERATION
+            // Locate the pit lane in the "V" tip (Frontstretch), cutting across halfway down.
+            
+            let minY = Infinity;
+            let maxY = -Infinity;
+            let apexIndex = -1;
 
-            if (scaledWaypoints.length > pitLaneEndMainIdx) {
-                pitLaneData = generateOvalPitLane(
-                    scaledWaypoints,
-                    trackWidth,
-                    pitLaneStartMainIdx,
-                    pitLaneEndMainIdx,
-                    pitLaneOffsetDistance,
-                    pitLaneWidth
-                );
+            scaledWaypoints.forEach((wp, i) => {
+                if (wp.y < minY) minY = wp.y;
+                if (wp.y > maxY) {
+                    maxY = wp.y;
+                    apexIndex = i;
+                }
+            });
+
+            // Estimate Tri-Oval Geometry
+            // MaxY is the Apex (bottom tip). MinY is the Backstretch (top).
+            // Based on generation: triOvalDepth is approx 0.23 * totalHeight
+            const totalHeight = maxY - minY;
+            const triOvalDepthRatio = 0.15 / 0.65; 
+            const triOvalDepth = totalHeight * triOvalDepthRatio;
+
+            // "Half the size of this specific pit area" -> Halfway up the V-shape from the tip
+            const targetY = maxY - (triOvalDepth * 0.5);
+
+            // Find Intersections (Entry and Exit)
+            // Flow is Top -> Right -> Apex -> Left -> Top (Counter-Clockwise visual, but index wise?)
+            // _generateBaseProceduralTrack: Backstretch -> Turns 3/4 (Right) -> Frontstretch (Right to Apex to Left) -> Turns 1/2 (Left)
+            // So Indices go: Back -> Right -> RightLeg -> Apex -> LeftLeg -> Left
+            // Y increases approaching Apex (index increases). Y decreases leaving Apex (index increases).
+            
+            let entryPoint = null;
+            let exitPoint = null;
+
+            // Entry: On the Right Leg (Before Apex). Y is increasing.
+            // Search backwards from Apex index
+            if (apexIndex > 0) {
+                for (let i = apexIndex; i > 0; i--) {
+                    const p1 = scaledWaypoints[i];
+                    const p0 = scaledWaypoints[i - 1];
+                    // Check if segment crosses targetY
+                    if (p1.y >= targetY && p0.y <= targetY) {
+                        const t = (targetY - p0.y) / (p1.y - p0.y);
+                        entryPoint = {
+                            x: p0.x + (p1.x - p0.x) * t,
+                            y: targetY
+                        };
+                        break;
+                    }
+                }
+            }
+
+            // Exit: On the Left Leg (After Apex). Y is decreasing.
+            // Search forwards from Apex index
+            if (apexIndex < scaledWaypoints.length - 1) {
+                for (let i = apexIndex; i < scaledWaypoints.length - 1; i++) {
+                    const p1 = scaledWaypoints[i];
+                    const p2 = scaledWaypoints[i + 1];
+                    // Check if segment crosses targetY
+                    if (p1.y >= targetY && p2.y <= targetY) {
+                        const t = (targetY - p1.y) / (p2.y - p1.y);
+                        exitPoint = {
+                            x: p1.x + (p2.x - p1.x) * t,
+                            y: targetY
+                        };
+                        break;
+                    }
+                }
+            }
+
+            if (entryPoint && exitPoint) {
+                // Generate 12 stalls along the line
+                const stalls = [];
+                const numStalls = 12;
+                const dx = exitPoint.x - entryPoint.x;
+                const dy = exitPoint.y - entryPoint.y;
+                
+                // Offset stalls slightly "up" (Y-) to be inside the V shape, clear of the crossing line
+                // But "touching both ends" implies the lane itself is the connection.
+                // We'll place stalls exactly on the line for simplicity, or slightly offset if needed.
+                // Using a small offset for visual clarity.
+                const stallOffset = -10; // Upwards (towards center of track area)
+
+                for (let i = 0; i < numStalls; i++) {
+                    const t = (i + 0.5) / numStalls;
+                    stalls.push({
+                        x: entryPoint.x + dx * t,
+                        y: entryPoint.y + dy * t + stallOffset, 
+                        direction: Math.atan2(dy, dx)
+                    });
+                }
+
+                pitLaneData = {
+                    p1: entryPoint,
+                    p2: exitPoint,
+                    width: pitLaneWidth,
+                    stalls: stalls,
+                    centerline: [entryPoint, exitPoint],
+                    leftBorder: [],
+                    rightBorder: [],
+                    entryMainTrackPoints: [entryPoint],
+                    exitMainTrackPoints: [exitPoint]
+                };
+                console.log(`Generated Tri-Oval hardcoded pit lane at Y=${targetY.toFixed(0)} with 12 stalls.`);
+            } else {
+                console.warn("Could not generate Tri-Oval pit lane geometry (intersections not found). Falling back.");
+                pitLaneData = generatePitLaneOnStraight(scaledWaypoints, trackWidth, pitLaneOffsetDistance, pitLaneWidth);
+            }
+
+        } else if (actualTrackTypeName === 'Oval') {
+            // CUSTOM OVAL PIT LANE GENERATION
+            // Randomly choose between Top (minY) or Bottom (maxY) straight.
+            const useTopStraight = Math.random() < 0.5;
+            let targetYValue;
+            let pitLaneLocationText;
+            let yDirectionMultiplier; // For offset: +1 for Top (offset down), -1 for Bottom (offset up)
+            let stallDirection; // 0 for right, PI for left
+
+            let ovalMinY = Infinity;
+            let ovalMaxY = -Infinity;
+            scaledWaypoints.forEach(wp => {
+                if (wp.y < ovalMinY) ovalMinY = wp.y;
+                if (wp.y > ovalMaxY) ovalMaxY = wp.y;
+            });
+
+            if (useTopStraight) {
+                targetYValue = ovalMinY;
+                pitLaneLocationText = "Top Straight";
+                yDirectionMultiplier = 1; // Pit lane inside is below the top straight
+                stallDirection = 0; // Stalls face right (Left to Right track flow)
+            } else {
+                targetYValue = ovalMaxY;
+                pitLaneLocationText = "Bottom Straight";
+                yDirectionMultiplier = -1; // Pit lane inside is above the bottom straight
+                stallDirection = Math.PI; // Stalls face left (Right to Left track flow)
+            }
+            
+            // Allow a small tolerance for Y variance due to spline/noise.
+            const tolerance = 5.0; 
+            const straightPoints = scaledWaypoints.filter(wp => Math.abs(wp.y - targetYValue) < tolerance);
+
+            // Find the X range of this straight
+            let minX = Infinity;
+            let maxX = -Infinity;
+            straightPoints.forEach(wp => {
+                if (wp.x < minX) minX = wp.x;
+                if (wp.x > maxX) maxX = wp.x;
+            });
+
+            // If we found a valid straight
+            if (minX < maxX) {
+                // Center the pit lane
+                const straightMidX = (minX + maxX) / 2;
+                const straightY = targetYValue; 
+
+                // Calculate desired pit lane length (standard size: 12 stalls + padding)
+                const desiredPitLength = trackWidth * 13; // Roughly 13 car lengths
+
+                // Ensure it fits within the straight (with some margin)
+                const maxAvailableLength = (maxX - minX) * 0.9;
+                const pitLength = Math.min(desiredPitLength, maxAvailableLength);
+                const halfLen = pitLength / 2;
+
+                let p1, p2;
+
+                if (useTopStraight) {
+                    // Top Straight: Left to Right (Standard)
+                    p1 = { x: straightMidX - halfLen, y: straightY };
+                    p2 = { x: straightMidX + halfLen, y: straightY };
+                } else {
+                    // Bottom Straight: Right to Left (Reverse for Correct Normal)
+                    // This ensures the normal vector points "Up" (Inside) for the renderer
+                    p1 = { x: straightMidX + halfLen, y: straightY };
+                    p2 = { x: straightMidX - halfLen, y: straightY };
+                }
+
+                // Offset to Inside
+                // yDirectionMultiplier determines if we add or subtract for the inside offset
+                const yOffset = (pitLaneOffsetDistance + pitLaneWidth * 0.5) * yDirectionMultiplier; 
+                
+                // Adjust pit centerline (pitP1, pitP2)
+                const pitP1 = { x: p1.x, y: p1.y + yOffset };
+                const pitP2 = { x: p2.x, y: p2.y + yOffset };
+
+                // Generate 12 Stalls
+                const stalls = [];
+                const numStalls = 12;
+                // Stall offset further into the pit area
+                const stallOffsetFromPitCenterline = (pitLaneWidth * 0.85) * yDirectionMultiplier; 
+
+                for (let i = 0; i < numStalls; i++) {
+                    const t = (i + 0.5) / numStalls; // Center of each stall
+                    stalls.push({
+                        x: pitP1.x + (pitP2.x - pitP1.x) * t,
+                        y: pitP1.y + stallOffsetFromPitCenterline, 
+                        direction: stallDirection 
+                    });
+                }
+
+                pitLaneData = {
+                    p1: pitP1, // Pit lane centerline start
+                    p2: pitP2, // Pit lane centerline end
+                    width: pitLaneWidth * 2, // Visual width for rendering
+                    stalls: stalls,
+                    centerline: [pitP1, pitP2],
+                    leftBorder: [], 
+                    rightBorder: [],
+                    entryMainTrackPoints: [p1], // Entry/exit projected on main track
+                    exitMainTrackPoints: [p2],
+                    location: pitLaneLocationText // Add location info
+                };
+                console.log(`Generated Oval hardcoded pit lane on ${pitLaneLocationText} (Y=${straightY.toFixed(0)}) with 12 stalls.`);
+            } else {
+                 console.warn(`Could not identify ${pitLaneLocationText} for Oval pit lane. Falling back.`);
+                 pitLaneData = generatePitLaneOnStraight(scaledWaypoints, trackWidth, pitLaneOffsetDistance, pitLaneWidth);
+            }
+
+        } else {
+            // All other tracks: use automatic straight detection
+            // This works for circuits, ovals, and tri-ovals
+            pitLaneData = generatePitLaneOnStraight(
+                scaledWaypoints,
+                trackWidth,
+                pitLaneOffsetDistance,
+                pitLaneWidth
+            );
+            
+            if (pitLaneData) {
+                console.log(`Pit lane generated for ${actualTrackTypeName} track with ${pitLaneData.stalls.length} stalls`);
+            } else {
+                console.warn(`Could not generate pit lane for ${actualTrackTypeName} track - no suitable straight section found`);
             }
         }
         
@@ -845,7 +1076,8 @@ class TrackGenerator {
             finalWeather, // weather
             trackWidth, // trackWidth // Corrected position
             true, // isLoop // Corrected position
-            pitLaneData // Pass pitLaneData here
+            pitLaneData, // Pass pitLaneData here
+            surface // Pass surface here
         );
     }
 
@@ -1087,6 +1319,7 @@ class TrackGenerator {
             else if (trackType.includes("GT")) leagueName = 'GT';
             else if (trackType.includes("LM")) leagueName = 'LM';
             else if (trackType.includes("Open Wheel")) leagueName = 'Open Wheel';
+            else if (trackType.includes("Dirt Oval")) leagueName = 'Dirt Oval';
             else if (trackType.includes("Stock Car") || trackType.includes("Oval") || trackType.includes("Tri-Oval")) leagueName = 'Stock Car';
             else leagueName = 'Go-Kart'; // Default to Go-Kart for other unspecified circuit types for now
         } else {
@@ -1151,6 +1384,9 @@ class TrackGenerator {
             // Ovals often have "Speedway" or "Superspeedway"
             const ovalSuffixes = ["Speedway", "Superspeedway", "Oval", "Motor Speedway"];
             fullName = `${baseName} ${randomChoice(ovalSuffixes)}`;
+        } else if (trackType === 'Dirt Oval') {
+            const dirtSuffixes = ["Dirt Track", "Speedway", "Clay Oval", "Raceway"];
+            fullName = `${baseName} ${randomChoice(dirtSuffixes)}`;
         } else if (trackType === 'Drag Strip') {
              fullName = `${baseName} Dragway`;
         } else if (trackType === 'Go-Kart Track') {
@@ -1440,7 +1676,7 @@ class OddsCalculator {
 
 class SeasonGenerator {
     constructor(trackGenerator) { // Added trackGenerator parameter
-        this.raceWeeks = 16; // Standard season length
+        this.raceWeeks = 5; // Reduced season length to 5
         this.racesSinceLastDrag = 0; // Counter for drag race events
         this.trackGenerator = trackGenerator; // Store TrackGenerator instance
 
