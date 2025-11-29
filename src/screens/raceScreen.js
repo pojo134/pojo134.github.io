@@ -82,7 +82,7 @@ class RaceScreen {
         const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge
 
         // Clear the entire canvas
-        ctx.fillStyle = '#1a2a1a';
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         // Removed the green border around the entire canvas as requested.
         
@@ -194,6 +194,16 @@ class RaceScreen {
         ctx.textAlign = 'left';
         ctx.fillText(trackName, 20, 27);
 
+        // Draw Bet Info
+        if (gameState?.race?.currentBet) {
+            const bet = gameState.race.currentBet;
+            ctx.font = '14px "Courier New", monospace';
+            ctx.fillStyle = '#ffff00';
+            ctx.textAlign = 'center';
+            ctx.fillText(`BET: ${bet.driverName} ($${bet.amount})`, width / 2, 27);
+        }
+
+        ctx.font = 'bold 20px "Courier New", monospace';
         ctx.fillStyle = '#00ffff';
         ctx.textAlign = 'right';
         ctx.fillText(`LAP ${lap}/${totalLaps}`, width - 20, 27);
@@ -208,34 +218,17 @@ class RaceScreen {
         }
 
         // Track container - fill entire area
-        ctx.fillStyle = '#0a0a0a';
+        ctx.fillStyle = '#1a2a1a'; // Changed background color
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Title area at top (compact)
-        ctx.font = 'bold 11px "Courier New", monospace';
-        ctx.fillStyle = '#ffff00';
-        ctx.textAlign = 'left';
-        ctx.fillText('TRACK', x + 8, y + 14);
-
-        ctx.font = '10px "Courier New", monospace';
-        ctx.fillStyle = '#00ffff';
-        ctx.fillText(track.name, x + 8, y + 26);
-
-        // Add track details
-        const trackInfo = track.getInfo();
-        ctx.font = '9px "Courier New", monospace';
-        ctx.fillStyle = '#aaaaaa';
-        ctx.fillText(`Length: ${trackInfo.totalDistance}m`, x + 8, y + 38);
-        ctx.fillText(`Waypoints: ${trackInfo.waypointCount}`, x + 8, y + 49); // Using waypoint count as a proxy for turns
-
         // Track drawing area (maximize space - only 8px padding each side, 8px top for title, 6px bottom for lap)
         const trackDisplayX = x + 8;
-        const trackDisplayY = y + 30;
+        const trackDisplayY = y + 8; // Adjusted Y for removed text
         const trackDisplayWidth = width - 16;
-        const trackDisplayHeight = height - 45;
+        const trackDisplayHeight = height - 16; // Adjusted height for removed text
 
         // Draw track using waypoints
         if (track.waypoints && track.waypoints.length > 1) {
@@ -408,18 +401,23 @@ class RaceScreen {
             return;
         }
 
-        const rowHeight = 28;
+        const rowHeight = 24; // Changed from 28 to 24 to fit 10 drivers
         const startY = y + (this.selectedContact ? 42 : 32); // Adjusted down by 10px to clear title
-        const maxRows = Math.floor((height - startY + y) / rowHeight);
+        const maxRows = 10; // Fixed to show top 10 drivers
 
         drivers.slice(0, maxRows).forEach((driver, index) => {
             const rowY = startY + index * rowHeight;
             
             const driverName = driver.driver?.name || driver.name || 'UNKNOWN';
+            const teamColor = driver.driver?.teamColor || driver.teamColor || '#ffffff';
             
             // Ensure gap and gapToAhead are always strings, even if simulation isn't fully ready
-            const gapToLeader = driver.gap !== undefined ? driver.gap : (index === 0 ? 'LEADER' : 'N/A');
-            const gapToAhead = driver.gapToAhead !== undefined ? driver.gapToAhead : (index === 0 ? 'LEADER' : 'N/A');
+            let gapToLeader = driver.gap !== undefined ? driver.gap : (index === 0 ? 'LEADER' : 'N/A');
+            let gapToAhead = driver.gapToAhead !== undefined ? driver.gapToAhead : (index === 0 ? 'LEADER' : 'N/A');
+
+            if (index === 0) {
+                gapToAhead = '-';
+            }
 
             const isHovered = this.hoveredDriver === driverName;
             const isTargetable = this.selectedContact !== null;
@@ -427,31 +425,31 @@ class RaceScreen {
             // Highlight row if hovering with contact selected
             if (isHovered && isTargetable) {
                 ctx.fillStyle = 'rgba(255, 0, 102, 0.2)';
-                ctx.fillRect(x + 2, rowY - 14, width - 4, rowHeight - 2);
+                ctx.fillRect(x + 2, rowY - 14 + (28-rowHeight)/2, width - 4, rowHeight - 2); // Adjust y position
             }
 
             // Position number
             ctx.font = 'bold 11px "Courier New", monospace';
             ctx.fillStyle = index === 0 ? '#ffff00' : '#ffffff';
             ctx.textAlign = 'left';
-            ctx.fillText(`${index + 1}.`, x + 5, rowY);
+            ctx.fillText(`${index + 1}.`, x + 5, rowY + (28-rowHeight)/2); // Adjusted X and Y to compensate for removed strip and new rowHeight
 
             // Driver name (shortened)
             ctx.font = '10px "Courier New", monospace';
-            ctx.fillStyle = isHovered && isTargetable ? '#ff0066' : '#aaaaaa';
-            ctx.fillText(driverName.substring(0, 6), x + 35, rowY);
+            ctx.fillStyle = isHovered && isTargetable ? '#ff0066' : teamColor;
+            ctx.fillText(driverName.substring(0, 10), x + 35, rowY + (28-rowHeight)/2); // Adjusted X and Y
 
             // Gap to Ahead (right aligned)
             ctx.font = '9px "Courier New", monospace';
-            ctx.fillStyle = '#999999'; // Slightly different color for distinction
+            ctx.fillStyle = '#bbbbbb'; // Brighter
             ctx.textAlign = 'right';
-            ctx.fillText(gapToAhead, x + width - 70, rowY); // Adjusted position
+            ctx.fillText(gapToAhead, x + width - 70, rowY + (28-rowHeight)/2); // Adjusted Y
 
             // Gap to Leader (right aligned)
             ctx.font = '9px "Courier New", monospace';
-            ctx.fillStyle = '#666666';
+            ctx.fillStyle = '#999999'; // Brighter
             ctx.textAlign = 'right';
-            ctx.fillText(gapToLeader, x + width - 5, rowY);
+            ctx.fillText(gapToLeader, x + width - 5, rowY + (28-rowHeight)/2); // Adjusted Y
         });
     }
 

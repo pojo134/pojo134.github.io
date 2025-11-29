@@ -1437,11 +1437,11 @@ class RaceSimulator {
                 }
 
                 if (gapToLeaderSeconds > 0) {
-                    carState.gap = `+${gapToLeaderSeconds.toFixed(1)}s`;
+                    carState.gap = `+${gapToLeaderSeconds.toFixed(3)}s`;
                 } else if (gapToLeaderSeconds < 0) {
-                    carState.gap = `-${Math.abs(gapToLeaderSeconds).toFixed(1)}s`;
+                    carState.gap = `-${Math.abs(gapToLeaderSeconds).toFixed(3)}s`;
                 } else {
-                    carState.gap = '0.0s';
+                    carState.gap = '0.000s'; // Update for consistency
                 }
 
                 // Calculate gap to car immediately ahead
@@ -1472,11 +1472,11 @@ class RaceSimulator {
                 }
 
                 if (gapToCarAheadSeconds > 0) {
-                    carState.gapToAhead = `+${gapToCarAheadSeconds.toFixed(1)}s`;
+                    carState.gapToAhead = `+${gapToCarAheadSeconds.toFixed(3)}s`;
                 } else if (gapToCarAheadSeconds < 0) {
-                    carState.gapToAhead = `-${Math.abs(gapToCarAheadSeconds).toFixed(1)}s`;
+                    carState.gapToAhead = `-${Math.abs(gapToCarAheadSeconds).toFixed(3)}s`;
                 } else {
-                    carState.gapToAhead = '0.0s';
+                    carState.gapToAhead = '0.000s'; // Update for consistency
                 }
             }
             carStatesWithGaps.push(carState);

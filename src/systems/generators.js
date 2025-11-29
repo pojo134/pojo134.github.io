@@ -1677,7 +1677,6 @@ class OddsCalculator {
 class SeasonGenerator {
     constructor(trackGenerator) { // Added trackGenerator parameter
         this.raceWeeks = 5; // Reduced season length to 5
-        this.racesSinceLastDrag = 0; // Counter for drag race events
         this.trackGenerator = trackGenerator; // Store TrackGenerator instance
 
         this.contractTypes = {
@@ -1813,7 +1812,6 @@ class SeasonGenerator {
      */
     generateSeason(leagueTier = 1) {
         const calendar = [];
-        this.racesSinceLastDrag = 0; // Reset counter for a new season
 
         for (let week = 1; week <= this.raceWeeks; week++) {
             const contracts = [];
@@ -1826,15 +1824,9 @@ class SeasonGenerator {
             contracts.push(this.generateContract("risky", week, leagueTier));
             regularContractsGenerated++;
 
-            // Decide whether to add a special contract or a drag race contract
-            // A drag race occurs *instead of* the third regular contract
-            if (this.racesSinceLastDrag >= 2 && regularContractsGenerated === 2) { // 2 regular races + 1 drag race = 3 events
-                contracts.push(this.generateDragRaceContract(week, leagueTier));
-                this.racesSinceLastDrag = 0; // Reset counter after drag race
-            } else {
-                contracts.push(this.generateContract("special", week, leagueTier));
-                this.racesSinceLastDrag++; // Only increment for regular contracts
-            }
+            // Decide whether to add a special contract
+            // Always add a special contract as the third option
+            contracts.push(this.generateContract("special", week, leagueTier));
 
             calendar.push({
                 week,

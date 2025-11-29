@@ -6,6 +6,7 @@ class GarageScreen {
         this.hoveredContract = null;
         this.debugDragBtnBounds = null; // To store bounds for click detection
         this.debugSkipSeasonBtnBounds = null;
+        this.debugMoneyBtnBounds = null;
 
         this.upgrades = [
             {
@@ -232,6 +233,21 @@ class GarageScreen {
         ctx.textAlign = 'center';
         ctx.fillText('FORCE TIER', debugSkipBtn.x + debugSkipBtn.width / 2, debugSkipBtn.y + 32);
 
+        // --- ADD MONEY DEBUG BUTTON ---
+        const debugMoneyBtn = { x: canvas.width - 200, y: canvas.height - 260, width: 180, height: 50 };
+        this.debugMoneyBtnBounds = debugMoneyBtn;
+
+        ctx.fillStyle = '#00aa00'; // Green color for add money
+        ctx.fillRect(debugMoneyBtn.x, debugMoneyBtn.y, debugMoneyBtn.width, debugMoneyBtn.height);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(debugMoneyBtn.x, debugMoneyBtn.y, debugMoneyBtn.width, debugMoneyBtn.height);
+
+        ctx.font = 'bold 18px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('+$100k', debugMoneyBtn.x + debugMoneyBtn.width / 2, debugMoneyBtn.y + 32);
+
         // --- DRAG DEBUG BUTTON ---
         const debugDragBtn = { x: canvas.width - 200, y: canvas.height - 140, width: 180, height: 50 };
         this.debugDragBtnBounds = debugDragBtn; // Store for click detection
@@ -292,6 +308,14 @@ class GarageScreen {
             y >= this.debugSkipSeasonBtnBounds.y && y <= this.debugSkipSeasonBtnBounds.y + this.debugSkipSeasonBtnBounds.height) {
             
             return { action: 'forceTier' };
+        }
+
+        // Check ADD MONEY DEBUG button
+        if (this.debugMoneyBtnBounds && 
+            x >= this.debugMoneyBtnBounds.x && x <= this.debugMoneyBtnBounds.x + this.debugMoneyBtnBounds.width &&
+            y >= this.debugMoneyBtnBounds.y && y <= this.debugMoneyBtnBounds.y + this.debugMoneyBtnBounds.height) {
+            
+            return { action: 'debugAddMoney' };
         }
 
         return null;

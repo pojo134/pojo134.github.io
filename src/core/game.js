@@ -824,6 +824,8 @@ class Game {
                     this.screenManager.changeState(GameStates.BETTING);
                 } else if (action.action === 'forceTier') {
                     this._debugForceTier();
+                } else if (action.action === 'debugAddMoney') {
+                    this.gameState.player.bankroll += 100000;
                 }
             }
         }
