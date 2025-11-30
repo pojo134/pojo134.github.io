@@ -34,14 +34,15 @@ class GameOverScreen {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Game Over text
-        const flash = Math.sin(this.flashTimer * 0.004) > 0;
-        ctx.font = 'bold 96px "Courier New", monospace';
-        ctx.fillStyle = flash ? '#ff0000' : '#ff6666';
-        ctx.textAlign = 'center';
-        ctx.shadowBlur = 30;
-        ctx.shadowColor = '#ff0000';
-        ctx.fillText('GAME OVER', canvas.width / 2, 200);
-        ctx.shadowBlur = 0;
+        // Removed as it's now part of the background image
+        // const flash = Math.sin(this.flashTimer * 0.004) > 0;
+        // ctx.font = 'bold 96px "Courier New", monospace';
+        // ctx.fillStyle = flash ? '#ff0000' : '#ff6666';
+        // ctx.textAlign = 'center';
+        // ctx.shadowBlur = 30;
+        // ctx.shadowColor = '#ff0000';
+        // ctx.fillText('GAME OVER', canvas.width / 2, 200);
+        // ctx.shadowBlur = 0;
 
         // Bankruptcy message
         ctx.font = '32px "Courier New", monospace';

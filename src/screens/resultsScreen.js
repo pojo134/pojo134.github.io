@@ -78,7 +78,7 @@ class ResultsScreen {
         // Podium display
         const podiumWidth = 500;
         const podiumX = (canvas.width / 2) - (podiumWidth / 2);
-        this.renderPodium(ctx, gameState, podiumX, 100, podiumWidth, 250);
+        this.renderPodium(ctx, gameState, podiumX, 100, podiumWidth, 250, assetManager);
 
         // Payout breakdown
         if (this.showPayout) {
@@ -91,7 +91,7 @@ class ResultsScreen {
         this.renderContinueButton(ctx, canvas.width / 2 - 100, 540, 200, 50);
     }
 
-    renderPodium(ctx, gameState, x, y, width, height) {
+    renderPodium(ctx, gameState, x, y, width, height, assetManager) {
         let standings;
         if (gameState?.race?.raceResults?.finalStandings) {
             standings = gameState.race.raceResults.finalStandings;
@@ -102,7 +102,7 @@ class ResultsScreen {
             this.driverGenerator.reset();
             for (let i = 0; i < 3; i++) {
                 const dummyDriver = this.driverGenerator.generateDriver("balanced");
-                standings.push({ name: dummyDriver.name, time: `0:00:0${i+1}.000` }); // Dummy times
+                standings.push({ ...dummyDriver, time: `0:00:0${i+1}.000` }); // Dummy times, spread driver props including portraitId
             }
         }
 
@@ -114,29 +114,66 @@ class ResultsScreen {
         ];
 
         positions.forEach(({ pos, x: posX, height: podiumHeight, color }) => {
-            const driver = standings[pos - 1];
+            const entry = standings[pos - 1];
+            const driver = entry?.driver || entry; // Handle nested driver object or flat
+
+            const podiumTopY = y + (height - podiumHeight); // Top of the colored block
+            const nameHeight = 16; // Approx font height for name
+            const portraitSize = 80;
+            const padding = 5;
 
             // Podium block
             ctx.fillStyle = color;
-            ctx.fillRect(posX, y + (height - podiumHeight), 100, podiumHeight);
+            ctx.fillRect(posX, podiumTopY, 100, podiumHeight);
 
+            // Driver name
+            ctx.font = 'bold 14px "Courier New", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            const driverName = driver?.name || 'UNKNOWN';
+            const nameY = podiumTopY - (portraitSize + padding + nameHeight / 2 + padding); // Centered text line
+            ctx.fillText(driverName, posX + 50, nameY);
+
+            // Portrait
+            const portraitY = podiumTopY - (portraitSize + padding);
+            const portraitX = posX + 50 - (portraitSize / 2);
+
+            let portraitDrawn = false;
+            if (assetManager && driver?.portraitId) {
+                const img = assetManager.getImage(driver.portraitId);
+                if (img) {
+                    ctx.drawImage(img, portraitX, portraitY, portraitSize, portraitSize);
+                    
+                    // Border
+                    ctx.strokeStyle = color; // Use podium color for border
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(portraitX, portraitY, portraitSize, portraitSize);
+                    
+                    portraitDrawn = true;
+                }
+            }
+
+            if (!portraitDrawn) {
+                // Fallback
+                ctx.fillStyle = '#222';
+                ctx.fillRect(portraitX, portraitY, portraitSize, portraitSize);
+                ctx.font = '32px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('👤', posX + 50, portraitY + portraitSize/2 + 10);
+            }
+
+            // Removed medal emojis as requested.
+            // if (pos === 1) {
+            //     ctx.font = '24px "Courier New", monospace';
+            //     ctx.fillText('🏆', posX + 50, positionNumberY - 50);
+            // }
+            
             // Position number on block
+            const positionNumberY = podiumTopY + podiumHeight / 2 + 15; // Original position number Y
             ctx.font = 'bold 48px "Courier New", monospace';
             ctx.fillStyle = '#000000';
             ctx.textAlign = 'center';
-            ctx.fillText(String(pos), posX + 50, y + height - podiumHeight / 2 + 15);
-
-            // Driver name above podium
-            ctx.font = 'bold 16px "Courier New", monospace';
-            ctx.fillStyle = '#ffffff';
-            const driverName = driver?.name || driver?.driver?.name || 'UNKNOWN';
-            ctx.fillText(driverName, posX + 50, y + (height - podiumHeight) - 30);
-
-            // Trophy/medal for winner
-            if (pos === 1) {
-                ctx.font = '32px "Courier New", monospace';
-                ctx.fillText('🏆', posX + 50, y + (height - podiumHeight) - 60);
-            }
+            ctx.fillText(String(pos), posX + 50, positionNumberY);
         });
     }
 
