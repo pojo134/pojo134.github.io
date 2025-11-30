@@ -500,6 +500,13 @@ class Game {
         this.assetManager.queueImage('racescreen-bg', 'assets/images/Backgrounds/racescreen-bg.png');
         this.assetManager.queueImage('results-bg', 'assets/images/Backgrounds/results-bg.png');
         this.assetManager.queueImage('settings-bg', 'assets/images/Backgrounds/settings-bg.png');
+        this.assetManager.queueImage('dragrace-bg', 'assets/images/Backgrounds/dragrace-bg.png');
+        
+        // Cleet / Drag Race Win Backgrounds
+        this.assetManager.queueImage('cleet-leroy', 'assets/images/Backgrounds/cleet-leroy.png');
+        this.assetManager.queueImage('cleet-lumberjack', 'assets/images/Backgrounds/cleet-lumberjack.png');
+        this.assetManager.queueImage('cleet-mullet', 'assets/images/Backgrounds/cleet-mullet.png');
+        this.assetManager.queueImage('cleet-ruby', 'assets/images/Backgrounds/cleet-ruby.png');
 
         // Driver Portraits
         const drivers = [
@@ -507,6 +514,14 @@ class Game {
         ];
         drivers.forEach(id => {
             this.assetManager.queueImage(`driver_${id}`, `assets/images/Characters/Drivers/${id}.png`);
+        });
+
+        // Analyst Portraits
+        const analysts = [
+            'a1m', 'a2f', 'a3f', 'a4m', 'a5m', 'a6f', 'a7m', 'a8m'
+        ];
+        analysts.forEach(id => {
+            this.assetManager.queueImage(`analyst_${id}`, `assets/images/Characters/Analyst/${id}.png`);
         });
     }
 
@@ -924,6 +939,13 @@ class Game {
 
             if (action && action.action === 'contactUsed') {
                 // Contact was successfully used
+            } else if (action && action.action === 'skipRace') {
+                // Skip race logic
+                if (this.raceSimulator) {
+                    this.raceSimulator.forceFinishRace();
+                    this._finishRace();
+                    this.screenManager.changeState(GameStates.RESULTS);
+                }
             }
         }
 

@@ -5,6 +5,7 @@ class DragRaceScreen {
         this.animationTimer = 0;
         this.bracketState = null;
         this.continueButtonBounds = null;
+        this.selectedWinBg = null; // Store selected win background
         
         // Visual settings
         this.colors = {
@@ -29,10 +30,16 @@ class DragRaceScreen {
         // Update bracket state from simulation
         if (gameState?.race?.simulation?.getRaceState) {
             this.bracketState = gameState.race.simulation.getRaceState();
+
+            // If race is finished and we haven't selected a win BG yet, pick one
+            if (this.bracketState.state === RaceState.FINISHED && !this.selectedWinBg) {
+                const cleetBgs = ['cleet-leroy', 'cleet-lumberjack', 'cleet-mullet', 'cleet-ruby'];
+                this.selectedWinBg = cleetBgs[Math.floor(Math.random() * cleetBgs.length)];
+            }
         }
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         const canvas = ctx.canvas;
         const width = canvas.width;
         const height = canvas.height;
@@ -40,9 +47,19 @@ class DragRaceScreen {
         // Reset interactive elements
         this.continueButtonBounds = null;
 
-        // Clear screen
-        ctx.fillStyle = this.colors.background;
-        ctx.fillRect(0, 0, width, height);
+        // Draw full screen background image first, or fallback color
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('dragrace-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, width, height);
+                bgDrawn = true;
+            }
+        }
+        if (!bgDrawn) {
+            ctx.fillStyle = this.colors.background;
+            ctx.fillRect(0, 0, width, height);
+        }
 
         if (!this.bracketState) {
             this.renderLoading(ctx, width, height);
@@ -56,12 +73,12 @@ class DragRaceScreen {
         const raceWidth = width * 0.4;
 
         // Render Panels
-        this.renderBracketPanel(ctx, 0, 0, bracketWidth, height);
+        this.renderBracketPanel(ctx, 0, 0, bracketWidth, height, gameState, assetManager);
         this.renderRacePanel(ctx, bracketWidth, 0, raceWidth, height);
 
         // Overlay for Champion
         if (this.bracketState.state === RaceState.FINISHED && this.bracketState.champion) {
-            this.renderChampionOverlay(ctx, width, height);
+            this.renderChampionOverlay(ctx, width, height, assetManager);
         }
     }
 
@@ -72,9 +89,9 @@ class DragRaceScreen {
         ctx.fillText('LOADING DRAG EVENT...', width / 2, height / 2);
     }
 
-    renderBracketPanel(ctx, x, y, width, height) {
-        // Panel Background
-        ctx.fillStyle = this.colors.panelBg;
+    renderBracketPanel(ctx, x, y, width, height, gameState, assetManager) {
+        // Panel Background (now translucent)
+        ctx.fillStyle = 'rgba(17, 17, 17, 0.8)'; // Translucent panelBg
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = this.colors.panelBorder;
         ctx.lineWidth = 2;
@@ -97,6 +114,9 @@ class DragRaceScreen {
         const columnWidth = (width - 40) / (numRounds + 1); 
         
         let currentX = x + 20;
+        
+        // Get current bet driver name
+        const currentBetDriver = gameState?.race?.currentBet?.driverName;
 
         for (let r = 0; r <= numRounds; r++) {
             const participants = (r < bracket.length) ? bracket[r] : [];
@@ -183,6 +203,13 @@ class DragRaceScreen {
                 // Measure seedNum width to position driverName correctly
                 const seedNumWidth = seedNum ? ctx.measureText(seedNum).width : 0;
                 ctx.fillText(driverName, currentX + 20 + seedNumWidth, slotY + 25);
+                
+                // Draw Bet Icon if applicable
+                if (driverName === currentBetDriver && (r + 1) === this.bracketState.currentRound) {
+                    const nameWidth = ctx.measureText(driverName).width;
+                    ctx.font = '16px "Segoe UI Emoji", "Courier New", monospace'; // Use Emoji-compatible font fallback
+                    ctx.fillText('💵', currentX + 20 + seedNumWidth + nameWidth + 5, slotY + 25);
+                }
                 
                 // Connectors
                 if (!isChampionSlot) {
@@ -689,26 +716,38 @@ class DragRaceScreen {
         ctx.beginPath(); ctx.arc(x, y + 80, 15, 0, Math.PI*2); ctx.fill();
     }
 
-    renderChampionOverlay(ctx, width, height) {
-        // Semi-transparent background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(0, 0, width, height);
+    renderChampionOverlay(ctx, width, height, assetManager) {
+        // Background Image or Semi-transparent fill
+        let bgDrawn = false;
+        if (assetManager && this.selectedWinBg) {
+            const bg = assetManager.getImage(this.selectedWinBg);
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, width, height);
+                bgDrawn = true;
+            }
+        }
+
+        if (!bgDrawn) {
+            // Semi-transparent background fallback
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, width, height);
+        }
 
         ctx.fillStyle = this.colors.textHighlight;
         ctx.font = 'bold 60px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.shadowColor = this.colors.accent;
         ctx.shadowBlur = 20;
-        ctx.fillText('TOURNAMENT CHAMPION', width / 2, height / 2 - 50);
+        ctx.fillText('TOURNAMENT CHAMPION', width / 2, 50); // 20px from top + half font size
         ctx.shadowBlur = 0;
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 40px "Courier New", monospace';
-        ctx.fillText(this.bracketState.champion.name, width / 2, height / 2 + 20);
+        ctx.fillText(this.bracketState.champion.name, width / 2, 120); // Positioned below "TOURNAMENT CHAMPION" with padding
 
         // Continue Button
         const btnX = width / 2 - 100;
-        const btnY = height / 2 + 100;
+        const btnY = height - 150; // 100px from bottom, considering button height of 50
         const btnW = 200;
         const btnH = 50;
         
@@ -743,6 +782,7 @@ class DragRaceScreen {
         this.animationTimer = 0;
         this.bracketState = null;
         this.continueButtonBounds = null;
+        this.selectedWinBg = null;
     }
 }
 

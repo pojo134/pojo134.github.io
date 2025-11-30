@@ -44,13 +44,8 @@ class GameOverScreen {
         // ctx.fillText('GAME OVER', canvas.width / 2, 200);
         // ctx.shadowBlur = 0;
 
-        // Bankruptcy message
-        ctx.font = '32px "Courier New", monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText('BANKRUPT', canvas.width / 2, 280);
-
         // Stats summary
-        this.renderStats(ctx, gameState, canvas.width / 2 - 250, 350, 500, 200);
+        this.renderStats(ctx, gameState, canvas.width / 2 - 250, 280, 500, 200);
 
         // Buttons
         this.renderButton(ctx, canvas.width / 2 - 220, 580, 200, 50, 'NEW GAME', '#ff0066');

@@ -1,10 +1,11 @@
 class RaceScreen {
     constructor() {
         this.raceTime = 0;
-        this.eventLog = [];
-        this.maxLogEntries = 10;
+        this.eventQueue = []; // Queue for incoming events
+        this.currentEvent = null; // Currently displayed event
+        this.currentEventTimer = 0; // Time remaining for current event
+        this.currentAnalystId = null; // ID of the current commentator
         this.tickerScrollX = 0;
-        this.lastEventDisplayTime = 0; // Throttle for event ticker
 
         // Burner Phone UI state
         this.phoneExpanded = false;
@@ -30,44 +31,66 @@ class RaceScreen {
             }
         }
 
+        // Update Event Timer
+        if (this.currentEventTimer > 0) {
+            this.currentEventTimer -= deltaTime * 1000; // Convert to ms
+        }
+
+        // Process Event Queue
+        if (this.currentEventTimer <= 0) {
+            if (this.eventQueue.length > 0) {
+                // Get next event
+                const nextEvent = this.eventQueue.shift();
+                this.currentEvent = nextEvent;
+                this.currentEventTimer = 4000; // Show each event for 4 seconds
+                
+                // Assign a random analyst
+                const analysts = ['a1m', 'a2f', 'a3f', 'a4m', 'a5m', 'a6f', 'a7m', 'a8m'];
+                const randomId = analysts[Math.floor(Math.random() * analysts.length)];
+                this.currentAnalystId = `analyst_${randomId}`;
+            } else {
+                // Optional: Keep the last event visible or clear it? 
+                // Let's keep it visible but maybe dim it or just leave it until a new one comes.
+                // If we want to clear: this.currentEvent = null;
+            }
+        }
+
         // Get race events from simulator if available
-        // Throttle event display so ticker scrolls at readable pace
         if (gameState?.race?.simulation) {
             const raceState = gameState.race.simulation.getRaceState();
             if (raceState.events && raceState.events.length > 0) {
-                // Only process events if enough time has passed (throttle to 2 events per second max)
-                const timeSinceLastEvent = Date.now() - (this.lastEventDisplayTime || 0);
-                if (timeSinceLastEvent > 500) { // 500ms between event displays
-                    // Add new events to log
-                    raceState.events.forEach(event => {
-                        // Filter out LAP_COMPLETE events UNLESS it's for the race leader
-                        const isLapCompleteEvent = event.message.includes('completes Lap');
-                        let shouldAddEvent = true;
+                 // We need to track which events we've already processed.
+                 // The simulation returns the last 10 events.
+                 // A simple way is to check if the last event in our queue (or current event) matches the new ones.
+                 // But simulation events might not have unique IDs. 
+                 // Let's use a simple string check against the recently added ones.
+                 
+                 // Actually, RaceScreen.js used to filter: !this.eventLog.includes(event.message)
+                 // We can do similar logic but since we queue them, checking "includes" in queue is harder if queue is long (it won't be).
+                 // We'll check if it's already in queue or is the current event.
+                 
+                 raceState.events.forEach(event => {
+                    // Filter out LAP_COMPLETE events UNLESS it's for the race leader
+                    const isLapCompleteEvent = event.message.includes('completes Lap');
+                    let shouldAddEvent = true;
 
-                        if (isLapCompleteEvent) {
-                            const raceLeader = raceState.leaderboard && raceState.leaderboard.length > 0 ? raceState.leaderboard[0] : null;
-                            
-                            // Extract driver name from the LAP_COMPLETE event message
-                            const match = event.message.match(/(.+) completes Lap/);
-                            const eventDriverName = match ? match[1].trim() : null;
-                            
-                            // Only add LAP_COMPLETE if the driver is the current race leader
-                            if (raceLeader && raceLeader.driver && eventDriverName && raceLeader.driver.name !== eventDriverName) {
-                                shouldAddEvent = false;
-                            }
+                    if (isLapCompleteEvent) {
+                        const raceLeader = raceState.leaderboard && raceState.leaderboard.length > 0 ? raceState.leaderboard[0] : null;
+                        const match = event.message.match(/(.+) completes Lap/);
+                        const eventDriverName = match ? match[1].trim() : null;
+                        if (raceLeader && raceLeader.driver && eventDriverName && raceLeader.driver.name !== eventDriverName) {
+                            shouldAddEvent = false;
                         }
-
-                        if (shouldAddEvent && !this.eventLog.includes(event.message)) {
-                            this.eventLog.unshift(event.message);
-                            this.lastEventDisplayTime = Date.now();
-                        }
-                    });
-
-                    // Keep log size manageable
-                    if (this.eventLog.length > 50) {
-                        this.eventLog = this.eventLog.slice(0, 50);
                     }
-                }
+
+                    // Deduplication Logic
+                    const isCurrent = this.currentEvent === event.message;
+                    const isInQueue = this.eventQueue.includes(event.message);
+
+                    if (shouldAddEvent && !isCurrent && !isInQueue) {
+                        this.eventQueue.push(event.message);
+                    }
+                });
             }
         }
     }
@@ -101,7 +124,7 @@ class RaceScreen {
         this.renderRaceInfo(ctx, gameState, 0, 0, CANVAS_WIDTH, INFO_BAR_HEIGHT);
 
         // Render Skip Race Button
-        this.renderSkipRaceButton(ctx, gameState, CANVAS_WIDTH - 120, INFO_BAR_HEIGHT + 5, 100, 25);
+        this.renderSkipRaceButton(ctx, gameState, CANVAS_WIDTH - 260, 5, 100, 25);
 
         // Leaderboard / Standings
         const LEADERBOARD_HEIGHT = 280;
@@ -114,11 +137,13 @@ class RaceScreen {
         const BURNER_PHONE_HEIGHT = 180;
         this.renderBurnerPhone(ctx, gameState, RIGHT_PANEL_X, BURNER_PHONE_Y, SIDE_PANEL_WIDTH, BURNER_PHONE_HEIGHT);
 
-        // Bottom: Event ticker (full width, flush right)
+        // Bottom: Live Commentary (formerly Event ticker)
         const EVENT_TICKER_Y = BURNER_PHONE_Y + BURNER_PHONE_HEIGHT + PADDING;
         const EVENT_TICKER_HEIGHT = CANVAS_HEIGHT - EVENT_TICKER_Y - PADDING;
         const EVENT_TICKER_WIDTH = CANVAS_WIDTH - PADDING; // Starts at PADDING=10, ends at 1024 (flush)
-        this.renderEventTicker(ctx, gameState, PADDING, EVENT_TICKER_Y, EVENT_TICKER_WIDTH, EVENT_TICKER_HEIGHT);
+        
+        // Pass assetManager to renderEventTicker
+        this.renderEventTicker(ctx, gameState, PADDING, EVENT_TICKER_Y, EVENT_TICKER_WIDTH, EVENT_TICKER_HEIGHT, assetManager);
 
         // Top Left: Race Track View (Remaining space)
         const TRACK_VIEW_X = PADDING;
@@ -464,7 +489,7 @@ class RaceScreen {
         });
     }
 
-    renderEventTicker(ctx, gameState, x, y, width, height) {
+    renderEventTicker(ctx, gameState, x, y, width, height, assetManager) {
         // Ticker container
         ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
@@ -472,21 +497,95 @@ class RaceScreen {
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Title
+        // Title (Live Commentary)
         ctx.font = 'bold 12px "Courier New", monospace';
         ctx.fillStyle = '#ffff00';
         ctx.textAlign = 'left';
-        ctx.fillText('LIVE EVENTS', x + 10, y + 15);
+        ctx.fillText('LIVE COMMENTARY', x + 10, y + 15);
 
-        // Event log
-        const events = this.eventLog.slice(0, this.maxLogEntries); // Keep only maxLogEntries events
-        ctx.font = '11px "Courier New", monospace';
+        // --- COMMENTATOR IMAGE (RIGHT SIDE) ---
+        // Make it square, padding from top/bottom/right
+        const imagePadding = 6;
+        // Calculate max possible size based on height
+        const maxImgSize = height - (imagePadding * 2);
+        const imgSize = maxImgSize; // Square
+        const imgX = x + width - imgSize - imagePadding;
+        const imgY = y + imagePadding;
 
-        events.forEach((event, index) => {
-            const eventY = y + 35 + index * 14;
-            ctx.fillStyle = this.getEventColor(event.toLowerCase()); // Apply color-coding
-            ctx.fillText(`> ${event}`, x + 10, eventY);
-        });
+        // Draw image background/border
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(imgX, imgY, imgSize, imgSize);
+        ctx.strokeStyle = '#444444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(imgX, imgY, imgSize, imgSize);
+
+        // Draw Analyst Image
+        if (assetManager && this.currentAnalystId) {
+            const analystImg = assetManager.getImage(this.currentAnalystId);
+            if (analystImg) {
+                ctx.drawImage(analystImg, imgX, imgY, imgSize, imgSize);
+            } else {
+                 // Fallback text if image missing
+                 ctx.font = '10px monospace';
+                 ctx.fillStyle = '#333';
+                 ctx.textAlign = 'center';
+                 ctx.fillText("NO IMG", imgX + imgSize/2, imgY + imgSize/2);
+            }
+        }
+
+        // --- COMMENTARY TEXT (CENTERED in remaining space) ---
+        const textX = x + 10; // Left padding
+        const textWidth = width - imgSize - imagePadding - 20; // Available width minus image
+        const textCenterY = y + (height / 2);
+
+        if (this.currentEvent) {
+            const message = this.currentEvent;
+            const color = this.getEventColor(message.toLowerCase());
+            
+            ctx.font = 'bold 16px "Courier New", monospace';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Simple word wrap
+            const words = message.split(' ');
+            let line = '';
+            const lines = [];
+
+            // Calculate approx char width or use measureText if precise
+            // Using simple wrap for now
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > textWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            // Draw lines centered vertically
+            const lineHeight = 20;
+            const totalTextHeight = lines.length * lineHeight;
+            let startY = textCenterY - (totalTextHeight / 2) + (lineHeight / 2);
+            
+            // Add a slight visual background for the text for better readability?
+            // Maybe not needed if background is dark enough.
+
+            lines.forEach((l, i) => {
+                 ctx.fillText(l, textX + (textWidth / 2), startY + (i * lineHeight));
+            });
+
+        } else {
+            // Idle Text
+            ctx.font = 'italic 14px "Courier New", monospace';
+            ctx.fillStyle = '#666666';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("Waiting for updates...", textX + (textWidth / 2), textCenterY);
+        }
     }
 
     renderBurnerPhone(ctx, gameState, x, y, width, height) {
@@ -622,7 +721,7 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
 
         // --- COMMON LAYOUT CONSTANTS ---
-        const CANVAS_WIDTH = 1024; // Assuming 1024 for calculation purposes
+        const CANVAS_WIDTH = 1280; // Updated to standard 1280 resolution
         const INFO_BAR_HEIGHT = 40;
         const SIDE_PANEL_WIDTH = 240;
         const PADDING = 10;
@@ -633,8 +732,8 @@ class RaceScreen {
 
         const SKIP_BUTTON_WIDTH = 100;
         const SKIP_BUTTON_HEIGHT = 25;
-        const SKIP_BUTTON_X = CANVAS_WIDTH - SKIP_BUTTON_WIDTH - PADDING; // 10px padding from right
-        const SKIP_BUTTON_Y = INFO_BAR_HEIGHT + 5;
+        const SKIP_BUTTON_X = CANVAS_WIDTH - 260; // Moved left
+        const SKIP_BUTTON_Y = 5; // 5px from top edge
         // --- END COMMON LAYOUT CONSTANTS ---
 
         // Check for Skip Race button click
@@ -707,7 +806,7 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
 
         // --- COMMON LAYOUT CONSTANTS ---
-        const CANVAS_WIDTH = 1024; // Assuming 1024 for calculation purposes, will use ctx.canvas.width for rendering
+        const CANVAS_WIDTH = 1280; // Updated to standard 1280 resolution
         const INFO_BAR_HEIGHT = 40;
         const SIDE_PANEL_WIDTH = 240;
         const PADDING = 10;
@@ -718,8 +817,8 @@ class RaceScreen {
 
         const SKIP_BUTTON_WIDTH = 100;
         const SKIP_BUTTON_HEIGHT = 25;
-        const SKIP_BUTTON_X = CANVAS_WIDTH - SKIP_BUTTON_WIDTH - PADDING; // 10px padding from right
-        const SKIP_BUTTON_Y = INFO_BAR_HEIGHT + 5;
+        const SKIP_BUTTON_X = CANVAS_WIDTH - 260; // Moved left
+        const SKIP_BUTTON_Y = 5; // 5px from top edge
         // --- END COMMON LAYOUT CONSTANTS ---
 
         // Check hover on Skip Race button
