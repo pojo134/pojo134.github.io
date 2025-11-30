@@ -12,8 +12,7 @@ class GameState {
 
     /**
      * Resets game state to initial values (new game)
-     */
-    reset() {
+     */    reset() {
         // Player progression
         this.player = {
             bankroll: 10000,
@@ -25,6 +24,13 @@ class GameState {
             totalWins: 0,
             totalRaces: 0,
             totalProfit: 0
+        };
+
+        // Audio settings
+        this.audio = {
+            musicVolume: 0.5, // Default 50%
+            sfxVolume: 0.5,
+            muted: false
         };
 
         // Current season data
@@ -410,6 +416,7 @@ class GameState {
             season: this.season,
             race: this.race,
             ui: this.ui,
+            audio: this.audio, // Include audio settings
             gameStarted: this.gameStarted,
             lastSaveTime: Date.now()
         };
@@ -426,6 +433,7 @@ class GameState {
             this.season = data.season || this.season;
             this.race = data.race || this.race;
             this.ui = data.ui || this.ui;
+            this.audio = data.audio || this.audio;
             this.gameStarted = data.gameStarted || false;
             this.lastSaveTime = data.lastSaveTime || null;
 

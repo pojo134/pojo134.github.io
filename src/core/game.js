@@ -429,6 +429,8 @@ class Renderer {
 }
 
 // ===== MAIN GAME ENGINE =====
+import { AudioManager } from './audio.js';
+
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -579,6 +581,12 @@ class Game {
         // State-specific updates
         const currentState = this.screenManager.getCurrentState();
 
+        // Handle Audio State Changes
+        if (this.lastState !== currentState) {
+            this.audioManager.playMusicForState(currentState);
+            this.lastState = currentState;
+        }
+
         switch (currentState) {
             case GameStates.MAIN_MENU:
                 this._updateMainMenu(deltaTime);
@@ -704,6 +712,9 @@ class Game {
         // Create game state
         this.gameState = new GameState();
 
+        // Create audio manager (Must be after GameState)
+        this.audioManager = new AudioManager(this.gameState);
+
         // Create save manager
         this.saveManager = new SaveManager();
 
@@ -712,6 +723,9 @@ class Game {
         
         // Time control
         this.timeScale = 1; // 1x, 2x, 5x speed
+        
+        // Track last state for audio changes
+        this.lastState = null;
     }
 
     /**
@@ -1048,12 +1062,33 @@ class Game {
     _updateSettings(deltaTime) {
         this.screens.settings.update(deltaTime, this.gameState);
 
+        // Handle Mouse Down (Dragging sliders)
+        if (this.inputManager.isMouseDown()) {
+            const mouse = this.inputManager.getMousePosition();
+            const action = this.screens.settings.handleInput(mouse.x, mouse.y, this.gameState);
+            
+            if (action) {
+                 if (action.action === 'updateVolume') {
+                    this.audioManager.updateVolume();
+                }
+            }
+        }
+
+        // Handle Clicks (Toggle buttons / Navigation)
         if (this.inputManager.isMouseClicked()) {
             const mouse = this.inputManager.getMousePosition();
             const action = this.screens.settings.handleClick(mouse.x, mouse.y, this.gameState);
 
-            if (action && action.action === 'back') {
-                this.screenManager.changeState(GameStates.MAIN_MENU);
+            if (action) {
+                if (action.action === 'back') {
+                    this.screenManager.changeState(GameStates.MAIN_MENU);
+                } else if (action.action === 'toggleMute') {
+                    this.audioManager.toggleMute(); 
+                }
+                // Note: handleClick might also return updateVolume if user just clicks the bar
+                else if (action.action === 'updateVolume') {
+                    this.audioManager.updateVolume();
+                }
             }
         }
 
