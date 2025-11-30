@@ -146,15 +146,26 @@ class BettingScreen {
         return 'AVG';
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         const canvas = ctx.canvas;
 
         // Background
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('bettingdesk-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+                bgDrawn = true;
+            }
+        }
+
+        if (!bgDrawn) {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Header
-        ctx.fillStyle = '#1a0a1a';
+        ctx.fillStyle = 'rgba(26, 10, 26, 0.85)';
         ctx.fillRect(0, 0, canvas.width, 80);
 
         ctx.font = 'bold 36px "Courier New", monospace';
@@ -169,7 +180,7 @@ class BettingScreen {
         this.renderTrackInfo(ctx, gameState, 320, 100, 640, 180);
 
         // Driver portrait (top right)
-        this.renderDriverPortrait(ctx, gameState, canvas.width - 300, 100, 280, 180);
+        this.renderDriverPortrait(ctx, gameState, canvas.width - 300, 100, 280, 180, assetManager);
 
         // Driver list
         const DRIVER_LIST_START_X = 20;
@@ -183,7 +194,7 @@ class BettingScreen {
 
     renderTrackMap(ctx, gameState, x, y, width, height) {
         // Track map box
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
@@ -239,7 +250,7 @@ class BettingScreen {
 
     renderTrackInfo(ctx, gameState, x, y, width, height) {
         // Track info box
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
@@ -288,11 +299,24 @@ class BettingScreen {
         }
     }
 
-    renderDriverPortrait(ctx, gameState, x, y, width, height) {
+    renderDriverPortrait(ctx, gameState, x, y, width, height, assetManager) { // Added assetManager param to method signature in this snippet context, but in class method it is called as render(..., assetManager) so we need to ensure assetManager is passed down.
+        // Wait, the render method calls renderDriverPortrait. I need to update render method to pass assetManager to sub-methods first?
+        // Looking at render method in BettingScreen:
+        // render(ctx, gameState, assetManager) { ... this.renderDriverPortrait(ctx, gameState, ..., assetManager); ... }
+        
+        // I will handle the sub-call update in a separate block or ensure this block covers it if I replace the whole render method.
+        // Actually, `render` was not fully shown in the previous turn's context for BettingScreen, but I know I updated it to accept assetManager.
+        // I need to update `render` to pass `assetManager` to `renderDriverPortrait` and then update `renderDriverPortrait` to use it.
+        
+        // Let's update `renderDriverPortrait` first. I'll assume it gets `assetManager`.
+        // Actually, I should update `render` to pass it down too.
+        
+        // Let's do it in one go if possible, or two replacements.
+        // First, let's update `renderDriverPortrait` implementation.
         const flash = Math.sin(this.portraitFlashTimer * 0.005) > 0.5;
 
         // Portrait box
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = this.selectedDriver ? (flash ? '#ff0066' : '#ffff00') : '#444444';
         ctx.lineWidth = this.selectedDriver ? 3 : 2;
@@ -305,23 +329,51 @@ class BettingScreen {
             ctx.textAlign = 'center';
             ctx.fillText(this.selectedDriver.name, x + width / 2, y + 30);
 
-            // Portrait placeholder (would be actual sprite/image)
-            ctx.fillStyle = '#330033';
-            ctx.fillRect(x + 60, y + 50, 160, 80);
-            ctx.font = '48px "Courier New", monospace';
-            ctx.fillStyle = '#ff0066';
-            ctx.fillText('🏎️', x + width / 2, y + 105);
+            // Portrait Image
+            let portraitDrawn = false;
+            if (assetManager && this.selectedDriver.portraitId) {
+                const img = assetManager.getImage(this.selectedDriver.portraitId);
+                if (img) {
+                    // Draw image centered
+                    // Image aspect ratio handling? Assuming square-ish or just fitting.
+                    // Window for image is roughly (x+60, y+50, 160, 80) from old code?
+                    // Old code: ctx.fillRect(x + 60, y + 50, 160, 80);
+                    // Let's make it a square portrait 80x80 or 100x100 centered.
+                    const imgSize = 100;
+                    const imgX = x + width / 2 - imgSize / 2;
+                    const imgY = y + 40;
+                    
+                    ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
+                    
+                    // Add a border around the image
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(imgX, imgY, imgSize, imgSize);
+                    
+                    portraitDrawn = true;
+                }
+            }
+
+            if (!portraitDrawn) {
+                // Fallback Portrait
+                ctx.fillStyle = '#330033';
+                ctx.fillRect(x + width / 2 - 40, y + 50, 80, 80);
+                ctx.font = '48px "Courier New", monospace';
+                ctx.fillStyle = '#ff0066';
+                ctx.textAlign = 'center';
+                ctx.fillText('🏎️', x + width / 2, y + 105);
+            }
 
             // Stats
             ctx.font = '14px "Courier New", monospace';
             ctx.fillStyle = '#00ffff';
             ctx.textAlign = 'left';
             const skillValue = this.getDriverSkill(this.selectedDriver);
-            ctx.fillText(`SKILL: ${skillValue}`, x + 20, y + 150);
+            ctx.fillText(`SKILL: ${skillValue}`, x + 20, y + 155);
             const formValue = this.getDriverForm(this.selectedDriver);
-            ctx.fillText(`FORM: ${formValue}`, x + 150, y + 150);
+            ctx.fillText(`FORM: ${formValue}`, x + 150, y + 155);
             const displayOdds = this.getDriverOdds(this.selectedDriver, gameState);
-            ctx.fillText(`ODDS: ${displayOdds}`, x + 20, y + 170);
+            ctx.fillText(`ODDS: ${displayOdds}`, x + 20, y + 175);
         } else {
             ctx.font = '18px "Courier New", monospace';
             ctx.fillStyle = '#666666';
@@ -332,14 +384,14 @@ class BettingScreen {
 
     renderDriverList(ctx, gameState, x, y, width, height) {
         // List container
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#444444';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
         // Header background
-        ctx.fillStyle = '#0d0d0d';
+        ctx.fillStyle = 'rgba(13, 13, 13, 0.85)';
         ctx.fillRect(x + 2, y + 2, width - 4, 35);
         ctx.fillStyle = '#444444';
         ctx.fillRect(x + 2, y + 37, width - 4, 2); // Header separator
@@ -401,13 +453,13 @@ class BettingScreen {
 
             // Row background (Zebra striping)
             if (isSelected) {
-                ctx.fillStyle = '#330033'; // Selection highlight
+                ctx.fillStyle = 'rgba(51, 0, 51, 0.85)'; // Selection highlight
                 ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
             } else if (isHovered) {
-                ctx.fillStyle = '#1a1a00'; // Hover highlight
+                ctx.fillStyle = 'rgba(26, 26, 0, 0.85)'; // Hover highlight
                 ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
             } else if (index % 2 === 1) {
-                ctx.fillStyle = '#141414'; // Darker for alternate rows
+                ctx.fillStyle = 'rgba(20, 20, 20, 0.5)'; // Darker for alternate rows
                 ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
             }
 
@@ -475,7 +527,7 @@ class BettingScreen {
 
     renderBettingSlip(ctx, gameState, x, y, width, height) {
         // Slip container
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;

@@ -72,7 +72,7 @@ class RaceScreen {
         }
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         // Use actual canvas dimensions instead of hardcoded values
         const CANVAS_WIDTH = ctx.canvas.width;
         const CANVAS_HEIGHT = ctx.canvas.height;
@@ -81,9 +81,20 @@ class RaceScreen {
         const INFO_BAR_HEIGHT = 40;
         const RIGHT_PANEL_X = CANVAS_WIDTH - SIDE_PANEL_WIDTH; // Aligned to the right edge
 
-        // Clear the entire canvas
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        // Clear the entire canvas / Draw Background
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('racescreen-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                bgDrawn = true;
+            }
+        }
+
+        if (!bgDrawn) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        }
         // Removed the green border around the entire canvas as requested.
         
         // Render main race info (Track name, Lap counter)
@@ -366,7 +377,7 @@ class RaceScreen {
 
     renderLeaderboard(ctx, gameState, x, y, width, height) {
         // Leaderboard container
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = this.selectedContact ? '#ff0066' : '#00ff00';
         ctx.lineWidth = 2;
@@ -455,7 +466,7 @@ class RaceScreen {
 
     renderEventTicker(ctx, gameState, x, y, width, height) {
         // Ticker container
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
@@ -483,7 +494,7 @@ class RaceScreen {
         const hasRolodex = gameState?.player?.upgrades?.includes('rolodex') || false;
 
         // Phone container
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = hasRolodex ? '#ff0066' : '#666666';
         ctx.lineWidth = 2;

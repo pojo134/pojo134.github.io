@@ -1,10 +1,10 @@
 <H1 Current Issues>
 
-1. Drag racing brackets do not update after the race, only when the next tier of the bracket is started. The winner should be highlighted pink as soon as the race is over and placed in the next tier slot of the bracket. 
+✅ 1. Drag racing brackets do not update after the race, only when the next tier of the bracket is started. The winner should be highlighted pink as soon as the race is over and placed in the next tier slot of the bracket. 
 
 ✅ 2. Add a +100k debug button
 
-3. Fix drag race screen to use generated track at the right scale. Instead of goofy current view. 
+✅ 3. Fix drag race screen to use generated track at the right scale. Instead of goofy current view. 
 
 4. The betting desk screen show the track info window. This window should not show the waypoints count (that's for debugging) but should show the correct number of laps and the rest of the track info. 
 
@@ -16,4 +16,4 @@
 
 8. Implement H2H mode. Show and keep track of rival. Update results screen. 
 
-9. Add more random drivers, probably a different random list for each league. 
+9. Add more random drivers, probably a different random list for each league.

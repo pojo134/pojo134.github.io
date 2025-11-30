@@ -9,12 +9,28 @@ class GameOverScreen {
         this.flashTimer += deltaTime;
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         const canvas = ctx.canvas;
 
-        // Background - pulsing red
+        // Background
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('gameover-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+                bgDrawn = true;
+            }
+        }
+
+        // Pulsing red overlay (or base background if image missing)
         const pulse = Math.sin(this.animationTimer * 0.002) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(20, 0, 0, ${pulse})`;
+        if (bgDrawn) {
+             // Light red overlay if BG exists
+             ctx.fillStyle = `rgba(50, 0, 0, ${pulse * 0.5})`; 
+        } else {
+             // Original opaque pulse if no BG
+             ctx.fillStyle = `rgba(20, 0, 0, ${pulse})`;
+        }
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Game Over text

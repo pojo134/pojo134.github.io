@@ -48,15 +48,26 @@ class ResultsScreen {
         }
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         const canvas = ctx.canvas;
 
         // Background
-        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, '#0a0a0a');
-        gradient.addColorStop(1, '#1a0a1a');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('results-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+                bgDrawn = true;
+            }
+        }
+
+        if (!bgDrawn) {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0a0a0a');
+            gradient.addColorStop(1, '#1a0a1a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Title
         ctx.font = 'bold 48px "Courier New", monospace';
@@ -137,7 +148,7 @@ class ResultsScreen {
         const netChangeColor = displayNetChange >= 0 ? '#00ff00' : '#ff0000'; // Green for positive, red for negative
 
         // Container
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = netChangeColor; // Container border reflects win/loss
         ctx.lineWidth = 3;

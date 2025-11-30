@@ -9,15 +9,26 @@ class SettingsScreen {
         // Animation updates
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         const canvas = ctx.canvas;
 
         // Background
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('settings-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+                bgDrawn = true;
+            }
+        }
+
+        if (!bgDrawn) {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Header
-        ctx.fillStyle = '#1a0a1a';
+        ctx.fillStyle = 'rgba(26, 10, 26, 0.85)';
         ctx.fillRect(0, 0, canvas.width, 80);
         ctx.font = 'bold 48px "Courier New", monospace';
         ctx.fillStyle = '#ff0066';
@@ -42,7 +53,7 @@ class SettingsScreen {
             const tabX = x + index * (tabWidth + 10);
             const isSelected = this.selectedTab === tab;
 
-            ctx.fillStyle = isSelected ? '#330033' : '#1a1a1a';
+            ctx.fillStyle = isSelected ? 'rgba(51, 0, 51, 0.85)' : 'rgba(26, 26, 26, 0.85)';
             ctx.fillRect(tabX, y, tabWidth, tabHeight);
             ctx.strokeStyle = isSelected ? '#ff0066' : '#444444';
             ctx.lineWidth = 2;
@@ -56,7 +67,7 @@ class SettingsScreen {
     }
 
     renderSettingsPanel(ctx, x, y, width, height) {
-        ctx.fillStyle = '#1a1a1a';
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#444444';
         ctx.lineWidth = 2;

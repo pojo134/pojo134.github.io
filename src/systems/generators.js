@@ -56,16 +56,42 @@ function clamp(value, min, max) {
 
 class DriverGenerator {
     constructor() {
-        // Name generation data
-        this.firstNames = [
-            "Alex", "Jordan", "Casey", "Morgan", "Taylor",
-            "Jamie", "Riley", "Quinn", "Cameron", "Avery",
-            "Skyler", "Dakota", "River", "Sage", "Phoenix",
-            "Remi", "Charlie", "Blake", "Drew", "Ash",
-            "Kai", "Logan", "Sam", "Max", "Reese",
-            "Nico", "Jules", "Ellis", "Hayden", "Lennox",
-            "Marco", "Dante", "Zeke", "Cruz", "Jax",
-            "Ryder", "Colt", "Blaze", "Ace", "Duke"
+        // Gender-specific name generation data
+        this.maleFirstNames = [
+            "James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles",
+            "Christopher", "Daniel", "Matthew", "Anthony", "Donald", "Mark", "Paul", "Steven", "Andrew", "Kenneth",
+            "Joshua", "Kevin", "Brian", "George", "Edward", "Ronald", "Timothy", "Jason", "Jeffrey", "Ryan",
+            "Jacob", "Gary", "Nicholas", "Eric", "Jonathan", "Stephen", "Larry", "Justin", "Scott", "Brandon",
+            "Benjamin", "Samuel", "Gregory", "Frank", "Alexander", "Raymond", "Patrick", "Jack", "Dennis", "Jerry",
+            "Tyler", "Aaron", "Jose", "Adam", "Henry", "Nathan", "Douglas", "Zachary", "Peter", "Kyle",
+            "Walter", "Ethan", "Jeremy", "Harold", "Keith", "Christian", "Roger", "Noah", "Gerald", "Terry",
+            "Sean", "Austin", "Carl", "Arthur", "Lawrence", "Dylan", "Jesse", "Jordan", "Bryan", "Billy",
+            "Joe", "Bruce", "Gabriel", "Logan", "Albert", "Willie", "Alan", "Juan", "Wayne", "Elijah",
+            "Randy", "Roy", "Vincent", "Ralph", "Eugene", "Russell", "Bobby", "Mason", "Philip", "Louis",
+            // Racer names
+            "Axel", "Dash", "Hunter", "Ryder", "Jett", "Titan", "Spike", "Razor", "Turbo", "Drift",
+            "Clutch", "Red", "Rusty", "Smokey", "Bandit", "Outlaw", "Maverick", "Gunner", "Cannon", "Torque",
+            "V8", "Piston", "Sparky", "Nitro", "Apex", "Skid", "Tarmac", "Max", "Nico", "Marco",
+            "Dante", "Zeke", "Cruz", "Jax", "Colt", "Blaze", "Ace", "Duke"
+        ];
+
+        this.femaleFirstNames = [
+            "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen",
+            "Nancy", "Lisa", "Betty", "Margaret", "Sandra", "Ashley", "Kimberly", "Emily", "Donna", "Michelle",
+            "Dorothy", "Carol", "Amanda", "Melissa", "Deborah", "Stephanie", "Rebecca", "Sharon", "Laura", "Cynthia",
+            "Kathleen", "Amy", "Shirley", "Angela", "Helen", "Anna", "Brenda", "Pamela", "Nicole", "Emma",
+            "Samantha", "Katherine", "Christine", "Debra", "Rachel", "Catherine", "Carolyn", "Janet", "Ruth", "Maria",
+            "Heather", "Diane", "Virginia", "Julie", "Joyce", "Victoria", "Olivia", "Kelly", "Christina", "Lauren",
+            "Joan", "Evelyn", "Judith", "Megan", "Cheryl", "Andrea", "Hannah", "Martha", "Jacqueline", "Frances",
+            "Gloria", "Ann", "Teresa", "Kathryn", "Sara", "Janice", "Jean", "Alice", "Madison", "Doris",
+            "Abigail", "Julia", "Judy", "Grace", "Denise", "Amber", "Marilyn", "Beverly", "Danielle", "Theresa",
+            "Sophia", "Marie", "Diana", "Brittany", "Natalie", "Isabella", "Charlotte", "Rose", "Alexis", "Kayla",
+            // Racer names
+            "Roxy", "Raven", "Star", "Storm", "Vixen", "Kat", "Jinx", "Rebel", "Rogue", "Trinity",
+            "Venus", "Electra", "Nova", "Luna", "Phoenix", "Sparkle", "Cherry", "Diamond", "Pearl", "Ruby",
+            "Scarlett", "Violet", "Ivy", "Hazel", "Willow", "Aurora", "Skye", "Breeze", "Rain", "Misty",
+            "Jules", "Remi", "Dakota", "Skyler", "Casey", "Morgan", "Taylor", "Jamie", "Riley", "Quinn",
+            "Cameron", "Avery"
         ];
 
         this.lastNames = [
@@ -80,7 +106,9 @@ class DriverGenerator {
             "Morris", "Rogers", "Reed", "Cook", "Morgan",
             "Bell", "Murphy", "Bailey", "Rivera", "Cooper",
             "Richardson", "Cox", "Howard", "Ward", "Torres",
-            "Peterson", "Gray", "Ramirez", "James", "Watson"
+            "Peterson", "Gray", "Ramirez", "James", "Watson",
+            "Speed", "Racer", "Driver", "Wheel", "Steer",
+            "Brake", "Shift", "Gear", "Clutch", "Nitro"
         ];
 
         // Hidden traits with gameplay effects
@@ -161,18 +189,27 @@ class DriverGenerator {
             "#808080"  // Gray
         ];
 
+        // Portrait IDs matching AssetManager keys (driver_ + id)
+        this.malePortraits = ['1m', '3m', '6m', '8m', '10m', '12m'];
+        this.femalePortraits = ['2f', '4f', '5f', '7f', '9f', '11f', '13f'];
+
         this.usedNames = new Set();
     }
 
     /**
-     * Generates a unique driver name
+     * Generates a unique driver name based on gender
      */
-    generateName() {
+    generateName(isMale = null) {
         let name;
         let attempts = 0;
+        
+        // If gender not specified, random
+        if (isMale === null) isMale = Math.random() < 0.5;
+
+        const firstNames = isMale ? this.maleFirstNames : this.femaleFirstNames;
 
         do {
-            const first = randomChoice(this.firstNames);
+            const first = randomChoice(firstNames);
             const last = randomChoice(this.lastNames);
             name = `${first} ${last}`;
             attempts++;
@@ -292,7 +329,13 @@ class DriverGenerator {
      * Generates a complete driver
      */
     generateDriver(tier = "balanced", teamIndex = null) {
-        const name = this.generateName();
+        // Assign Gender and Portrait first
+        // Simple 50/50 split for gender
+        const isMale = Math.random() < 0.5;
+        
+        // Generate name based on gender
+        const name = this.generateName(isMale);
+        
         const stats = this.generateStats(tier);
         const traits = this.assignHiddenTraits();
 
@@ -301,11 +344,17 @@ class DriverGenerator {
             ? this.teamColors[teamIndex % this.teamColors.length]
             : randomChoice(this.teamColors);
 
+        const portraitId = isMale 
+            ? randomChoice(this.malePortraits) 
+            : randomChoice(this.femalePortraits);
+
         return {
             name,
             stats,
             traits,
             teamColor,
+            portraitId: `driver_${portraitId}`, // Store the key for AssetManager
+            gender: isMale ? 'm' : 'f',
             overall: Math.round((stats.topSpeed + stats.cornering + stats.aggression +
                                stats.reliability + stats.stamina) / 5)
         };

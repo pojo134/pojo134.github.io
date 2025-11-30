@@ -43,15 +43,26 @@ class GarageScreen {
         // Animation updates can go here
     }
 
-    render(ctx, gameState) {
+    render(ctx, gameState, assetManager) {
         const canvas = ctx.canvas;
 
         // Background
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        let bgDrawn = false;
+        if (assetManager) {
+            const bg = assetManager.getImage('garage-bg');
+            if (bg) {
+                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+                bgDrawn = true;
+            }
+        }
+        
+        if (!bgDrawn) {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Header section
-        ctx.fillStyle = '#1a0a1a';
+        ctx.fillStyle = 'rgba(26, 10, 26, 0.85)';
         ctx.fillRect(0, 0, canvas.width, 100);
 
         ctx.font = 'bold 48px "Courier New", monospace';
@@ -96,7 +107,7 @@ class GarageScreen {
             const isHovered = this.hoveredUpgrade === upgrade;
 
             // Upgrade box
-            ctx.fillStyle = owned ? '#001a00' : (isHovered ? '#330033' : '#1a1a1a');
+            ctx.fillStyle = owned ? 'rgba(0, 26, 0, 0.85)' : (isHovered ? 'rgba(51, 0, 51, 0.85)' : 'rgba(26, 26, 26, 0.85)');
             ctx.fillRect(upgrade.x, upgrade.y, upgrade.width, upgrade.height);
 
             ctx.strokeStyle = owned ? '#00ff00' : (isHovered ? '#ff0066' : '#444444');
@@ -141,7 +152,7 @@ class GarageScreen {
             const isHovered = this.hoveredContract === index;
 
             // Contract box with hover effect
-            ctx.fillStyle = isSelected ? '#1a1a00' : (isHovered ? '#2a2a1a' : '#1a1a1a');
+            ctx.fillStyle = isSelected ? 'rgba(26, 26, 0, 0.85)' : (isHovered ? 'rgba(42, 42, 42, 0.85)' : 'rgba(26, 26, 26, 0.85)');
             ctx.fillRect(slot.x, slot.y, slot.width, slot.height);
 
             // Border with glow effect on hover/select

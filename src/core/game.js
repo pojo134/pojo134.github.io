@@ -492,6 +492,22 @@ class Game {
         this.assetManager.queueImage('grass_sample', 'assets/images/grass_sample.png');
         this.assetManager.queueImage('track_sample', 'assets/images/track_sample.png');
         this.assetManager.queueImage('track_side_strip', 'assets/images/track_side_strip.png');
+
+        // Backgrounds
+        this.assetManager.queueImage('bettingdesk-bg', 'assets/images/Backgrounds/bettingdesk-bg.png');
+        this.assetManager.queueImage('gameover-bg', 'assets/images/Backgrounds/gameover-bg.png');
+        this.assetManager.queueImage('garage-bg', 'assets/images/Backgrounds/garage-bg.png');
+        this.assetManager.queueImage('racescreen-bg', 'assets/images/Backgrounds/racescreen-bg.png');
+        this.assetManager.queueImage('results-bg', 'assets/images/Backgrounds/results-bg.png');
+        this.assetManager.queueImage('settings-bg', 'assets/images/Backgrounds/settings-bg.png');
+
+        // Driver Portraits
+        const drivers = [
+            '1m', '2f', '3m', '4f', '5f', '6m', '7f', '8m', '9f', '10m', '11f', '12m', '13f'
+        ];
+        drivers.forEach(id => {
+            this.assetManager.queueImage(`driver_${id}`, `assets/images/Characters/Drivers/${id}.png`);
+        });
     }
 
     /**
@@ -1116,43 +1132,43 @@ class Game {
     // ===== STATE RENDER METHODS =====
 
     _renderMainMenu() {
-        this.screens.mainMenu.render(this.ctx, this.gameState);
+        this.screens.mainMenu.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderGarage() {
-        this.screens.garage.render(this.ctx, this.gameState);
+        this.screens.garage.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderBetting() {
-        this.screens.betting.render(this.ctx, this.gameState);
+        this.screens.betting.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderRace() {
-        this.screens.race.render(this.ctx, this.gameState);
+        this.screens.race.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderDragRace() {
-        this.screens.dragRace.render(this.ctx, this.gameState);
+        this.screens.dragRace.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderResults() {
-        this.screens.results.render(this.ctx, this.gameState);
+        this.screens.results.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderSettings() {
-        this.screens.settings.render(this.ctx, this.gameState);
+        this.screens.settings.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderLoadGame() {
-        this.screens.loadGame.render(this.ctx, this.gameState);
+        this.screens.loadGame.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderGameOver() {
-        this.screens.gameOver.render(this.ctx, this.gameState);
+        this.screens.gameOver.render(this.ctx, this.gameState, this.assetManager);
     }
 
     _renderTierAdvancement() {
-        this.screens.tierAdvancement.render(this.ctx, this.gameState);
+        this.screens.tierAdvancement.render(this.ctx, this.gameState, this.assetManager);
     }
 
     // ===== RACE MANAGEMENT =====
