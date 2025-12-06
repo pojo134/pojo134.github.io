@@ -494,6 +494,16 @@ class Game {
         this.assetManager.queueImage('grass_sample', 'assets/images/grass_sample.png');
         this.assetManager.queueImage('track_sample', 'assets/images/track_sample.png');
         this.assetManager.queueImage('track_side_strip', 'assets/images/track_side_strip.png');
+        this.assetManager.queueImage('prod_car', 'assets/images/Car/prod_car.png');
+        this.assetManager.queueImage('grass_tile', 'assets/images/Car/grass_tile.png');
+        
+        // League-specific car sprites
+        this.assetManager.queueImage('kart_prod', 'assets/images/Car/kart_prod.png');
+        this.assetManager.queueImage('dirt_prod', 'assets/images/Car/dirt_prod.png');
+        this.assetManager.queueImage('stock_prod', 'assets/images/Car/stock_prod.png');
+        this.assetManager.queueImage('gt_prod', 'assets/images/Car/gt_prod.png');
+        this.assetManager.queueImage('lm_prod', 'assets/images/Car/lm_prod.png');
+        this.assetManager.queueImage('open_prod', 'assets/images/Car/open_prod.png');
 
         // Backgrounds
         this.assetManager.queueImage('bettingdesk-bg', 'assets/images/Backgrounds/bettingdesk-bg.png');
@@ -1305,6 +1315,10 @@ class Game {
             // Start the race
             this.raceSimulator.start();
             this.gameState.race.simulation = this.raceSimulator; // Assign to gameState for screens
+            
+            // Reset RaceScreen to clear old events
+            this.screens.race.reset();
+            
             this.screenManager.changeState(GameStates.RACE); // Transition to regular RACE screen
             console.log("DEBUG: Game._startRace: this.raceSimulator assigned (Regular):", this.raceSimulator);
             console.log("DEBUG: Game._startRace: this.raceSimulator is instanceof RaceSimulator?", this.raceSimulator instanceof RaceSimulator);

@@ -72,4 +72,5 @@ An automated test suite is included.
 *   **Track Export:** `track.js` uses a **default export**. When importing, ensure the path points to `src/models/track.js`.
 *   **Generators Export:** `generators.js` uses **named exports**.
 *   **Package Type:** The `package.json` specifies `"type": "module"`.
+*   **Pixellab.ai MCP Server documentation. Read and reference this before usage. Generation takes at least 60 seconds.  - https://api.pixellab.ai/mcp/docs
 *   **CI/CD:** The game has CI/CD setup with GitHub pages. Once the code is fully ready for production commit and push to the local branch. After a 60 second wait for the pipeline the site will be avaiable at https://pojo134.github.io/

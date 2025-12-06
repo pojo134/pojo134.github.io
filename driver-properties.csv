@@ -1,0 +1,96 @@
+#,Property,Type
+1,Top Speed,Float (0-100)
+2,Acceleration,Float (0-100)
+3,Braking,Float (0-100)
+4,Cornering,Float (0-100)
+5,Overtaking,Float (0-100)
+6,Defending,Float (0-100)
+7,Consistency,Float (0-100)
+8,Focus,Float (0-100)
+9,Aggression,Float (0-100)
+10,Wet Skill,Float (0-100)
+11,Tire Management,Float (0-100)
+12,Fuel Efficiency,Float (0-100)
+13,Reaction Time,Float (ms)
+14,Recovery,Float (0-100)
+15,Composure,Float (0-100)
+16,Adaptability,Float (0-100)
+17,Mechanic Rapport,Float (0-100)
+18,Drafting,Float (0-100)
+19,Night Vision,Float (0-100)
+20,Stamina,Float (0-100)
+21,First Name,String
+22,Last Name,String
+23,Nickname,String
+24,Age,Int
+25,Nationality,String
+26,Hometown,String
+27,Height,Int (in)
+28,Weight,Int (lbs)
+29,Handedness,String
+30,Vision,String
+31,Gender,String
+32,Years Pro,Int
+33,Car Number,Int
+34,Team Name,String
+35,Contract Cost,Int ($)
+36,Lucky Charm,String
+37,Pre-Race Ritual,String
+38,Phobia,String
+39,Allergy,String
+40,Spirit Animal,String
+41,Zodiac Sign,String
+42,Karaoke Song,String
+43,Least Fav Veg,String
+44,Sleep Avg,Float (hrs)
+45,Coffee Order,String
+46,Pet Name,String
+47,Pet Species,String
+48,Superstition,String
+49,High School GPA,Float
+50,Fav Color,Hex Code
+51,Charisma,Float (0-100)
+52,Aggro-Level,Enum
+53,Loyalty,Float (0-100)
+54,Greed,Float (0-100)
+55,Media Savvy,Float (0-100)
+56,Fan Base Name,String
+57,Catchphrase,String
+58,Nemesis,Int (Driver ID)
+59,Best Friend,Int (Driver ID)
+60,Morale,Float (0-100)
+61,Ego,Float (0-100)
+62,Luck,Float (0-100)
+63,Clutch Factor,Float (0-100)
+64,Intimidation,Float (0-100)
+65,Celebration,String
+66,Rain Hate,Bool
+67,Heat Stroker,Bool
+68,Oval Specialist,Bool
+69,Home Bonus,Bool
+70,Hangover Risk,Float (0-100)
+71,Career DNF Count (Did Not Finish),Int (Count)
+72,Preferred Weather,String
+73,Blood Type,String
+74,Shoe Size,Int(5-15)
+75,Resting Heart Rate,Float (50-100)
+76,"Hairline Status (e.g., Receding, Luscious, Artificial)",String
+77,Morning Person? (Yes/No),Bool
+78,Number of Tattoos,Int(0-25)
+79,Number of Siblings,Int(0-5)
+80,"Yearbook Superlative (e.g., Most Likely to Speed, Class Clown)",String
+81,Pizza Topping,String
+82,Favorite Dinosaur,String
+83,"Favorite Tool (e.g., 10mm Socket, Hammer, Duct Tape)",String
+84,Preferred Hot Sauce Heat,String
+85,Typing Speed (WPM),Float(15-60)
+86,"Sock Style (Ankle, Knee-high, Mismatched)",String
+87,Phone Battery % (Current),Float (1-100)
+88,Most Overused Emoji,String(Emoji)
+89,SAT Score,Int(400-1600)
+90,Favorite Cheese,String
+91,Podcast Genre,String
+92,t-shirt size,"String(L,XL,S,M)"
+93,cats/dog,String
+94,toilet paper orientation,String
+95,fruit/robot,String

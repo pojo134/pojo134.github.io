@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Generation Test Suite</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ff4444;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #444;
+        }
+
+        button {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #ff6666;
+        }
+
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #ff4444;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            background: #2a2a2a;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        table {
+            border-collapse: collapse;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+
+        th {
+            background-color: #333;
+            color: #ff4444;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        tr:hover {
+            background-color: #383838;
+        }
+
+        /* Column styling for specific types */
+        .col-float { color: #4db8ff; }
+        .col-int { color: #ffb84d; }
+        .col-string { color: #e0e0e0; }
+        .col-bool { font-weight: bold; }
+        .bool-true { color: #00cc66; }
+        .bool-false { color: #ff4444; }
+        
+        .color-swatch {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 1px solid #fff;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        /* Tooltip for long text */
+        .tooltip {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dotted #888;
+        }
+    </style>
+</head>
+<body>
+    <h1>Driver Generation Test Suite</h1>
+    
+    <div class="controls">
+        <button id="btn-generate">Generate 100 Drivers</button>
+        <button id="btn-export">Export CSV</button>
+        <span id="status">Ready</span>
+    </div>
+
+    <div id="stats-panel" class="stats-panel">
+        <!-- Summary stats will go here -->
+    </div>
+
+    <div class="table-container">
+        <table id="driver-table">
+            <thead>
+                <tr id="header-row">
+                    <!-- Headers will be injected -->
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Rows will be injected -->
+            </tbody>
+        </table>
+    </div>
+
+    <script type="module" src="test_driver_generator.js"></script>
+</body>
+</html>

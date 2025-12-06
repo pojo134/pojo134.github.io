@@ -6,6 +6,7 @@ class RaceScreen {
         this.currentEventTimer = 0; // Time remaining for current event
         this.currentAnalystId = null; // ID of the current commentator
         this.tickerScrollX = 0;
+        this.processedEvents = new Set(); // Track unique event objects to prevent duplicates
 
         // Burner Phone UI state
         this.phoneExpanded = false;
@@ -16,6 +17,20 @@ class RaceScreen {
         this.contactNotification = null;
         this.notificationTimer = 0;
         this.hoveredElement = null; // New property to track hovered UI elements
+    }
+
+    reset() {
+        this.raceTime = 0;
+        this.eventQueue = [];
+        this.currentEvent = null;
+        this.currentEventTimer = 0;
+        this.currentAnalystId = null;
+        this.processedEvents = new Set();
+        this.contactNotification = null;
+        this.notificationTimer = 0;
+        this.phoneExpanded = false;
+        this.selectedContact = null;
+        this.selectedDriver = null;
     }
 
     update(deltaTime, gameState) {
@@ -42,16 +57,14 @@ class RaceScreen {
                 // Get next event
                 const nextEvent = this.eventQueue.shift();
                 this.currentEvent = nextEvent;
-                this.currentEventTimer = 4000; // Show each event for 4 seconds
+                
+                // Dynamic timer: If queue is backed up (> 3 events), show faster
+                this.currentEventTimer = this.eventQueue.length > 3 ? 1500 : 2500;
                 
                 // Assign a random analyst
                 const analysts = ['a1m', 'a2f', 'a3f', 'a4m', 'a5m', 'a6f', 'a7m', 'a8m'];
                 const randomId = analysts[Math.floor(Math.random() * analysts.length)];
                 this.currentAnalystId = `analyst_${randomId}`;
-            } else {
-                // Optional: Keep the last event visible or clear it? 
-                // Let's keep it visible but maybe dim it or just leave it until a new one comes.
-                // If we want to clear: this.currentEvent = null;
             }
         }
 
@@ -59,36 +72,63 @@ class RaceScreen {
         if (gameState?.race?.simulation) {
             const raceState = gameState.race.simulation.getRaceState();
             if (raceState.events && raceState.events.length > 0) {
-                 // We need to track which events we've already processed.
-                 // The simulation returns the last 10 events.
-                 // A simple way is to check if the last event in our queue (or current event) matches the new ones.
-                 // But simulation events might not have unique IDs. 
-                 // Let's use a simple string check against the recently added ones.
-                 
-                 // Actually, RaceScreen.js used to filter: !this.eventLog.includes(event.message)
-                 // We can do similar logic but since we queue them, checking "includes" in queue is harder if queue is long (it won't be).
-                 // We'll check if it's already in queue or is the current event.
-                 
                  raceState.events.forEach(event => {
-                    // Filter out LAP_COMPLETE events UNLESS it's for the race leader
-                    const isLapCompleteEvent = event.message.includes('completes Lap');
-                    let shouldAddEvent = true;
+                    // Strict Deduplication: Check if we've already processed this specific event object
+                    if (this.processedEvents.has(event)) {
+                        return;
+                    }
+                    this.processedEvents.add(event);
 
-                    if (isLapCompleteEvent) {
-                        const raceLeader = raceState.leaderboard && raceState.leaderboard.length > 0 ? raceState.leaderboard[0] : null;
-                        const match = event.message.match(/(.+) completes Lap/);
-                        const eventDriverName = match ? match[1].trim() : null;
-                        if (raceLeader && raceLeader.driver && eventDriverName && raceLeader.driver.name !== eventDriverName) {
-                            shouldAddEvent = false;
-                        }
+                    let shouldAddEvent = false;
+
+                    // Filter based on EventType (using string literals to match constants.js)
+                    switch (event.type) {
+                        case 'PIT_STOP':
+                        case 'CRASH':
+                        case 'MECHANICAL_FAILURE':
+                        case 'YELLOW_FLAG':
+                        case 'CAUTION_END':
+                        case 'CONTACT_USED':
+                        case 'RACE_START':
+                            shouldAddEvent = true;
+                            break;
+                        
+                        case 'OVERTAKE':
+                            // Only top 5
+                            if (event.newPosition && event.newPosition <= 5) {
+                                shouldAddEvent = true;
+                            }
+                            break;
+                            
+                        case 'RACE_FINISH':
+                            // Only top 3 finishes (to avoid spam at end)
+                            if (event.position && event.position <= 3) {
+                                shouldAddEvent = true;
+                            }
+                            break;
+
+                        case 'LAP_COMPLETE':
+                            // Only for the leader
+                            const raceLeader = raceState.leaderboard && raceState.leaderboard.length > 0 ? raceState.leaderboard[0] : null;
+                            if (raceLeader && raceLeader.driver && raceLeader.driver.name === event.driver) {
+                                shouldAddEvent = true;
+                            }
+                            break;
                     }
 
-                    // Deduplication Logic
-                    const isCurrent = this.currentEvent === event.message;
-                    const isInQueue = this.eventQueue.includes(event.message);
-
-                    if (shouldAddEvent && !isCurrent && !isInQueue) {
-                        this.eventQueue.push(event.message);
+                    // Add to Queue with Prioritization
+                    if (shouldAddEvent) {
+                        // If it's a race finish or crash, prioritize it (unshift)
+                        if (event.type === 'RACE_FINISH' || event.type === 'CRASH') {
+                            // Insert at the beginning of the queue to show next
+                            this.eventQueue.unshift(event.message);
+                            // If queue is getting long, cut the current timer short to show this ASAP
+                            if (this.currentEventTimer > 1000) {
+                                this.currentEventTimer = 1000;
+                            }
+                        } else {
+                            this.eventQueue.push(event.message);
+                        }
                     }
                 });
             }
@@ -150,12 +190,12 @@ class RaceScreen {
         const TRACK_VIEW_Y = INFO_BAR_HEIGHT;
         const TRACK_VIEW_WIDTH = RIGHT_PANEL_X - PADDING; // Fills space up to PADDING away from the right panels
         const TRACK_VIEW_HEIGHT = EVENT_TICKER_Y - INFO_BAR_HEIGHT - PADDING;
-        this.renderTrackView(ctx, gameState, TRACK_VIEW_X, TRACK_VIEW_Y, TRACK_VIEW_WIDTH, TRACK_VIEW_HEIGHT);
+        this.renderTrackView(ctx, gameState, TRACK_VIEW_X, TRACK_VIEW_Y, TRACK_VIEW_WIDTH, TRACK_VIEW_HEIGHT, assetManager);
     }
 
     renderSkipRaceButton(ctx, gameState, x, y, width, height) {
         // Only render if race is still ongoing
-        if (gameState?.race?.isRaceOver) {
+        if (gameState?.race?.isRaceOver || gameState?.race?.simulation?.state === 'FINISHED') {
             return;
         }
 
@@ -245,7 +285,7 @@ class RaceScreen {
         ctx.fillText(`LAP ${lap}/${totalLaps}`, width - 20, 27);
     }
 
-    renderTrackView(ctx, gameState, x, y, width, height) {
+    renderTrackView(ctx, gameState, x, y, width, height, assetManager) {
         // Get track object
         const track = gameState?.race?.track;
         if (!track) {
@@ -254,8 +294,22 @@ class RaceScreen {
         }
 
         // Track container - fill entire area
-        ctx.fillStyle = '#1a2a1a'; // Changed background color
-        ctx.fillRect(x, y, width, height);
+        let grassDrawn = false;
+        if (assetManager) {
+            const grassImg = assetManager.getImage('grass_tile');
+            if (grassImg) {
+                const pattern = ctx.createPattern(grassImg, 'repeat');
+                ctx.fillStyle = pattern;
+                ctx.fillRect(x, y, width, height);
+                grassDrawn = true;
+            }
+        }
+
+        if (!grassDrawn) {
+            ctx.fillStyle = '#1a2a1a'; // Changed background color
+            ctx.fillRect(x, y, width, height);
+        }
+
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
@@ -274,7 +328,8 @@ class RaceScreen {
         // Draw cars on track
         const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: [] };
         const standings = raceState.leaderboard;
-        this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
+        const tier = gameState?.player?.tier || 1;
+        this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight, assetManager, tier);
 
     }
 
@@ -287,14 +342,34 @@ class RaceScreen {
     }
 
     /**
-     * Draw cars as colored dots on the track
+     * Draw cars as colored dots or sprites on the track
      */
-    drawCarsOnTrack(ctx, standings, track, x, y, width, height) {
+    drawCarsOnTrack(ctx, standings, track, x, y, width, height, assetManager, tier = 1) {
         if (!standings || !track) return;
 
         const bounds = track.visualBounds;
         const scaleX = width / bounds.width;
         const scaleY = height / bounds.height;
+
+        // Get car sprite based on tier
+        let carSprite = null;
+        if (assetManager) {
+            const spriteMap = {
+                1: 'kart_prod',
+                2: 'dirt_prod',
+                3: 'gt_prod',
+                4: 'lm_prod',
+                5: 'stock_prod',
+                6: 'open_prod'
+            };
+            const spriteName = spriteMap[tier] || 'prod_car';
+            carSprite = assetManager.getImage(spriteName);
+            
+            // Fallback to default prod_car if specific tier sprite isn't found
+            if (!carSprite) {
+                carSprite = assetManager.getImage('prod_car');
+            }
+        }
 
         standings.forEach((entry, position) => {
             // Calculate progress around track
@@ -307,38 +382,74 @@ class RaceScreen {
 
             // Get position on track
             let pos;
+            let rotation = 0;
 
-            // Check if car is in the pits
-            // Note: CarStatus.PIT_STOP is 'PIT_STOP' (usually), checking string to be safe or we could import
+            // Check if car is in the pits or DNF
             if ((entry.status === 'PIT_STOP' || entry.status === 'PIT_ENTRY' || entry.status === 'PIT_EXIT' ||
                  entry.status === 'DNF_CRASH' || entry.status === 'DNF_MECHANICAL') && entry.x !== undefined && entry.y !== undefined) {
                 // Use the car's actual x, y coordinates from the race simulation
-                // The racing system has already assigned the car to a unique pit stall
                 pos = { x: entry.x, y: entry.y };
+                // For rotation, use track direction as fallback since we don't have velocity vector here reliably
+                rotation = track.getDirectionAtProgress(segmentProgress);
             } else {
                 pos = track.getPositionAtProgress(segmentProgress);
+                rotation = track.getDirectionAtProgress(segmentProgress);
             }
 
             // Convert to screen coordinates
             const screenX = x + (pos.x - bounds.minX) * scaleX;
             const screenY = y + (pos.y - bounds.minY) * scaleY;
 
-            // Draw car dot with team color
+            // Draw car dot or sprite with team color
             const teamColor = entry.driver?.teamColor || entry.teamColor || '#00ffff';
-            ctx.fillStyle = teamColor;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, 6, 0, Math.PI * 2);
-            ctx.fill();
 
-            // Position number inside
-            ctx.fillStyle = '#000000';
-            ctx.font = 'bold 9px "Courier New", monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(String(position + 1), screenX, screenY);
+            if (carSprite) {
+                const carWidth = 16; // Scale down to similar size as previous dots (approx 16px width)
+                const aspectRatio = carSprite.width > 0 ? carSprite.height / carSprite.width : 0.5;
+                const carHeight = carWidth * aspectRatio;
+
+                ctx.save();
+                ctx.translate(screenX, screenY);
+                ctx.rotate(rotation);
+                
+                // Draw car sprite centered
+                ctx.drawImage(carSprite, -carWidth / 2, -carHeight / 2, carWidth, carHeight);
+
+                // Apply color overlay using multiply blend mode (tints the white car)
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.fillStyle = teamColor;
+                ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight);
+                
+                ctx.restore();
+
+                // Position number above car (upright)
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.font = 'bold 10px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.strokeText(String(position + 1), screenX, screenY - 6);
+                ctx.fillText(String(position + 1), screenX, screenY - 6);
+
+            } else {
+                // Fallback: Draw dot
+                ctx.fillStyle = teamColor;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Position number inside
+                ctx.fillStyle = '#000000';
+                ctx.font = 'bold 9px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(String(position + 1), screenX, screenY);
+            }
 
             // Status indicator (if crashed or DNF)
-            if (entry.status && entry.status !== 'RACING' && entry.status !== 'FINISHED') {
+            if (entry.status && entry.status !== 'RACING' && entry.status !== 'FINISHED' && 
+                !entry.status.includes('PIT')) {
                 ctx.strokeStyle = '#ff0000';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -737,7 +848,7 @@ class RaceScreen {
         // --- END COMMON LAYOUT CONSTANTS ---
 
         // Check for Skip Race button click
-        if (!gameState?.race?.isRaceOver &&
+        if (!gameState?.race?.isRaceOver && !gameState?.race?.simulation?.isRaceOver && // Add original condition back
             x >= SKIP_BUTTON_X && x <= SKIP_BUTTON_X + SKIP_BUTTON_WIDTH &&
             y >= SKIP_BUTTON_Y && y <= SKIP_BUTTON_Y + SKIP_BUTTON_HEIGHT) {
             this.handleSkipRace(gameState);
@@ -822,7 +933,7 @@ class RaceScreen {
         // --- END COMMON LAYOUT CONSTANTS ---
 
         // Check hover on Skip Race button
-        if (!gameState?.race?.isRaceOver &&
+        if (!gameState?.race?.isRaceOver && !gameState?.race?.simulation?.isRaceOver && // Add original condition back
             x >= SKIP_BUTTON_X && x <= SKIP_BUTTON_X + SKIP_BUTTON_WIDTH &&
             y >= SKIP_BUTTON_Y && y <= SKIP_BUTTON_Y + SKIP_BUTTON_HEIGHT) {
             this.hoveredElement = 'skipRaceButton';
