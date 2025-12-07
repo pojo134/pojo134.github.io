@@ -28,19 +28,37 @@ class EnhancedDriverGenerator {
         ];
 
         this.nationalities = [
-            "USA", "UK", "Germany", "France", "Italy", "Japan", "Brazil", "Australia", "Canada", "Spain",
-            "Finland", "Netherlands", "Mexico", "Argentina", "Sweden", "Norway", "Denmark", "Belgium", "Switzerland"
+            "Northern Region", "Southern Sector", "Western Province", "Eastern Zone", "Central District",
+            "Highland Territory", "Lowland Expanse", "Coastal Confederacy", "Riverland Republic", "Mountain Domain",
+            "Lake Federation", "Desert Coalition", "Forest Realm", "Prairie Union", "Oceanic Alliance",
+            "Urban Sprawl", "Old Colony", "New Frontier", "Sunny Republic", "Shadow Dominion"
         ];
 
         this.hometowns = [
-            "New York", "London", "Berlin", "Paris", "Rome", "Tokyo", "Sao Paulo", "Sydney", "Toronto", "Madrid",
-            "Helsinki", "Amsterdam", "Mexico City", "Buenos Aires", "Stockholm", "Oslo", "Copenhagen", "Brussels", "Zurich",
-            "Charlotte", "Indianapolis", "Monaco", "Silverstone", "Daytona", "Le Mans", "Suzuka", "Nurburg", "Spa"
+            "North City", "South Bay", "West End", "East Port", "Central City",
+            "Highland Park", "Lowland Valley", "Coastal Town", "River Side", "Mountain View",
+            "Lake City", "Desert Springs", "Forest Hill", "Valley Forge", "Ocean Point",
+            "Capital City", "Old Town", "New Hope", "Sunny Vale", "Shadow Creek",
+            "Twin Peaks", "Golden Sands", "Silver Creek", "Iron Ridge", "Copper Canyon"
         ];
 
         this.teamNames = [
             "Redline Racing", "Apex Autosport", "Velocity Vipers", "Turbo Titans", "Drift Demons",
             "Gearbox Gladiators", "Piston Pirates", "Nitro Knights", "Speed Syndicate", "Asphalt Assassins"
+        ];
+        
+        // Team colors for consistent mapping
+        this.teamColors = [
+            "#FF0000", // Red
+            "#0000FF", // Blue
+            "#00FF00", // Green
+            "#FFFF00", // Yellow
+            "#FF00FF", // Magenta
+            "#00FFFF", // Cyan
+            "#FF8800", // Orange
+            "#8800FF", // Purple
+            "#FFFFFF", // White
+            "#808080"  // Gray
         ];
 
         this.luckyCharms = [
@@ -204,6 +222,25 @@ class EnhancedDriverGenerator {
         const lastName = this.randomChoice(this.lastNames);
         const nickname = Math.random() < 0.4 ? this.randomChoice(this.nicknames) : "";
 
+        const nationality = this.randomChoice(this.nationalities);
+        const hometown = this.randomChoice(this.hometowns);
+        const teamColor = this.randomChoice(this.teamColors); // Assign a team color
+
+        // Map team color to team name
+        const teamNameMap = {
+            "#FF0000": "Red Jaguars",
+            "#0000FF": "Blue Barracudas",
+            "#00FF00": "Green Monkeys",
+            "#FFFF00": "Yellow Yetis",
+            "#FF00FF": "Pink Flamingos",
+            "#00FFFF": "Cyan Cobras",
+            "#FF8800": "Orange Iguanas",
+            "#8800FF": "Purple Parrots",
+            "#FFFFFF": "White Wolves",
+            "#808080": "Silver Snakes"
+        };
+        const teamName = teamNameMap[teamColor] || "Unknown Team";
+
         // Basic Info
         const driver = {
             id: id,
@@ -236,8 +273,8 @@ class EnhancedDriverGenerator {
             lastName: lastName,
             nickname: nickname,
             age: this.randomInt(18, 45),
-            nationality: this.randomChoice(this.nationalities),
-            hometown: this.randomChoice(this.hometowns),
+            nationality: nationality, // Use generated generic nationality
+            hometown: hometown,     // Use generated generic hometown
             height: this.randomInt(60, 80), // inches
             weight: this.randomInt(100, 220), // lbs
             handedness: this.randomChoice(this.handedness),
@@ -247,7 +284,8 @@ class EnhancedDriverGenerator {
             // Career Info (32-35)
             yearsPro: this.randomInt(0, 20),
             carNumber: this.randomInt(1, 99),
-            teamName: this.randomChoice(this.teamNames),
+            teamName: teamName, // Use mapped team name
+            teamColor: teamColor, // Include team color
 
 
             // Personality/Trivia (36-50)

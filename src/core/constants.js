@@ -8,7 +8,8 @@ export const GameStates = Object.freeze({
     SETTINGS: 'SETTINGS',
     LOAD_GAME: 'LOAD_GAME',
     GAME_OVER: 'GAME_OVER',
-    TIER_ADVANCEMENT: 'TIER_ADVANCEMENT'
+    TIER_ADVANCEMENT: 'TIER_ADVANCEMENT',
+    CREDITS: 'CREDITS'
 });
 
 export const RaceState = Object.freeze({

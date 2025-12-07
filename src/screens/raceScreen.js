@@ -1,3 +1,5 @@
+import { randomChoice } from '../utils/utils.js';
+
 class RaceScreen {
     constructor() {
         this.raceTime = 0;
@@ -7,6 +9,9 @@ class RaceScreen {
         this.currentAnalystId = null; // ID of the current commentator
         this.tickerScrollX = 0;
         this.processedEvents = new Set(); // Track unique event objects to prevent duplicates
+        this.carCache = new Map(); // Cache for tinted car sprites
+        this.trackLayer = null; // Cache for static track rendering
+        this.trackLayerDimensions = { width: 0, height: 0 };
 
         // Burner Phone UI state
         this.phoneExpanded = false;
@@ -26,6 +31,9 @@ class RaceScreen {
         this.currentEventTimer = 0;
         this.currentAnalystId = null;
         this.processedEvents = new Set();
+        this.carCache = new Map();
+        this.trackLayer = null;
+        this.trackLayerDimensions = { width: 0, height: 0 };
         this.contactNotification = null;
         this.notificationTimer = 0;
         this.phoneExpanded = false;
@@ -293,44 +301,74 @@ class RaceScreen {
             return;
         }
 
-        // Track container - fill entire area
-        let grassDrawn = false;
-        if (assetManager) {
-            const grassImg = assetManager.getImage('grass_tile');
-            if (grassImg) {
-                const pattern = ctx.createPattern(grassImg, 'repeat');
-                ctx.fillStyle = pattern;
-                ctx.fillRect(x, y, width, height);
-                grassDrawn = true;
+        // Ensure cache is valid
+        const cacheInvalid = !this.trackLayer || 
+                             this.trackLayerDimensions.width !== width || 
+                             this.trackLayerDimensions.height !== height;
+
+        if (cacheInvalid) {
+            // Initialize cache canvas
+            if (!this.trackLayer) {
+                this.trackLayer = document.createElement('canvas');
+            }
+            this.trackLayer.width = width;
+            this.trackLayer.height = height;
+            this.trackLayerDimensions = { width, height };
+            
+            const tCtx = this.trackLayer.getContext('2d');
+
+            // Draw Background (Grass)
+            let grassDrawn = false;
+            if (assetManager) {
+                const grassImg = assetManager.getImage('grass_tile');
+                if (grassImg) {
+                    const tileSize = grassImg.width; // Assuming square tiles
+                    for (let i = 0; i < width; i += tileSize) {
+                        for (let j = 0; j < height; j += tileSize) {
+                            tCtx.save();
+                            tCtx.translate(i + tileSize / 2, j + tileSize / 2);
+                            const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 3 / 2];
+                            const randomRot = randomChoice(rotations);
+                            tCtx.rotate(randomRot);
+                            tCtx.drawImage(grassImg, -tileSize / 2, -tileSize / 2, tileSize, tileSize);
+                            tCtx.restore();
+                        }
+                    }
+                    grassDrawn = true;
+                }
+            }
+
+            if (!grassDrawn) {
+                tCtx.fillStyle = '#1a2a1a';
+                tCtx.fillRect(0, 0, width, height);
+            }
+
+            // Draw static track elements onto cache
+            if (track.waypoints && track.waypoints.length > 1) {
+                // Draw at (0,0) of the cache canvas
+                // renderFullTrack expects display coordinates, so we pass 0,0 as origin 
+                // and the full width/height of the cache
+                track.renderFullTrack(tCtx, 0, 0, width, height);
             }
         }
 
-        if (!grassDrawn) {
-            ctx.fillStyle = '#1a2a1a'; // Changed background color
-            ctx.fillRect(x, y, width, height);
-        }
+        // Draw cached track layer
+        ctx.drawImage(this.trackLayer, x, y);
 
+        // Draw Border
         ctx.strokeStyle = '#ff0066';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Track drawing area (maximize space - only 8px padding each side, 8px top for title, 6px bottom for lap)
-        const trackDisplayX = x + 8;
-        const trackDisplayY = y + 8; // Adjusted Y for removed text
-        const trackDisplayWidth = width - 16;
-        const trackDisplayHeight = height - 16; // Adjusted height for removed text
-
-        // Draw track using waypoints
-        if (track.waypoints && track.waypoints.length > 1) {
-            this.drawTrackPath(ctx, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight);
-        }
-
-        // Draw cars on track
+        // Draw cars on track (Dynamic)
         const raceState = gameState?.race?.simulation?.getRaceState?.() || { currentLap: 1, totalLaps: 20, leaderboard: [] };
         const standings = raceState.leaderboard;
         const tier = gameState?.player?.tier || 1;
-        this.drawCarsOnTrack(ctx, standings, track, trackDisplayX, trackDisplayY, trackDisplayWidth, trackDisplayHeight, assetManager, tier);
-
+        
+        // Note: trackDisplayX/Y in drawCarsOnTrack must match where we drew the track.
+        // Since we drew the track image at x,y, the cars should also be drawn relative to x,y.
+        // The track object's coordinate system is preserved.
+        this.drawCarsOnTrack(ctx, standings, track, x, y, width, height, assetManager, tier);
     }
 
     /**
@@ -351,25 +389,19 @@ class RaceScreen {
         const scaleX = width / bounds.width;
         const scaleY = height / bounds.height;
 
-        // Get car sprite based on tier
-        let carSprite = null;
-        if (assetManager) {
-            const spriteMap = {
-                1: 'kart_prod',
-                2: 'dirt_prod',
-                3: 'gt_prod',
-                4: 'lm_prod',
-                5: 'stock_prod',
-                6: 'open_prod'
-            };
-            const spriteName = spriteMap[tier] || 'prod_car';
-            carSprite = assetManager.getImage(spriteName);
-            
-            // Fallback to default prod_car if specific tier sprite isn't found
-            if (!carSprite) {
-                carSprite = assetManager.getImage('prod_car');
-            }
-        }
+        // Get car sprite name based on tier
+        const spriteMap = {
+            1: 'kart_prod',
+            2: 'dirt_prod',
+            3: 'gt_prod',
+            4: 'lm_prod',
+            5: 'stock_prod',
+            6: 'open_prod'
+        };
+        const spriteName = spriteMap[tier] || 'prod_car';
+        
+        // Pre-fetch the raw sprite to ensure it exists before caching
+        const rawSprite = assetManager ? assetManager.getImage(spriteName) || assetManager.getImage('prod_car') : null;
 
         standings.forEach((entry, position) => {
             // Calculate progress around track
@@ -380,20 +412,26 @@ class RaceScreen {
             // Total progress (0-1 for current lap)
             const segmentProgress = (currentWaypoint + waypointProgress) / track.waypoints.length;
 
-            // Get position on track
-            let pos;
+            // Get position and rotation from simulation state if available
+            // This ensures we see the smoothed physics movement and overtaking offsets
+            let pos = { x: 0, y: 0 };
             let rotation = 0;
 
-            // Check if car is in the pits or DNF
-            if ((entry.status === 'PIT_STOP' || entry.status === 'PIT_ENTRY' || entry.status === 'PIT_EXIT' ||
-                 entry.status === 'DNF_CRASH' || entry.status === 'DNF_MECHANICAL') && entry.x !== undefined && entry.y !== undefined) {
-                // Use the car's actual x, y coordinates from the race simulation
+            if (typeof entry.x === 'number' && typeof entry.y === 'number') {
                 pos = { x: entry.x, y: entry.y };
-                // For rotation, use track direction as fallback since we don't have velocity vector here reliably
-                rotation = track.getDirectionAtProgress(segmentProgress);
             } else {
                 pos = track.getPositionAtProgress(segmentProgress);
-                rotation = track.getDirectionAtProgress(segmentProgress);
+            }
+
+            if (typeof entry.heading === 'number') {
+                rotation = entry.heading;
+            } else {
+                // Check if car is in the pits (fallback logic preserved but simplified)
+                if ((entry.status === 'PIT_STOP' || entry.status === 'PIT_ENTRY' || entry.status === 'PIT_EXIT') && entry.x !== undefined) {
+                     rotation = track.getDirectionAtProgress(segmentProgress);
+                } else {
+                     rotation = track.getDirectionAtProgress(segmentProgress);
+                }
             }
 
             // Convert to screen coordinates
@@ -403,26 +441,111 @@ class RaceScreen {
             // Draw car dot or sprite with team color
             const teamColor = entry.driver?.teamColor || entry.teamColor || '#00ffff';
 
-            if (carSprite) {
-                const carWidth = 16; // Scale down to similar size as previous dots (approx 16px width)
-                const aspectRatio = carSprite.width > 0 ? carSprite.height / carSprite.width : 0.5;
-                const carHeight = carWidth * aspectRatio;
+                        if (rawSprite) {
 
-                ctx.save();
-                ctx.translate(screenX, screenY);
-                ctx.rotate(rotation);
-                
-                // Draw car sprite centered
-                ctx.drawImage(carSprite, -carWidth / 2, -carHeight / 2, carWidth, carHeight);
+                            // Use cached tinted sprite
 
-                // Apply color overlay using multiply blend mode (tints the white car)
-                ctx.globalCompositeOperation = 'multiply';
-                ctx.fillStyle = teamColor;
-                ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight);
-                
-                ctx.restore();
+                            const cacheKey = `${spriteName}_${teamColor}`;
 
-                // Position number above car (upright)
+                            let tintedSprite = this.carCache.get(cacheKey);
+
+            
+
+                            if (!tintedSprite) {
+
+                                // Generate tinted sprite
+
+                                // Pre-scale to 48px width (2x target display size) for high quality downsampling
+
+                                const targetCacheWidth = 48; 
+
+                                const scaleFactor = targetCacheWidth / rawSprite.width;
+
+                                const targetCacheHeight = rawSprite.height * scaleFactor;
+
+            
+
+                                const offscreen = document.createElement('canvas');
+
+                                offscreen.width = targetCacheWidth;
+
+                                offscreen.height = targetCacheHeight;
+
+                                const osCtx = offscreen.getContext('2d');
+
+                                
+
+                                osCtx.imageSmoothingEnabled = true;
+
+                                osCtx.imageSmoothingQuality = 'high';
+
+            
+
+                                // 1. Draw original sprite scaled
+
+                                osCtx.drawImage(rawSprite, 0, 0, targetCacheWidth, targetCacheHeight);
+
+            
+
+                                // 2. Tint with multiply
+
+                                osCtx.globalCompositeOperation = 'multiply';
+
+                                osCtx.fillStyle = teamColor;
+
+                                osCtx.fillRect(0, 0, targetCacheWidth, targetCacheHeight);
+
+            
+
+                                // 3. Clip to sprite alpha (restore transparency)
+
+                                // We must draw the scaled sprite again for the mask to match
+
+                                osCtx.globalCompositeOperation = 'destination-in';
+
+                                osCtx.drawImage(rawSprite, 0, 0, targetCacheWidth, targetCacheHeight);
+
+            
+
+                                tintedSprite = offscreen;
+
+                                this.carCache.set(cacheKey, tintedSprite);
+
+                            }
+
+            
+
+                            const carWidth = 24; // Target display width
+
+                            const aspectRatio = tintedSprite.width > 0 ? tintedSprite.height / tintedSprite.width : 0.5;
+
+                            const carHeight = carWidth * aspectRatio;
+
+            
+
+                            ctx.save();
+
+                            ctx.imageSmoothingEnabled = true;
+
+                            ctx.imageSmoothingQuality = 'high';
+
+                            ctx.translate(screenX, screenY);
+
+                            ctx.rotate(rotation);
+
+                            
+
+                            // Draw tinted sprite
+
+                            ctx.drawImage(tintedSprite, -carWidth / 2, -carHeight / 2, carWidth, carHeight);
+
+                            
+
+                            ctx.restore();
+
+            
+
+                            // Position number above car (upright)
                 ctx.fillStyle = '#ffffff';
                 ctx.strokeStyle = '#000000';
                 ctx.lineWidth = 2;

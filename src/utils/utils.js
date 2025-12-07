@@ -13,6 +13,13 @@ export class Vec2 {
     dot(v) { return this.x * v.x + this.y * v.y; }
 }
 
+/**
+ * Returns a random element from an array
+ */
+export function randomChoice(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
 // --- Geometric Algorithms ---
 
 export function getSplinePoint(p0, p1, p2, p3, t) {

@@ -17,6 +17,7 @@ import SettingsScreen from '../screens/settingsScreen.js';
 import LoadGameScreen from '../screens/loadGameScreen.js';
 import GameOverScreen from '../screens/gameOverScreen.js';
 import TierAdvancementScreen from '../screens/tierAdvancementScreen.js';
+import CreditsScreen from '../screens/creditsScreen.js';
 import { RaceSimulator, DragRaceSimulator } from '../systems/racing.js';
 import { SaveSlot, SaveManager } from './saveload.js';
 import { GameState } from './gamestate.js';
@@ -504,6 +505,15 @@ class Game {
         this.assetManager.queueImage('gt_prod', 'assets/images/Car/gt_prod.png');
         this.assetManager.queueImage('lm_prod', 'assets/images/Car/lm_prod.png');
         this.assetManager.queueImage('open_prod', 'assets/images/Car/open_prod.png');
+        this.assetManager.queueImage('drag_prod', 'assets/images/Car/drag_prod.png');
+
+        // League Upgrade Backgrounds
+        this.assetManager.queueImage('kart_upgrade', 'assets/images/Car/kart_upgrade.png');
+        this.assetManager.queueImage('dirt_upgrade', 'assets/images/Car/dirt_upgrade.png');
+        this.assetManager.queueImage('gt_upgrade', 'assets/images/Car/gt_upgrade.png');
+        this.assetManager.queueImage('lm_upgrade', 'assets/images/Car/lm_upgrade.png');
+        this.assetManager.queueImage('stock_upgrade', 'assets/images/Car/stock_upgrade.png');
+        this.assetManager.queueImage('open_upgrade', 'assets/images/Car/open_upgrade.png');
 
         // Backgrounds
         this.assetManager.queueImage('bettingdesk-bg', 'assets/images/Backgrounds/bettingdesk-bg.png');
@@ -513,6 +523,7 @@ class Game {
         this.assetManager.queueImage('results-bg', 'assets/images/Backgrounds/results-bg.png');
         this.assetManager.queueImage('settings-bg', 'assets/images/Backgrounds/settings-bg.png');
         this.assetManager.queueImage('dragrace-bg', 'assets/images/Backgrounds/dragrace-bg.png');
+        this.assetManager.queueImage('endgame-bg', 'assets/images/Backgrounds/endgame-bg.png');
         
         // Cleet / Drag Race Win Backgrounds
         this.assetManager.queueImage('cleet-leroy', 'assets/images/Backgrounds/cleet-leroy.png');
@@ -628,6 +639,9 @@ class Game {
             case GameStates.TIER_ADVANCEMENT:
                 this._updateTierAdvancement(deltaTime);
                 break;
+            case GameStates.CREDITS:
+                this._updateCredits(deltaTime);
+                break;
         }
 
         // Handle wheel input
@@ -679,6 +693,9 @@ class Game {
             case GameStates.TIER_ADVANCEMENT:
                 this._renderTierAdvancement();
                 break;
+            case GameStates.CREDITS:
+                this._renderCredits();
+                break;
         }
 
         // Apply transition effects
@@ -716,7 +733,8 @@ class Game {
             settings: new SettingsScreen(),
             loadGame: new LoadGameScreen(),
             gameOver: new GameOverScreen(),
-            tierAdvancement: new TierAdvancementScreen()
+            tierAdvancement: new TierAdvancementScreen(),
+            credits: new CreditsScreen()
         };
 
         // Create game state
@@ -800,8 +818,9 @@ class Game {
         this.gameState.startNewGame(1); // Start at tier 1
         this._startNewSeason();
 
-        // Transition to garage
-        this.screenManager.changeState(GameStates.GARAGE);
+        // Reset and transition to Tier Advancement (Intro)
+        this.screens.tierAdvancement.reset();
+        this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
     }
 
     /**
@@ -828,7 +847,7 @@ class Game {
                 this._startNewGame();
             } else if (action === 'continue') {
                 // Load autosave
-                const saveData = this.saveManager.load('auto');
+                const saveData = this.saveManager.load('autosave');
                 if (saveData) {
                     this.gameState.fromJSON(saveData.gameState);
                     this.screenManager.changeState(GameStates.GARAGE);
@@ -881,6 +900,8 @@ class Game {
                     this._debugForceTier();
                 } else if (action.action === 'debugAddMoney') {
                     this.gameState.player.bankroll += 100000;
+                } else if (action.action === 'mainMenu') {
+                    this.screenManager.changeState(GameStates.MAIN_MENU);
                 }
             }
         }
@@ -1048,7 +1069,13 @@ class Game {
                         // Season complete - check if can advance tier
                         if (result.canAdvance && this.gameState.advanceTier()) {
                             this.screens.results.reset();
-                            this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
+                            // Check if player has completed the final tier (Tier 6 - Open Wheel)
+                            // advanceTier has already incremented the tier, so if it was 6, it is now 7.
+                            if (this.gameState.player.tier > 6) {
+                                this.screenManager.changeState(GameStates.CREDITS);
+                            } else {
+                                this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
+                            }
                         } else {
                             // Can't advance - continue with same tier
                             this._startNewSeason(); // Start new season at current tier
@@ -1156,15 +1183,38 @@ class Game {
             const action = this.screens.tierAdvancement.handleClick(mouse.x, mouse.y, this.gameState);
 
             if (action && action.action === 'continue') {
-                this._startNewSeason(); // Generate season for the new tier
-                this.screens.tierAdvancement.reset();
-                // this.screenManager.changeState(GameStates.GARAGE); // OLD
-                this._setupBonusDragRace(); // NEW: Go to bonus drag race
+                // Determine if this is the intro (Tier 1) or an actual advancement
+                const isIntro = this.gameState.player.tier === 1;
+
+                if (isIntro) {
+                    // For intro, season is already generated by _startNewGame
+                    // Go directly to Garage, skipping Drag Race bonus
+                    this.screens.tierAdvancement.reset();
+                    this.screenManager.changeState(GameStates.GARAGE);
+                } else {
+                    // For advancement, generate new season and go to bonus race
+                    this._startNewSeason(); 
+                    this.screens.tierAdvancement.reset();
+                    this._setupBonusDragRace();
+                }
             }
         }
 
         const mouse = this.inputManager.getMousePosition();
         this.screens.tierAdvancement.handleMouseMove(mouse.x, mouse.y);
+    }
+
+    _updateCredits(deltaTime) {
+        this.screens.credits.update(deltaTime, this.gameState);
+
+        if (this.inputManager.isMouseClicked()) {
+            const mouse = this.inputManager.getMousePosition();
+            const action = this.screens.credits.handleClick(mouse.x, mouse.y, this.gameState);
+
+            if (action && action.action === 'mainMenu') {
+                this.screenManager.changeState(GameStates.MAIN_MENU);
+            }
+        }
     }
 
     /**
@@ -1188,6 +1238,7 @@ class Game {
                 case GameStates.LOAD_GAME: currentScreen = this.screens.loadGame; break;
                 case GameStates.GAME_OVER: currentScreen = this.screens.gameOver; break;
                 case GameStates.TIER_ADVANCEMENT: currentScreen = this.screens.tierAdvancement; break;
+                case GameStates.CREDITS: currentScreen = this.screens.credits; break;
             }
 
             if (currentScreen && typeof currentScreen.handleWheel === 'function') {
@@ -1236,6 +1287,10 @@ class Game {
 
     _renderTierAdvancement() {
         this.screens.tierAdvancement.render(this.ctx, this.gameState, this.assetManager);
+    }
+
+    _renderCredits() {
+        this.screens.credits.render(this.ctx, this.gameState, this.assetManager);
     }
 
     // ===== RACE MANAGEMENT =====
@@ -1299,6 +1354,10 @@ class Game {
             this.raceSimulator = dragSimulator;
             this.raceSimulator.start();
             this.gameState.race.simulation = this.raceSimulator; // Assign to gameState for screens
+            
+            // Reset DragRaceScreen to clear old state and cache
+            this.screens.dragRace.reset();
+            
             this.screenManager.changeState(GameStates.DRAG_RACE); // Transition to DRAG_RACE screen
             console.log("DEBUG: Game._startRace: this.raceSimulator assigned (Drag):", this.raceSimulator);
             console.log("DEBUG: Game._startRace: this.raceSimulator is instanceof DragRaceSimulator?", this.raceSimulator instanceof DragRaceSimulator);
@@ -1420,7 +1479,11 @@ class Game {
             // Logic similar to _updateResults
             if (result.canAdvance && this.gameState.advanceTier()) {
                 // Tier advancement
-                this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
+                if (this.gameState.player.tier > 6) {
+                    this.screenManager.changeState(GameStates.CREDITS);
+                } else {
+                    this.screenManager.changeState(GameStates.TIER_ADVANCEMENT);
+                }
             } else {
                 // Should not happen if we set bankroll correctly, but fallback safely
                 console.log('Debug: Tier advancement failed despite forced funds?');
@@ -1438,7 +1501,7 @@ class Game {
      * @private
      */
     _createSaveSlot() {
-        const slot = new SaveSlot('auto');
+        const slot = new SaveSlot('autosave');
         // Manually construct the gameState object to match the flat structure expected by SaveSlot.validate()
         slot.gameState = {
             // Player Economy

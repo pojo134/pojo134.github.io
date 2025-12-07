@@ -6,6 +6,7 @@ class DragRaceScreen {
         this.bracketState = null;
         this.continueButtonBounds = null;
         this.selectedWinBg = null; // Store selected win background
+        this.carCache = new Map(); // Cache for tinted car sprites
         
         // Visual settings
         this.colors = {
@@ -74,7 +75,7 @@ class DragRaceScreen {
 
         // Render Panels
         this.renderBracketPanel(ctx, 0, 0, bracketWidth, height, gameState, assetManager);
-        this.renderRacePanel(ctx, bracketWidth, 0, raceWidth, height);
+        this.renderRacePanel(ctx, bracketWidth, 0, raceWidth, height, assetManager);
 
         // Overlay for Champion
         if (this.bracketState.state === RaceState.FINISHED && this.bracketState.champion) {
@@ -417,10 +418,24 @@ class DragRaceScreen {
         ctx.restore();
     }
 
-    renderRacePanel(ctx, x, y, width, height) {
-        // Panel Background - Green "Grass"
-        ctx.fillStyle = '#1a2a1a'; 
-        ctx.fillRect(x, y, width, height);
+    renderRacePanel(ctx, x, y, width, height, assetManager) {
+        // Panel Background - Green "Grass" or Texture
+        let grassDrawn = false;
+        if (assetManager) {
+            const grassImg = assetManager.getImage('grass_tile');
+            if (grassImg) {
+                const pattern = ctx.createPattern(grassImg, 'repeat');
+                ctx.fillStyle = pattern;
+                ctx.fillRect(x, y, width, height);
+                grassDrawn = true;
+            }
+        }
+
+        if (!grassDrawn) {
+            ctx.fillStyle = '#1a2a1a';
+            ctx.fillRect(x, y, width, height);
+        }
+
         ctx.strokeStyle = this.colors.panelBorder;
         ctx.strokeRect(x, y, width, height);
 
@@ -467,10 +482,10 @@ class DragRaceScreen {
             const heat = this.bracketState.heatState;
             
             // Lane 1 (Left)
-            this.renderCarOnStrip(ctx, renderX, renderY, renderW, renderH, heat.car1, heat.driver1, heat.car1ET, -1);
+            this.renderCarOnStrip(ctx, renderX, renderY, renderW, renderH, heat.car1, heat.driver1, heat.car1ET, -1, assetManager);
             
             // Lane 2 (Right)
-            this.renderCarOnStrip(ctx, renderX, renderY, renderW, renderH, heat.car2, heat.driver2, heat.car2ET, 1);
+            this.renderCarOnStrip(ctx, renderX, renderY, renderW, renderH, heat.car2, heat.driver2, heat.car2ET, 1, assetManager);
         }
 
         // 6. Render Christmas Tree (Overlay)
@@ -490,7 +505,7 @@ class DragRaceScreen {
         }
     }
 
-    renderCarOnStrip(ctx, displayX, displayY, displayWidth, displayHeight, carController, driver, et, laneDirection) {
+    renderCarOnStrip(ctx, displayX, displayY, displayWidth, displayHeight, carController, driver, et, laneDirection, assetManager) {
         if (!carController) return;
         
         const track = this.bracketState.track;
@@ -538,41 +553,85 @@ class DragRaceScreen {
             return;
         }
 
-        // 1. Draw Car Body (Circle)
         const teamColor = driver.teamColor || '#00ffff';
-        ctx.fillStyle = teamColor;
-        
-        // Glow effect
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = teamColor;
-        
-        ctx.beginPath();
-        ctx.arc(carX, carY, 8, 0, Math.PI * 2); 
-        ctx.fill();
-        
-        ctx.shadowBlur = 0; // Reset glow
 
-        // 2. Driver Initial/Number
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 10px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        // Use the Seed Number if available, otherwise first letter
-        const label = driver.seed ? `${driver.seed}` : (driver.name ? driver.name.substring(0, 1).toUpperCase() : '#');
-        ctx.fillText(label, carX, carY);
-        ctx.textBaseline = 'alphabetic'; // Reset
+        // Get car sprite
+        let carSprite = null;
+        if (assetManager) {
+            carSprite = assetManager.getImage('drag_prod');
+        }
 
-        // 3. Name Label (Below car) removed as requested to simplify, or keep if needed?
-        // User said: "simplify the display on the drawn cars to just that number"
-        // So we comment out the name label below car
-        /*
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(driver.name, carX, carY + 20);
-        */
+        if (carSprite) {
+            const carWidth = 50 * scale; // Increased base size to allow for larger finalWidth
+            const finalWidth = Math.min(carWidth, 70); // Limit max width to 70 (from 45)
+            const aspectRatio = carSprite.width > 0 ? carSprite.height / carSprite.width : 0.5;
+            const finalHeight = finalWidth * aspectRatio;
 
+            ctx.save();
+            ctx.translate(carX, carY);
+            ctx.rotate(-Math.PI / 2); // Face UP
+            
+            // Use cached tinted sprite
+            const cacheKey = `drag_prod_${teamColor}`;
+            let tintedSprite = this.carCache.get(cacheKey);
 
+            if (!tintedSprite) {
+                const offscreen = document.createElement('canvas');
+                offscreen.width = carSprite.width;
+                offscreen.height = carSprite.height;
+                const osCtx = offscreen.getContext('2d');
+                
+                osCtx.drawImage(carSprite, 0, 0);
+                osCtx.globalCompositeOperation = 'multiply';
+                osCtx.fillStyle = teamColor;
+                osCtx.fillRect(0, 0, offscreen.width, offscreen.height);
+                osCtx.globalCompositeOperation = 'destination-in';
+                osCtx.drawImage(carSprite, 0, 0);
+                
+                tintedSprite = offscreen;
+                this.carCache.set(cacheKey, tintedSprite);
+            }
+
+            ctx.drawImage(tintedSprite, -finalWidth / 2, -finalHeight / 2, finalWidth, finalHeight);
+            
+            ctx.restore();
+
+            // Driver Initial/Number
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#000000'; // Black stroke for visibility
+            ctx.lineWidth = 2;
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom'; // Draw from bottom up
+            const label = driver.seed ? `${driver.seed}` : (driver.name ? driver.name.substring(0, 1).toUpperCase() : '#');
+            ctx.strokeText(label, carX, carY - 10); // Draw stroke text above car
+            ctx.fillText(label, carX, carY - 10); // Draw fill text above car
+            ctx.textBaseline = 'alphabetic'; // Reset
+ 
+
+        } else {
+            // Fallback: Circle
+            ctx.fillStyle = teamColor;
+            
+            // Glow effect
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = teamColor;
+            
+            ctx.beginPath();
+            ctx.arc(carX, carY, 8, 0, Math.PI * 2); 
+            ctx.fill();
+            
+            ctx.shadowBlur = 0; // Reset glow
+
+            // Driver Initial/Number
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const label = driver.seed ? `${driver.seed}` : (driver.name ? driver.name.substring(0, 1).toUpperCase() : '#');
+            ctx.fillText(label, carX, carY);
+            ctx.textBaseline = 'alphabetic'; // Reset
+        }
     }
 
     _renderDriverETSlip(ctx, heatState, driverNum, panelX, panelY, panelWidth, panelHeight) {
@@ -783,6 +842,7 @@ class DragRaceScreen {
         this.bracketState = null;
         this.continueButtonBounds = null;
         this.selectedWinBg = null;
+        this.carCache = new Map();
     }
 }
 

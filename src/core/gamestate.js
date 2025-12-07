@@ -78,7 +78,14 @@ class GameState {
      * Starts a new game
      */
     startNewGame(tier = 1) {
+        // Preserve audio settings across reset
+        const currentAudio = { ...this.audio };
+        
         this.reset();
+        
+        // Restore audio settings
+        this.audio = currentAudio;
+        
         this.player.tier = tier;
         this.player.bankroll = this.calculateStartingBankroll(tier);
         this.player.startingBankroll = this.player.bankroll;

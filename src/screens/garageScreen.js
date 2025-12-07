@@ -229,6 +229,21 @@ class GarageScreen {
         ctx.textAlign = 'center';
         ctx.fillText('CONTINUE', continueBtn.x + continueBtn.width / 2, continueBtn.y + 32);
 
+        // Main Menu button (to the left of Continue)
+        const mainMenuBtn = { x: continueBtn.x - 180 - 10, y: continueBtn.y, width: 180, height: 50 };
+        this.mainMenuBtnBounds = mainMenuBtn;
+
+        ctx.fillStyle = '#666666'; // Gray color for Main Menu button
+        ctx.fillRect(mainMenuBtn.x, mainMenuBtn.y, mainMenuBtn.width, mainMenuBtn.height);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(mainMenuBtn.x, mainMenuBtn.y, mainMenuBtn.width, mainMenuBtn.height);
+
+        ctx.font = 'bold 20px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('MAIN MENU', mainMenuBtn.x + mainMenuBtn.width / 2, mainMenuBtn.y + 32);
+
         // --- FORCE TIER DEBUG BUTTON ---
         const debugSkipBtn = { x: canvas.width - 200, y: canvas.height - 200, width: 180, height: 50 };
         this.debugSkipSeasonBtnBounds = debugSkipBtn;
@@ -303,6 +318,13 @@ class GarageScreen {
             y >= continueBtn.y && y <= continueBtn.y + continueBtn.height &&
             this.selectedContract !== null) {
             return { action: 'startRace', contractIndex: this.selectedContract };
+        }
+
+        // Check Main Menu button
+        if (this.mainMenuBtnBounds &&
+            x >= this.mainMenuBtnBounds.x && x <= this.mainMenuBtnBounds.x + this.mainMenuBtnBounds.width &&
+            y >= this.mainMenuBtnBounds.y && y <= this.mainMenuBtnBounds.y + this.mainMenuBtnBounds.height) {
+            return { action: 'mainMenu' };
         }
 
         // Check DRAG DEBUG button

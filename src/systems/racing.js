@@ -797,8 +797,24 @@ class CarController {
             this.y += this.overtakeOffset * Math.sin(this.heading + Math.PI / 2);
     
             // Smoothly update heading towards the next segment's direction
-            const targetHeading = angleBetween(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
-            this.heading = lerpAngle(this.heading, targetHeading, 0.1); // Adjust 0.1 for desired steering responsiveness
+            // Look ahead: Interpolate between current segment and next segment direction
+            const currentSegAngle = angleBetween(currentWP.x, currentWP.y, nextWP.x, nextWP.y);
+            
+            // Determine next-next waypoint for look-ahead
+            let nextNextWPIndex;
+            if (physics.track.isLoop) {
+                nextNextWPIndex = (nextWPIndex + 1) % physics.waypoints.length;
+            } else {
+                nextNextWPIndex = (nextWPIndex < physics.waypoints.length - 1) ? nextWPIndex + 1 : nextWPIndex;
+            }
+            const nextNextWP = physics.waypoints[nextNextWPIndex];
+            
+            const nextSegAngle = angleBetween(nextWP.x, nextWP.y, nextNextWP.x, nextNextWP.y);
+            
+            // Interpolate target heading based on progress (Look Ahead)
+            const targetHeading = lerpAngle(currentSegAngle, nextSegAngle, this.waypointProgress);
+
+            this.heading = lerpAngle(this.heading, targetHeading, 0.05); // Reduced to 0.05 for smoother steering
         }
     }
 

@@ -4,6 +4,8 @@ class BettingScreen {
         this.betAmount = 100;
         this.betType = 'win'; // win, top3, h2h
         this.scrollOffset = 0;
+        this.scrollX = 0; // Horizontal scroll
+        this.maxScrollX = 0;
         this.hoveredDriver = null;
         this.driverListY = 300;
         this.portraitFlashTimer = 0;
@@ -12,13 +14,125 @@ class BettingScreen {
         this.currentSort = { column: 'position', direction: 'asc' };
         this.lastSortedDrivers = [];
         
+        // Comprehensive Column Configuration
         this.columnConfig = [
-             { key: 'position', label: 'POS', xOffset: 10, width: 60, clickable: true },
-             { key: 'name', label: 'DRIVER', xOffset: 80, width: 230, clickable: true },
-             { key: 'skill', label: 'SKILL', xOffset: 320, width: 100, clickable: true },
-             { key: 'form', label: 'FORM', xOffset: 430, width: 100, clickable: true },
-             { key: 'odds', label: 'ODDS', xOffset: 540, width: 80, clickable: true }
+            { key: 'qualifyingPosition', label: 'POS', width: 50 },
+            { key: 'name', label: 'DRIVER', width: 240 }, // Wider for name + nickname
+            { key: 'teamName', label: 'TEAM', width: 180 },
+            { key: 'teamColor', label: 'CLR', width: 50, type: 'color' },
+            { key: 'hometown', label: 'HOMETOWN', width: 150 },
+            { key: 'nationality', label: 'NATION', width: 140 }, // Wider
+            { key: 'age', label: 'AGE', width: 50 },
+            { key: 'gender', label: 'GENDER', width: 70 },
+            { key: 'height', label: 'HGT', width: 60 },
+            { key: 'weight', label: 'WGT', width: 60 },
+            { key: 'handedness', label: 'HAND', width: 80 },
+            { key: 'vision', label: 'VISION', width: 100 }, // Wider
+            { key: 'yearsPro', label: 'EXP', width: 50 },
+            { key: 'carNumber', label: '#', width: 40 },
+            { key: 'overall', label: 'OVR', width: 50 },
+            
+            // Stats
+            { key: 'stats.topSpeed', label: 'SPD', width: 60 },
+            { key: 'stats.acceleration', label: 'ACC', width: 60 },
+            { key: 'stats.braking', label: 'BRK', width: 60 },
+            { key: 'stats.cornering', label: 'CRN', width: 60 },
+            { key: 'stats.overtaking', label: 'OVR', width: 60 },
+            { key: 'stats.defending', label: 'DEF', width: 60 },
+            { key: 'stats.consistency', label: 'CON', width: 60 },
+            { key: 'stats.focus', label: 'FOC', width: 60 },
+            { key: 'stats.aggression', label: 'AGG', width: 60 },
+            { key: 'stats.wetSkill', label: 'WET', width: 60 },
+            { key: 'stats.tireManagement', label: 'TIRE', width: 60 },
+            { key: 'stats.fuelEfficiency', label: 'FUEL', width: 60 },
+
+            // Physical/Mental
+            { key: 'reactionTime', label: 'RT', width: 60 },
+            { key: 'recovery', label: 'REC', width: 60 },
+            { key: 'composure', label: 'CMP', width: 60 },
+            { key: 'adaptability', label: 'ADP', width: 60 },
+            { key: 'mechanicRapport', label: 'MECH', width: 60 },
+            { key: 'drafting', label: 'DFT', width: 60 },
+            { key: 'nightVision', label: 'NV', width: 60 },
+            { key: 'stamina', label: 'STA', width: 60 },
+
+            // Personality
+            { key: 'luckyCharm', label: 'LUCKY CHARM', width: 150 },
+            { key: 'preRaceRitual', label: 'RITUAL', width: 160 }, // Wider
+            { key: 'phobia', label: 'PHOBIA', width: 120 },
+            { key: 'allergy', label: 'ALLERGY', width: 120 },
+            { key: 'spiritAnimal', label: 'SPIRIT', width: 100 },
+            { key: 'zodiacSign', label: 'ZODIAC', width: 80 },
+            { key: 'leastFavVeg', label: 'HATES VEG', width: 130 }, // Wider
+            { key: 'sleepAvg', label: 'SLEEP', width: 60 },
+            { key: 'coffeeOrder', label: 'COFFEE', width: 120 },
+            { key: 'petName', label: 'PET', width: 100 },
+            { key: 'petSpecies', label: 'PET TYPE', width: 100 },
+            { key: 'highSchoolGPA', label: 'GPA', width: 50 },
+            { key: 'favColor', label: 'FAV CLR', width: 60, type: 'color' },
+
+            // Social
+            { key: 'charisma', label: 'CHA', width: 50 },
+            { key: 'loyalty', label: 'LOY', width: 50 },
+            { key: 'greed', label: 'GRD', width: 50 },
+            { key: 'mediaSavvy', label: 'MEDIA', width: 50 },
+            { key: 'fanBaseName', label: 'FANS', width: 150 },
+            { key: 'catchphrase', label: 'PHRASE', width: 220 }, // Wider
+
+            // RPG
+            { key: 'morale', label: 'MOR', width: 50 },
+            { key: 'ego', label: 'EGO', width: 50 },
+            { key: 'luck', label: 'LCK', width: 50 },
+            { key: 'clutchFactor', label: 'CLUTCH', width: 60 },
+            { key: 'intimidation', label: 'INTIM', width: 60 },
+
+            // Booleans
+            { key: 'rainHate', label: 'HATES RAIN', width: 80, type: 'bool' },
+            { key: 'heatStroker', label: 'BAD IN HEAT', width: 80, type: 'bool' },
+            { key: 'ovalSpecialist', label: 'OVAL SPEC', width: 80, type: 'bool' },
+            { key: 'homeBonus', label: 'HOME ADV', width: 80, type: 'bool' },
+            { key: 'morningPerson', label: 'MORNING', width: 70, type: 'bool' },
+
+            // Risks
+            { key: 'hangoverRisk', label: 'HANGOVER', width: 70 },
+            { key: 'careerDNF', label: 'DNFs', width: 50 },
+
+            // Bio
+            { key: 'preferredWeather', label: 'PREF WTHR', width: 100 },
+            { key: 'bloodType', label: 'BLOOD', width: 50 },
+            { key: 'shoeSize', label: 'SHOE', width: 50 },
+            { key: 'restingHeartRate', label: 'HR', width: 50 },
+            { key: 'tattooCount', label: 'TATS', width: 50 },
+            { key: 'siblingCount', label: 'SIBS', width: 50 },
+            { key: 'yearbookSuperlative', label: 'YEARBOOK', width: 200 }, // Wider
+
+            // Favorites
+            { key: 'pizzaTopping', label: 'PIZZA', width: 100 },
+            { key: 'favDinosaur', label: 'DINO', width: 140 }, // Wider
+            { key: 'favTool', label: 'TOOL', width: 100 },
+            { key: 'preferredHotSauce', label: 'HOT SAUCE', width: 80 }, // Numeric scale
+
+            // Quirks
+            { key: 'typingSpeed', label: 'WPM', width: 50 },
+            { key: 'sockStyle', label: 'SOCKS', width: 100 },
+            { key: 'phoneBattery', label: 'BATTERY', width: 60 },
+            { key: 'mostOverusedEmoji', label: 'EMOJI', width: 50 },
+            { key: 'satScore', label: 'SAT', width: 60 },
+            { key: 'favCheese', label: 'CHEESE', width: 100 },
+            { key: 'podcastGenre', label: 'PODCAST', width: 120 },
+            { key: 'tShirtSize', label: 'SHIRT', width: 50 },
+            { key: 'catsOrDogs', label: 'CAT/DOG', width: 80 },
+            { key: 'tpOrientation', label: 'TP', width: 80 },
+            { key: 'fruitOrRobot', label: 'F/R', width: 80 }
         ];
+
+        // Calculate cumulative x-offsets
+        let currentX = 0;
+        this.columnConfig.forEach(col => {
+            col.xOffset = currentX;
+            currentX += col.width;
+        });
+        this.totalTableWidth = currentX;
     }
 
     update(deltaTime, gameState) {
@@ -49,6 +163,12 @@ class BettingScreen {
             } else if (column === 'name') {
                 valA = a.name.toLowerCase();
                 valB = b.name.toLowerCase();
+            } else if (column === 'teamName') {
+                valA = (a.teamName || '').toLowerCase();
+                valB = (b.teamName || '').toLowerCase();
+            } else if (column === 'hometown') {
+                valA = (a.hometown || '').toLowerCase();
+                valB = (b.hometown || '').toLowerCase();
             } else if (column === 'skill') {
                 valA = this.getDriverRawSkill(a);
                 valB = this.getDriverRawSkill(b);
@@ -144,6 +264,10 @@ class BettingScreen {
         }
         
         return 'AVG';
+    }
+
+    getNestedValue(obj, path) {
+        return path.split('.').reduce((o, k) => (o || {})[k], obj);
     }
 
     render(ctx, gameState, assetManager) {
@@ -383,145 +507,182 @@ class BettingScreen {
     }
 
     renderDriverList(ctx, gameState, x, y, width, height) {
-        // List container
+        // Dimensions
+        const headerHeight = 35;
+        const scrollBarSize = 15;
+        const contentY = y + headerHeight;
+        const visibleWidth = width - scrollBarSize; // Reserve space for vertical scrollbar
+        const visibleHeight = height - headerHeight - scrollBarSize; // Reserve space for horizontal scrollbar
+        const rowHeight = 35;
+
+        // Update max scrolls
+        const totalContentHeight = (this.lastSortedDrivers.length || 0) * rowHeight;
+        this.maxScroll = Math.max(0, totalContentHeight - visibleHeight);
+        this.maxScrollX = Math.max(0, this.totalTableWidth - visibleWidth);
+
+        // Clamp scrolls
+        this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, this.maxScroll));
+        this.scrollX = Math.max(0, Math.min(this.scrollX, this.maxScrollX));
+
+        // List container background
         ctx.fillStyle = 'rgba(26, 26, 26, 0.85)';
         ctx.fillRect(x, y, width, height);
         ctx.strokeStyle = '#444444';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Header background
-        ctx.fillStyle = 'rgba(13, 13, 13, 0.85)';
-        ctx.fillRect(x + 2, y + 2, width - 4, 35);
-        ctx.fillStyle = '#444444';
-        ctx.fillRect(x + 2, y + 37, width - 4, 2); // Header separator
+        // Clip for content (Headers + Rows)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, visibleWidth, height - scrollBarSize);
+        ctx.clip();
 
-        // Render Headers
+        // Apply horizontal scroll translation
+        ctx.translate(-this.scrollX, 0);
+
+        // --- HEADERS ---
+        const headerY = y;
+        ctx.fillStyle = 'rgba(13, 13, 13, 0.95)'; // Slightly more opaque
+        // Draw header background spanning full totalWidth
+        ctx.fillRect(x + this.scrollX, headerY, visibleWidth, headerHeight); // Fixed background? No, it scrolls?
+        // Actually, usually headers scroll horizontally but stay fixed vertically.
+        // If I translate -scrollX, I draw headers at x. They move left. Correct.
+        // But the background should fill the visible area?
+        // Let's draw header background *before* translation? No, simpler to draw it per column or big rect.
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x, headerY, this.totalTableWidth, headerHeight);
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(x, headerY + headerHeight - 2, this.totalTableWidth, 2); // Separator
+
         ctx.font = 'bold 14px "Courier New", monospace';
         ctx.textAlign = 'left';
         
         this.columnConfig.forEach(col => {
+             const colX = x + col.xOffset;
+             // Highlight sorted column
              ctx.fillStyle = this.currentSort.column === col.key ? '#ffffff' : '#ffff00';
-             ctx.fillText(col.label, x + col.xOffset, y + 25);
+             ctx.fillText(col.label, colX + 5, headerY + 23);
              
              // Sort indicator
              if (this.currentSort.column === col.key) {
                  const arrow = this.currentSort.direction === 'asc' ? '▲' : '▼';
-                 // Estimate text width to place arrow
                  const textWidth = ctx.measureText(col.label).width;
                  ctx.font = '12px "Courier New", monospace';
-                 ctx.fillText(arrow, x + col.xOffset + textWidth + 5, y + 25);
-                 ctx.font = 'bold 14px "Courier New", monospace'; // Restore font
+                 ctx.fillText(arrow, colX + 5 + textWidth + 5, headerY + 23);
+                 ctx.font = 'bold 14px "Courier New", monospace'; 
              }
+             
+             // Column divider
+             ctx.fillStyle = '#333333';
+             ctx.fillRect(colX + col.width - 1, headerY, 1, headerHeight);
         });
 
-        // Drivers
-        const rawDrivers = gameState?.race?.drivers || this.generateDummyDrivers();
-        const drivers = this.sortDrivers(rawDrivers, gameState);
-        this.lastSortedDrivers = drivers; // Cache for interaction
-        
-        const rowHeight = 35;
-        const contentStartY = y + 40; // Visual top of the content area for rows
-        const textBaselineOffset = 23; // To center text vertically in a 35px row (approx)
+        // --- ROWS ---
+        const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : 
+                       this.sortDrivers(gameState?.race?.drivers || this.generateDummyDrivers(), gameState);
+        this.lastSortedDrivers = drivers;
 
-        // Define scrollbar area
-        const scrollBarX = x + width - 15;
-        const scrollBarY = y + 40; // Matches contentStartY
-        const scrollBarHeight = height - 40; // Height of the actual scrollable track
-
-        // Store maxScroll for interaction
-        const totalContentHeight = drivers.length * rowHeight;
-        const visibleListHeight = height - 40; // Height of the actual visible content area.
-        this.maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
-
-        // Clip the list area so scrolling doesn't draw outside
-        ctx.save();
-        ctx.beginPath();
-        // Clipping area top is now contentStartY, height is visibleListHeight
-        ctx.rect(x + 2, contentStartY, width - 4, visibleListHeight);
-        ctx.clip();
+        const textBaselineOffset = 23;
 
         drivers.forEach((driver, index) => {
-            const rowTop = contentStartY + index * rowHeight - this.scrollOffset; // Top edge of this row's visual bounding box
-            const textY = rowTop + textBaselineOffset; // Baseline for text
-
-            // Optimization: Don't draw if completely out of view
-            if (rowTop + rowHeight < contentStartY || rowTop > contentStartY + visibleListHeight) return;
+            const rowTop = contentY + index * rowHeight - this.scrollOffset;
+            
+            // Optimization: Visibility Check
+            if (rowTop + rowHeight < contentY || rowTop > contentY + visibleHeight) return;
 
             const isSelected = this.selectedDriver === driver;
             const isHovered = this.hoveredDriver === driver;
 
-            // Row background (Zebra striping)
-            if (isSelected) {
-                ctx.fillStyle = 'rgba(51, 0, 51, 0.85)'; // Selection highlight
-                ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
-            } else if (isHovered) {
-                ctx.fillStyle = 'rgba(26, 26, 0, 0.85)'; // Hover highlight
-                ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
-            } else if (index % 2 === 1) {
-                ctx.fillStyle = 'rgba(20, 20, 20, 0.5)'; // Darker for alternate rows
-                ctx.fillRect(x + 5, rowTop, width - 20, rowHeight - 2); // Fill from rowTop
-            }
+            // Row Background
+            let bgCol = index % 2 === 1 ? 'rgba(20, 20, 20, 0.5)' : 'rgba(0,0,0,0)';
+            if (isHovered) bgCol = 'rgba(26, 26, 0, 0.85)';
+            if (isSelected) bgCol = 'rgba(51, 0, 51, 0.85)';
 
-            // Driver data
-            ctx.font = '14px "Courier New", monospace';
+            ctx.fillStyle = bgCol;
+            ctx.fillRect(x, rowTop, this.totalTableWidth, rowHeight);
+
+            // Render Cells
             ctx.fillStyle = isSelected ? '#ffffff' : '#aaaaaa';
-            ctx.textAlign = 'left';
+            ctx.font = '14px "Courier New", monospace';
 
-            // POS
-            ctx.fillText(driver.qualifyingPosition || '-', x + this.columnConfig[0].xOffset, textY);
+            this.columnConfig.forEach(col => {
+                const cellX = x + col.xOffset;
+                const val = this.getNestedValue(driver, col.key);
 
-            // NAME
-            ctx.fillText(`${driver.name}`, x + this.columnConfig[1].xOffset, textY);
-
-            // Skill with bar
-            const skillValue = this.getDriverSkill(driver);
-            const skillNum = this.getDriverRawSkill(driver);
-            ctx.fillStyle = this.getSkillColor(skillValue);
-            ctx.fillText(skillValue, x + this.columnConfig[2].xOffset, textY); 
+                // Special Types
+                if (col.type === 'bool') {
+                    ctx.fillStyle = val ? '#00ff00' : '#ff0000';
+                    ctx.fillText(val ? 'YES' : 'NO', cellX + 5, rowTop + textBaselineOffset);
+                } else if (col.type === 'color') {
+                    if (val) {
+                        ctx.save();
+                        ctx.fillStyle = val;
+                        ctx.beginPath();
+                        ctx.arc(cellX + 20, rowTop + rowHeight / 2, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                } else {
+                    // Standard Text
+                    // Format numbers
+                    let textVal = val;
+                    if (typeof val === 'number') {
+                        // If float, fix to 2 dec?
+                        // Determine if float by checking remainder
+                        if (val % 1 !== 0) textVal = val.toFixed(2);
+                    }
+                    if (val === undefined || val === null) textVal = '-';
+                    
+                    ctx.fillStyle = isSelected ? '#ffffff' : '#aaaaaa';
+                    ctx.fillText(String(textVal), cellX + 5, rowTop + textBaselineOffset);
+                }
+                
+                // Cell border (subtle)
+                ctx.fillStyle = '#222222';
+                ctx.fillRect(cellX + col.width - 1, rowTop, 1, rowHeight);
+            });
             
-            // Draw Skill Bar
-            const barWidth = 80;
-            const barHeight = 4;
-            const barX = x + this.columnConfig[2].xOffset;
-            const barY = textY + 4; // Position relative to text baseline (under the text)
-            
-            ctx.fillStyle = '#333333'; // Bar bg
-            ctx.fillRect(barX, barY, barWidth, barHeight);
-            
-            ctx.fillStyle = '#ffd700'; // Bar fill
-            const fillPct = Math.min(1, Math.max(0, skillNum / 100));
-            ctx.fillRect(barX, barY, barWidth * fillPct, barHeight);
-
-            // Form
-            const formValue = this.getDriverForm(driver);
-            ctx.fillStyle = this.getFormColor(formValue);
-            ctx.fillText(formValue, x + this.columnConfig[3].xOffset, textY); 
-
-            // Odds
-            const oddsValue = this.getDriverOdds(driver, gameState);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillText(oddsValue, x + this.columnConfig[4].xOffset, textY); 
+            // Row bottom border
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(x, rowTop + rowHeight - 1, this.totalTableWidth, 1);
         });
 
-        ctx.restore();
+        ctx.restore(); // End translation/clipping
 
-        // Scroll indicator
-        if (totalContentHeight > visibleListHeight) {
-            // Scroll track
-            ctx.fillStyle = '#222222';
-            ctx.fillRect(scrollBarX, scrollBarY, 10, scrollBarHeight);
-
-            // Scroll thumb
-            const thumbHeight = Math.max(20, (visibleListHeight / totalContentHeight) * scrollBarHeight);
-            const scrollRatio = this.scrollOffset / this.maxScroll;
-            const thumbY = scrollBarY + (scrollRatio * (scrollBarHeight - thumbHeight));
-
+        // --- SCROLLBARS ---
+        // Vertical Scrollbar
+        if (this.maxScroll > 0) {
+            const sbX = x + width - scrollBarSize;
+            const sbY = contentY;
+            const sbH = visibleHeight;
+            
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(sbX, sbY, scrollBarSize, sbH);
+            
+            const thumbH = Math.max(20, (visibleHeight / totalContentHeight) * sbH);
+            const thumbY = sbY + (this.scrollOffset / this.maxScroll) * (sbH - thumbH);
+            
             ctx.fillStyle = '#ff0066';
-            ctx.fillRect(scrollBarX, thumbY, 10, thumbHeight);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(scrollBarX, thumbY, 10, thumbHeight);
+            ctx.fillRect(sbX + 2, thumbY, scrollBarSize - 4, thumbH);
+        }
+
+        // Horizontal Scrollbar
+        if (this.maxScrollX > 0) {
+            const sbX = x;
+            const sbY = y + height - scrollBarSize;
+            const sbW = visibleWidth;
+            
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(sbX, sbY, sbW, scrollBarSize);
+            
+            const thumbW = Math.max(20, (visibleWidth / this.totalTableWidth) * sbW);
+            const thumbX = sbX + (this.scrollX / this.maxScrollX) * (sbW - thumbW);
+            
+            ctx.fillStyle = '#ff0066';
+            ctx.fillRect(thumbX, sbY + 2, thumbW, scrollBarSize - 4);
         }
     }
 
@@ -659,6 +820,7 @@ class BettingScreen {
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20; // x-start of betting slip - driver list start x - padding between lists
         const DRIVER_LIST_HEIGHT = 400;
+        const scrollBarSize = 15;
 
         // Check bet type selector (now in betting slip)
         const slipX = canvas.width - 300;
@@ -679,23 +841,27 @@ class BettingScreen {
 
         // Check driver list interactions
         const listY = this.driverListY;
-        
+        const headerHeight = 35;
+        const visibleListWidth = DRIVER_LIST_WIDTH - scrollBarSize;
+        const visibleListHeight = DRIVER_LIST_HEIGHT - headerHeight - scrollBarSize;
+
         // 1. Header Clicks (Sorting)
-        if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH && y >= listY && y <= listY + 35) {
-            // Header Clicked
+        if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + visibleListWidth && 
+            y >= listY && y <= listY + headerHeight) {
+            
+            // Translate click X to content coordinates
+            const contentClickX = x - DRIVER_LIST_START_X + this.scrollX;
+
             for (let col of this.columnConfig) {
-                const headerX = DRIVER_LIST_START_X + col.xOffset;
-                // Simple hit detection for headers (approx width based on next column or end)
-                const nextCol = this.columnConfig.find(c => c.xOffset > col.xOffset);
-                const colWidth = nextCol ? (nextCol.xOffset - col.xOffset) : (DRIVER_LIST_WIDTH - col.xOffset);
-                
-                if (x >= headerX && x < headerX + colWidth) {
+                if (contentClickX >= col.xOffset && contentClickX < col.xOffset + col.width) {
                     if (this.currentSort.column === col.key) {
                         this.currentSort.direction = this.currentSort.direction === 'asc' ? 'desc' : 'asc';
                     } else {
                         this.currentSort.column = col.key;
                         this.currentSort.direction = 'desc'; // Default to desc (usually better for numbers)
-                        if (col.key === 'name') this.currentSort.direction = 'asc';
+                        if (col.key === 'name' || col.key === 'teamName' || col.key === 'hometown') {
+                            this.currentSort.direction = 'asc';
+                        }
                     }
                     return null;
                 }
@@ -706,36 +872,53 @@ class BettingScreen {
         const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : this.sortDrivers(gameState?.race?.drivers || this.generateDummyDrivers(), gameState);
         
         const rowHeight = 35;
-        const startY = listY + 40;
+        const startY = listY + headerHeight;
 
-        // Scroll bar interaction
-        const scrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15;
-        const scrollBarY = listY + 30;
-        const scrollBarHeight = DRIVER_LIST_HEIGHT - 40;
-        const scrollBarWidth = 10;
+        // Vertical Scroll bar interaction
+        const vScrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - scrollBarSize;
+        const vScrollBarY = startY;
+        const vScrollBarHeight = visibleListHeight;
 
-        if (x >= scrollBarX && x <= scrollBarX + scrollBarWidth &&
-            y >= scrollBarY && y <= scrollBarY + scrollBarHeight) {
+        if (x >= vScrollBarX && x <= vScrollBarX + scrollBarSize &&
+            y >= vScrollBarY && y <= vScrollBarY + vScrollBarHeight) {
             
-            const clickRelativeY = y - scrollBarY;
-            const scrollPercentage = clickRelativeY / scrollBarHeight;
+            const clickRelativeY = y - vScrollBarY;
+            const scrollPercentage = clickRelativeY / vScrollBarHeight;
             
             const totalContentHeight = drivers.length * rowHeight;
-            const visibleListHeight = DRIVER_LIST_HEIGHT - 40;
             const maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
             
             this.scrollOffset = scrollPercentage * maxScroll;
             return null; // Handled scroll click
         }
 
-        drivers.forEach((driver, index) => {
-            const rowY = startY + index * rowHeight - this.scrollOffset;
-            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH &&
-                y >= listY + 40 && y <= listY + DRIVER_LIST_HEIGHT && // Ensure click is within the content area
-                y >= rowY - 20 && y <= rowY + 15) {
-                this.selectedDriver = driver;
-            }
-        });
+        // Horizontal Scroll bar interaction
+        const hScrollBarX = DRIVER_LIST_START_X;
+        const hScrollBarY = listY + DRIVER_LIST_HEIGHT - scrollBarSize;
+        const hScrollBarWidth = visibleListWidth;
+
+        if (x >= hScrollBarX && x <= hScrollBarX + hScrollBarWidth &&
+            y >= hScrollBarY && y <= hScrollBarY + scrollBarSize) {
+            
+            const clickRelativeX = x - hScrollBarX;
+            const scrollPercentage = clickRelativeX / hScrollBarWidth;
+            
+            this.scrollX = scrollPercentage * this.maxScrollX;
+            return null; // Handled scroll click
+        }
+
+        // Row Clicks
+        if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + visibleListWidth &&
+            y >= startY && y <= startY + visibleListHeight) {
+            
+            drivers.forEach((driver, index) => {
+                const rowY = startY + index * rowHeight - this.scrollOffset;
+                // Check Y bounds
+                if (y >= rowY && y <= rowY + rowHeight) {
+                    this.selectedDriver = driver;
+                }
+            });
+        }
 
         // Check betting slip controls
         // slipX already declared above for bet type selector
@@ -792,61 +975,77 @@ class BettingScreen {
         const DRIVER_LIST_START_X = 20;
         const DRIVER_LIST_WIDTH = (canvas.width - 300) - DRIVER_LIST_START_X - 20;
         const DRIVER_LIST_HEIGHT = 400;
+        const scrollBarSize = 15;
         const rowHeight = 35;
-        const contentStartY = this.driverListY + 40; // Visual top of the content area for rows
-        const visibleListHeight = DRIVER_LIST_HEIGHT - 40; // Height of the actual visible content area.
+        const headerHeight = 35;
+        const contentStartY = this.driverListY + headerHeight;
+        const visibleListWidth = DRIVER_LIST_WIDTH - scrollBarSize;
+        const visibleListHeight = DRIVER_LIST_HEIGHT - headerHeight - scrollBarSize;
 
-        // Scroll bar drag logic
-        const listY = this.driverListY;
-        const scrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15;
-        const scrollBarY = this.driverListY + 40; // Matches contentStartY
-        const scrollBarHeight = DRIVER_LIST_HEIGHT - 40;
-        const scrollBarWidth = 15; // slightly wider hit area
+        // Vertical Scroll bar drag logic
+        const vScrollBarX = DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - scrollBarSize;
+        const vScrollBarY = contentStartY;
+        const vScrollBarHeight = visibleListHeight;
 
-        if (isMouseDown && x >= scrollBarX && x <= scrollBarX + scrollBarWidth &&
-            y >= scrollBarY && y <= scrollBarY + scrollBarHeight) {
+        if (isMouseDown && x >= vScrollBarX && x <= vScrollBarX + scrollBarSize &&
+            y >= vScrollBarY && y <= vScrollBarY + vScrollBarHeight) {
             
-            // Determine scroll position based on Y relative to track
-            const clickRelativeY = y - scrollBarY;
-            const scrollPercentage = Math.max(0, Math.min(1, clickRelativeY / scrollBarHeight));
+            const clickRelativeY = y - vScrollBarY;
+            const scrollPercentage = Math.max(0, Math.min(1, clickRelativeY / vScrollBarHeight));
             
             if (this.maxScroll !== undefined) {
                 this.scrollOffset = scrollPercentage * this.maxScroll;
             }
         }
 
+        // Horizontal Scroll bar drag logic
+        const hScrollBarX = DRIVER_LIST_START_X;
+        const hScrollBarY = this.driverListY + DRIVER_LIST_HEIGHT - scrollBarSize;
+        const hScrollBarWidth = visibleListWidth;
+
+        if (isMouseDown && x >= hScrollBarX && x <= hScrollBarX + hScrollBarWidth &&
+            y >= hScrollBarY && y <= hScrollBarY + scrollBarSize) {
+            
+            const clickRelativeX = x - hScrollBarX;
+            const scrollPercentage = Math.max(0, Math.min(1, clickRelativeX / hScrollBarWidth));
+            
+            if (this.maxScrollX !== undefined) {
+                this.scrollX = scrollPercentage * this.maxScrollX;
+            }
+        }
+
         // Track hovered driver in list
-        // Use cached sorted drivers for consistency with render
         const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : this.generateDummyDrivers();
         
         this.hoveredDriver = null;
         
         drivers.forEach((driver, index) => {
-            const rowTop = contentStartY + index * rowHeight - this.scrollOffset; // Top edge of this row's visual bounding box
-            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + DRIVER_LIST_WIDTH - 15 &&
-                y >= contentStartY && y <= contentStartY + visibleListHeight && // Ensure mouse is within the content area
-                y >= rowTop && y <= rowTop + rowHeight) { // Check if mouse is within this specific row
+            const rowTop = contentStartY + index * rowHeight - this.scrollOffset;
+            // Check X bounds within visible list width
+            if (x >= DRIVER_LIST_START_X && x <= DRIVER_LIST_START_X + visibleListWidth &&
+                y >= contentStartY && y <= contentStartY + visibleListHeight && 
+                y >= rowTop && y <= rowTop + rowHeight) {
                 this.hoveredDriver = driver;
             }
         });
     }
 
     handleWheel(wheelDelta, gameState) {
-        const canvas = { width: 1280, height: 720 };
         const DRIVER_LIST_HEIGHT = 400;
         const rowHeight = 35;
+        const headerHeight = 35;
+        const scrollBarSize = 15;
+        
         // Use sorted drivers if available or re-sort
         const drivers = this.lastSortedDrivers.length > 0 ? this.lastSortedDrivers : 
                        (gameState?.race?.drivers || this.generateDummyDrivers());
 
         const totalContentHeight = drivers.length * rowHeight;
-        const visibleListHeight = DRIVER_LIST_HEIGHT - 40; // Accounting for padding in renderDriverList
+        const visibleListHeight = DRIVER_LIST_HEIGHT - headerHeight - scrollBarSize;
 
         let maxScroll = Math.max(0, totalContentHeight - visibleListHeight);
 
         // Update scrollOffset
-        // wheelDelta is usually positive for scrolling down with deltaY. 
-        // We want scrollOffset to increase when scrolling down.
         this.scrollOffset += wheelDelta;
 
         // Clamp scrollOffset

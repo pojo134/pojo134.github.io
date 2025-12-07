@@ -113,66 +113,18 @@ class DriverGenerator {
 
         // Hidden traits with gameplay effects
         this.hiddenTraits = [
-            {
-                name: "Rain Master",
-                description: "+25% cornering in rain",
-                rarity: 0.15
-            },
-            {
-                name: "Choker",
-                description: "-15% all stats when leading",
-                rarity: 0.10
-            },
-            {
-                name: "Closer",
-                description: "+20% stamina in final laps",
-                rarity: 0.15
-            },
-            {
-                name: "Vendetta",
-                description: "Targets specific rival aggressively",
-                rarity: 0.12
-            },
-            {
-                name: "Ice Cold",
-                description: "Immune to pressure/contacts",
-                rarity: 0.08
-            },
-            {
-                name: "Hot Head",
-                description: "+30% aggression after contact",
-                rarity: 0.12
-            },
-            {
-                name: "Draft King",
-                description: "+15% speed when drafting",
-                rarity: 0.10
-            },
-            {
-                name: "Lone Wolf",
-                description: "+10% all stats when alone",
-                rarity: 0.10
-            },
-            {
-                name: "Night Owl",
-                description: "+20% awareness in night races",
-                rarity: 0.12
-            },
-            {
-                name: "Qualifying Hero",
-                description: "+25% stats in qualifying only",
-                rarity: 0.10
-            },
-            {
-                name: "Comeback Kid",
-                description: "+15% all stats when in bottom half",
-                rarity: 0.12
-            },
-            {
-                name: "Conservationist",
-                description: "+20% reliability, -10% aggression",
-                rarity: 0.15
-            }
+            { name: "Rain Master", description: "+25% cornering in rain", rarity: 0.15 },
+            { name: "Choker", description: "-15% all stats when leading", rarity: 0.10 },
+            { name: "Closer", description: "+20% stamina in final laps", rarity: 0.15 },
+            { name: "Vendetta", description: "Targets specific rival aggressively", rarity: 0.12 },
+            { name: "Ice Cold", description: "Immune to pressure/contacts", rarity: 0.08 },
+            { name: "Hot Head", description: "+30% aggression after contact", rarity: 0.12 },
+            { name: "Draft King", description: "+15% speed when drafting", rarity: 0.10 },
+            { name: "Lone Wolf", description: "+10% all stats when alone", rarity: 0.10 },
+            { name: "Night Owl", description: "+20% awareness in night races", rarity: 0.12 },
+            { name: "Qualifying Hero", description: "+25% stats in qualifying only", rarity: 0.10 },
+            { name: "Comeback Kid", description: "+15% all stats when in bottom half", rarity: 0.12 },
+            { name: "Conservationist", description: "+20% reliability, -10% aggression", rarity: 0.15 }
         ];
 
         // Team colors for drafting mechanics
@@ -193,7 +145,116 @@ class DriverGenerator {
         this.malePortraits = ['1m', '3m', '6m', '8m', '10m', '12m'];
         this.femalePortraits = ['2f', '4f', '5f', '7f', '9f', '11f', '13f'];
 
+        this.nicknames = [
+            "The Rocket", "Iceman", "Maverick", "Goose", "Slider", "Hollywood", "Viper", "Jester", "Merlin", "Sundown",
+            "Chaos", "Havoc", "Blitz", "Thunder", "Lightning", "Ghost", "Shadow", "Wraith", "Phantom", "Spectre"
+        ];
+
+        this.nationalities = [
+            "Northern Region", "Southern Sector", "Western Province", "Eastern Zone", "Central District",
+            "Highland Territory", "Lowland Expanse", "Coastal Confederacy", "Riverland Republic", "Mountain Domain",
+            "Lake Federation", "Desert Coalition", "Forest Realm", "Prairie Union", "Oceanic Alliance",
+            "Urban Sprawl", "Old Colony", "New Frontier", "Sunny Republic", "Shadow Dominion"
+        ];
+
+        this.hometowns = [
+            "North City", "South Bay", "West End", "East Port", "Central City",
+            "Highland Park", "Lowland Valley", "Coastal Town", "River Side", "Mountain View",
+            "Lake City", "Desert Springs", "Forest Hill", "Valley Forge", "Ocean Point",
+            "Capital City", "Old Town", "New Hope", "Sunny Vale", "Shadow Creek",
+            "Twin Peaks", "Golden Sands", "Silver Creek", "Iron Ridge", "Copper Canyon"
+        ];
+
+        this.teamNames = [
+            "Redline Racing", "Apex Autosport", "Velocity Vipers", "Turbo Titans", "Drift Demons",
+            "Gearbox Gladiators", "Piston Pirates", "Nitro Knights", "Speed Syndicate", "Asphalt Assassins"
+        ];
+
+        this.luckyCharms = ["Rabbit's Foot", "Four Leaf Clover", "Lucky Coin", "Horseshoe", "Dice", "Crystal", "Old Glove", "Grandpa's Watch", "Special Socks", "Miniature Car", "Religious Icon", "Poker Chip"];
+        this.rituals = ["Banana", "Metal", "Meditate", "Call Mom", "Left Boot", "Tap Roof", "Visualize", "Espresso", "Stretch", "Pray"];
+        this.phobias = ["Spiders", "Heights", "Clowns", "Darkness", "Snakes", "Flying", "Needles", "Public Speaking", "Losing", "Silence", "Birds", "Failure"];
+        this.allergies = ["Peanuts", "Shellfish", "Dairy", "Gluten", "Pollen", "Cats", "Dogs", "None", "Dust", "Soy", "Latex", "Bad Driving"];
+        this.spiritAnimals = ["Lion", "Tiger", "Eagle", "Wolf", "Bear", "Shark", "Cheetah", "Falcon", "Panther", "Hawk", "Honey Badger", "Fox", "Owl", "Bull"];
+        this.zodiacs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+        this.coffeeOrders = ["Black", "Latte", "Cappuccino", "Espresso", "Cold Brew", "Flat White", "Macchiato", "Americano", "Mocha", "Tea instead", "Energy Drink", "Water"];
+        this.petSpecies = ["Dog", "Cat", "Hamster", "Parrot", "Iguana", "Snake", "Goldfish", "Rabbit", "Turtle", "Ferret"];
+        this.petNames = ["Sparky", "Mittens", "Rex", "Luna", "Buddy", "Bella", "Charlie", "Max", "Lucy", "Daisy", "Turbo", "Nitro"];
+        this.catchphrases = ["Eat my dust!", "Checkered flag or bust!", "Too fast for you!", "See ya later!", "I feel the need... for speed!", "Rubbin' is racin'", "Shake and bake!", "Full send!", "Pedal to the metal!", "Smooth operator."];
+        this.celebrations = ["Backflip", "Shoey", "Donuts", "Fist pump", "Crowd surf", "Tears of joy", "Kneel", "Climb fence", "Point to sky", "Doughnuts"];
+        this.preferredWeather = ["Sunny", "Overcast", "Rain", "Stormy", "Hot", "Cold", "Windy", "Foggy"];
+        this.bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+        this.shoeSizes = [7, 8, 9, 10, 11, 12, 13, 14];
+        this.hairlines = ["Luscious", "Receding", "Bald", "Buzz Cut", "Man Bun", "Mullet", "Mohawk", "Ponytail", "Artificial"];
+        this.yearbookSuperlatives = ["Most Likely to Speed", "Class Clown", "Best Hair", "Most Athletic", "Biggest Flirt", "Teacher's Pet", "Most Likely to Succeed", "None"];
+
+        // this.visions array removed, vision generated dynamically
+        // this.hotSauces array removed, hot sauce generated dynamically
+        this.veggies = ["Broccoli", "Brussels Sprouts", "Spinach", "Kale", "Cauliflower", "Asparagus", "Beets", "Eggplant", "Okra", "Lima Beans"];
+
+        this.handedness = ["Right", "Left", "Ambidextrous"];
+        this.pizzaToppings = ["Pepperoni", "Mushrooms", "Onions", "Sausage", "Bacon", "Extra Cheese", "Black Olives", "Green Peppers", "Pineapple", "Spinach"];
+        this.dinosaurs = ["T-Rex", "Triceratops", "Velociraptor", "Stegosaurus", "Brachiosaurus", "Spinosaurus", "Ankylosaurus", "Pterodactyl", "Diplodocus", "Allosaurus"];
+        this.tools = ["Hammer", "Wrench", "Screwdriver", "Drill", "Saw", "Pliers", "Tape Measure", "Level", "Chisel", "Allen Key"];
+        this.sockStyles = ["Ankle", "Crew", "Knee High", "No Show", "Toe Socks", "Mismatched", "Argyle", "Striped", "Polka Dot", "Neon"];
+        this.emojis = ["😂", "🔥", "🏎️", "🤔", "😎", "👍", "👀", "💯", "💀", "🏁"];
+        this.cheeses = ["Cheddar", "Mozzarella", "Swiss", "Provolone", "Gouda", "Brie", "Parmesan", "Feta", "Blue Cheese", "American"];
+        this.podcastGenres = ["True Crime", "Comedy", "News", "History", "Technology", "Sports", "Business", "Science", "Health", "Fiction"];
+        this.tShirtSizes = ["XS", "S", "M", "L", "XL", "XXL"];
+        this.catsDogs = ["Cats", "Dogs", "Both", "Neither", "Ferrets"];
+        this.tpOrientation = ["Over", "Under", "Sideways", "None"];
+
         this.usedNames = new Set();
+    }
+
+    generateFanBaseName(firstName, lastName, nickname) {
+        const suffixes = ["Squad", "Army", "Nation", "Crew", "Clan", "Club", "Pack", "Gang", "Force", "Legion", "Maniacs", "Fanatics"];
+        
+        // Strategy 1: Use Nickname if available (30% chance)
+        if (nickname && Math.random() < 0.3) {
+            return `The ${nickname}s`;
+        }
+
+        // Strategy 2: Alliteration (First Letter Match) (40% chance)
+        if (Math.random() < 0.4) {
+            const nameToUse = Math.random() < 0.5 ? firstName : lastName;
+            const firstLetter = nameToUse.charAt(0).toUpperCase();
+            
+            // Simple hardcoded alliterations
+            const alliterations = {
+                'A': ["Army", "Allies", "Avengers", "Agents", "Aces"],
+                'B': ["Brigade", "Bandits", "Battalion", "Boys", "Beasts"],
+                'C': ["Crew", "Cult", "Clan", "Champions", "Crushers"],
+                'D': ["Demons", "Defenders", "Dynasty", "Disciples", "Dragons"],
+                'E': ["Empire", "Elite", "Enforcers", "Eagles"],
+                'F': ["Fanatics", "Force", "Fleet", "Fighters", "Fans"],
+                'G': ["Gang", "Group", "Guardians", "Gladiators", "Giants"],
+                'H': ["Heroes", "Hunters", "Horde", "Hooligans", "Hawks"],
+                'I': ["Invaders", "Idols", "Icons", "Infantry"],
+                'J': ["Jets", "Jockeys", "Jugganauts", "Jokers"],
+                'K': ["Kings", "Knights", "Killers", "Kingdom"],
+                'L': ["Legion", "Legends", "Lovers", "Lions", "Lunatics"],
+                'M': ["Maniacs", "Masters", "Mob", "Machines", "Monsters"],
+                'N': ["Nation", "Ninjas", "Nomads", "Navigators"],
+                'O': ["Outlaws", "Operators", "Oracles", "Order"],
+                'P': ["Pack", "Posse", "Patriots", "Pirates", "Phantoms"],
+                'R': ["Rebels", "Raiders", "Rangers", "Racers", "Royals"],
+                'S': ["Squad", "Storm", "Soldiers", "Survivors", "Saints"],
+                'T': ["Team", "Titans", "Troop", "Tribe", "Thunder"],
+                'V': ["Vanguard", "Vikings", "Vipers", "Veterans"],
+                'W': ["Warriors", "Wolves", "Winners", "Wizards"],
+                'Z': ["Zone", "Zealots", "Zombies"]
+            };
+
+            if (alliterations[firstLetter]) {
+                const suffix = randomChoice(alliterations[firstLetter]);
+                return `${nameToUse}'s ${suffix}`;
+            }
+        }
+
+        // Strategy 3: Possessive Suffix (30% chance)
+        const name = Math.random() < 0.5 ? firstName : lastName;
+        const suffix = randomChoice(suffixes);
+        return `${name}'s ${suffix}`;
     }
 
     /**
@@ -329,34 +390,167 @@ class DriverGenerator {
      * Generates a complete driver
      */
     generateDriver(tier = "balanced", teamIndex = null) {
-        // Assign Gender and Portrait first
-        // Simple 50/50 split for gender
         const isMale = Math.random() < 0.5;
-        
-        // Generate name based on gender
-        const name = this.generateName(isMale);
-        
+        const firstName = isMale ? randomChoice(this.maleFirstNames) : randomChoice(this.femaleFirstNames);
+        const lastName = randomChoice(this.lastNames);
+        const nickname = Math.random() < 0.4 ? randomChoice(this.nicknames) : "";
+        const name = nickname ? `${firstName} "${nickname}" ${lastName}` : `${firstName} ${lastName}`;
+
         const stats = this.generateStats(tier);
         const traits = this.assignHiddenTraits();
 
+        const nationality = randomChoice(this.nationalities);
+        const hometown = randomChoice(this.hometowns);
+        
         // Assign team color (for drafting mechanics)
         const teamColor = teamIndex !== null
             ? this.teamColors[teamIndex % this.teamColors.length]
             : randomChoice(this.teamColors);
+
+        // Map team color to team name
+        const teamNameMap = {
+            "#FF0000": "Red Jaguars",
+            "#0000FF": "Blue Barracudas",
+            "#00FF00": "Green Monkeys",
+            "#FFFF00": "Yellow Yetis",
+            "#FF00FF": "Pink Flamingos",
+            "#00FFFF": "Cyan Cobras",
+            "#FF8800": "Orange Iguanas",
+            "#8800FF": "Purple Parrots",
+            "#FFFFFF": "White Wolves",
+            "#808080": "Silver Snakes"
+        };
+        const teamName = teamNameMap[teamColor] || "Unknown Team";
 
         const portraitId = isMale 
             ? randomChoice(this.malePortraits) 
             : randomChoice(this.femalePortraits);
 
         return {
+            id: null, // Will be set by generateField
+            // Basic Info
             name,
-            stats,
-            traits,
+            firstName,
+            lastName,
+            // nickname removed from here as requested
+            gender: isMale ? "Male" : "Female",
+            age: randomInt(18, 45),
+            nationality,
+            hometown,
+            height: randomInt(60, 80), // inches
+            weight: randomInt(100, 220), // lbs
+            handedness: randomChoice(this.handedness),
+            vision: `20/${10 + 5 * randomInt(0, 6)}`, // 20/10 to 20/40
+            portraitId: `driver_${portraitId}`,
+
+            // Team & Career
+            teamName,
             teamColor,
-            portraitId: `driver_${portraitId}`, // Store the key for AssetManager
-            gender: isMale ? 'm' : 'f',
+            yearsPro: randomInt(0, 20),
+            carNumber: randomInt(1, 99),
+
+            // Performance Stats
+            stats: {
+                ...stats, // Base stats (topSpeed, cornering, etc.)
+                // Add extended stats
+                acceleration: clamp(Math.round(randomNormal(stats.topSpeed, 5)), 1, 100), // correlated to speed
+                braking: clamp(Math.round(randomNormal(stats.cornering, 5)), 1, 100), // correlated to cornering
+                overtaking: clamp(Math.round(randomNormal(stats.aggression, 5)), 1, 100),
+                defending: clamp(Math.round(randomNormal(stats.consistency || 60, 5)), 1, 100),
+                consistency: randomInt(1, 100),
+                focus: randomInt(1, 100),
+                wetSkill: randomInt(1, 100),
+                tireManagement: randomInt(1, 100),
+                fuelEfficiency: randomInt(1, 100)
+            },
+            
+            traits,
             overall: Math.round((stats.topSpeed + stats.cornering + stats.aggression +
-                               stats.reliability + stats.stamina) / 5)
+                               stats.reliability + stats.stamina) / 5),
+
+            // Physical/Mental
+            reactionTime: randomFloat(150, 300), // ms
+            recovery: randomInt(50, 100),
+            composure: randomInt(50, 100),
+            adaptability: randomInt(50, 100),
+            mechanicRapport: randomInt(50, 100),
+            drafting: randomInt(50, 100),
+            nightVision: randomInt(50, 100),
+
+            // Personality/Trivia
+            luckyCharm: randomChoice(this.luckyCharms),
+            preRaceRitual: Math.random() < 0.5 ? "None" : randomChoice(this.rituals), // 50% None
+            phobia: randomChoice(this.phobias),
+            allergy: randomChoice(this.allergies),
+            spiritAnimal: randomChoice(this.spiritAnimals),
+            zodiacSign: randomChoice(this.zodiacs),
+
+            leastFavVeg: randomChoice(this.veggies),
+            sleepAvg: randomFloat(4, 10),
+            coffeeOrder: randomChoice(this.coffeeOrders),
+            petName: randomChoice(this.petNames),
+            petSpecies: randomChoice(this.petSpecies),
+
+            highSchoolGPA: randomFloat(2.0, 4.0),
+            favColor: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+
+            // Social/Metagame
+            charisma: randomInt(0, 100),
+            loyalty: randomInt(0, 100),
+            greed: randomInt(0, 100),
+            mediaSavvy: randomInt(0, 100),
+            fanBaseName: this.generateFanBaseName(firstName, lastName, nickname),
+            catchphrase: randomChoice(this.catchphrases),
+
+            // Relationships (Placeholders)
+            nemesisId: null,
+            bestFriendId: null,
+
+            // RPG Stats
+            morale: randomInt(50, 100),
+            ego: randomInt(0, 100),
+            luck: randomInt(0, 100),
+            clutchFactor: randomInt(0, 100),
+            intimidation: randomInt(0, 100),
+
+            // Booleans
+            rainHate: Math.random() < 0.2,
+            heatStroker: Math.random() < 0.15,
+            ovalSpecialist: Math.random() < 0.3,
+            homeBonus: Math.random() < 0.1,
+            morningPerson: Math.random() < 0.5,
+
+            // Risks/History
+            hangoverRisk: randomInt(0, 50),
+            careerDNF: randomInt(0, 50),
+
+            // Bio Details
+            preferredWeather: randomChoice(this.preferredWeather),
+            bloodType: randomChoice(this.bloodTypes),
+            shoeSize: randomChoice(this.shoeSizes),
+            restingHeartRate: randomInt(45, 85),
+            tattooCount: randomInt(0, 25),
+            siblingCount: randomInt(0, 6),
+            yearbookSuperlative: randomChoice(this.yearbookSuperlatives), // Now includes None
+
+            // Favorites
+            pizzaTopping: randomChoice(this.pizzaToppings),
+            favDinosaur: randomChoice(this.dinosaurs),
+            favTool: randomChoice(this.tools),
+            preferredHotSauce: Math.round(clamp(randomNormal(45, 15), 1, 100)), // 1-100 scale
+
+            // Random Quirks
+            typingSpeed: randomInt(20, 120),
+            sockStyle: randomChoice(this.sockStyles),
+            phoneBattery: randomInt(1, 100),
+            mostOverusedEmoji: randomChoice(this.emojis),
+            satScore: randomInt(800, 1600),
+            favCheese: randomChoice(this.cheeses),
+            podcastGenre: randomChoice(this.podcastGenres),
+            tShirtSize: randomChoice(this.tShirtSizes),
+            catsOrDogs: randomChoice(this.catsDogs),
+            tpOrientation: randomChoice(this.tpOrientation),
+            fruitOrRobot: randomChoice(["Fruit", "Robot"])
         };
     }
 
@@ -430,6 +624,27 @@ class DriverGenerator {
         field.forEach((driver, index) => {
             driver.startingPosition = index + 1;
             driver.id = index;
+        });
+
+        // Post-processing for relationships
+        field.forEach(driver => {
+            // 30% chance to have a nemesis
+            if (Math.random() < 0.3) {
+                let nemesis;
+                do {
+                    nemesis = field[Math.floor(Math.random() * field.length)];
+                } while (nemesis.id === driver.id);
+                driver.nemesisId = nemesis.id;
+            }
+
+            // 40% chance to have a best friend
+            if (Math.random() < 0.4) {
+                let friend;
+                do {
+                    friend = field[Math.floor(Math.random() * field.length)];
+                } while (friend.id === driver.id || friend.id === driver.nemesisId);
+                driver.bestFriendId = friend.id;
+            }
         });
 
         return field;
